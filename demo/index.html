@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>tosi-editable Demo</title>
+        <style>
+            body {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                max-width: 900px;
+                margin: 40px auto;
+                padding: 0 20px;
+                color: #333;
+                background: #eee;
+            }
+            h1 {
+                margin-bottom: 8px;
+            }
+            p.subtitle {
+                color: #666;
+                margin-top: 0;
+            }
+            tosi-editable {
+                background: white;
+                border: 1px solid #aaa;
+                border-radius: 4px;
+                min-height: 500px;
+                font:
+                    14px Georgia,
+                    serif;
+            }
+            /* ::part() selectors pierce the shadow DOM */
+            tosi-editable::part(menubar) {
+                background: #f0f0f0;
+                border-bottom: 1px solid #ddd;
+                padding: 4px 8px;
+            }
+            tosi-editable::part(toolbar) {
+                background: #f8f8f8;
+                border-bottom: 1px solid #ddd;
+                padding: 4px 8px;
+            }
+            tosi-editable::part(doc) {
+                padding: 12px;
+            }
+            /* Toolbar button styling */
+            tosi-editable button[slot='toolbar'] {
+                background: #e8e8e8;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 4px 6px;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 28px;
+                min-height: 28px;
+            }
+            tosi-editable button[slot='toolbar']:hover {
+                background: #d8d8d8;
+            }
+            tosi-editable button[slot='toolbar']:active {
+                background: #c8c8c8;
+            }
+            tosi-editable button[slot='toolbar'] svg {
+                width: 16px;
+                height: 16px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>tosi-editable</h1>
+        <p class="subtitle">
+            Rich text editor — no contentEditable, no execCommand, no browser
+            selection APIs.
+        </p>
+        <div id="editor-container"></div>
+        <script type="module" src="index.js"></script>
+    </body>
+</html>
