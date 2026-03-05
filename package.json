@@ -1,5 +1,5 @@
 {
-  "name": "tosi-editable",
+  "name": "tosijs-styled-editor",
   "version": "0.1.0",
   "description": "Rich text editor web component — no contentEditable, no browser selection APIs",
   "source": "src/index.ts",
