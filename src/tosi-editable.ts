@@ -67,6 +67,23 @@ import {
   leafNodes,
   topSingleParentAncestor,
 } from './dom-utils'
+import {
+  cellOf,
+  tableOf,
+  nextCell,
+  prevCell,
+  cellBelow,
+  cellAbove,
+  getColumnCount,
+  getColumnWidths,
+  setColumnWidths,
+  getCellsInRow,
+  getRowCount,
+  rowOfCell,
+  colOfCell,
+  createCell,
+  isHeaderCell,
+} from './table-utils'
 
 const { slot, div } = elements
 
@@ -241,6 +258,26 @@ export class TosiEditable extends WebComponent<EditableParts> {
     '.debug .selected-block': {
       outline: '1px dashed blue',
     },
+    // Grid-based tables
+    ':host .editor-table': {
+      display: 'grid',
+      listStyle: 'none',
+      padding: '0',
+      margin: '8px 0',
+      border: '1px solid #ccc',
+      borderRadius: '2px',
+    },
+    ':host .editor-table > li': {
+      padding: '4px 8px',
+      borderRight: '1px solid #ddd',
+      borderBottom: '1px solid #ddd',
+      minHeight: '1.5em',
+      outline: 'none',
+    },
+    ':host .editor-table > li.table-header': {
+      fontWeight: 'bold',
+      background: '#f0f0f0',
+    },
   }
 
   selectable!: Selectable
@@ -253,6 +290,12 @@ export class TosiEditable extends WebComponent<EditableParts> {
   private lastKey = 0
   private lastCursorX = 0
   private isInitialized = false
+
+  // Column resize state
+  private resizeTable: HTMLElement | null = null
+  private resizeCol = -1
+  private resizeStartX = 0
+  private resizeStartWidths: number[] = []
 
   private _value = ''
 
@@ -331,14 +374,19 @@ export class TosiEditable extends WebComponent<EditableParts> {
     }
     this.selectable.normalize()
 
-    // Keyboard events
-    doc.addEventListener('keydown', this.handleKeydown)
+    // Keyboard events — capture phase so we get Tab before the browser moves focus
+    doc.addEventListener('keydown', this.handleKeydown, true)
     doc.addEventListener('keypress', this.handleKeypress)
 
     // Clipboard events
     doc.addEventListener('copy', this.handleCopy)
     doc.addEventListener('cut', this.handleCut)
     doc.addEventListener('paste', this.handlePaste)
+
+    // Column resize events
+    doc.addEventListener('pointerdown', this.handleResizePointerDown)
+    doc.addEventListener('pointermove', this.handleResizePointerMove)
+    doc.addEventListener('pointerup', this.handleResizePointerUp)
 
     // Selection change updates undo
     doc.addEventListener('selectionchanged', () => {
@@ -414,6 +462,519 @@ export class TosiEditable extends WebComponent<EditableParts> {
       current = current.parentNode
     }
     return current instanceof Element ? current : null
+  }
+
+  /** Find the table cell containing the caret, if any */
+  private caretCell(): HTMLElement | null {
+    const ip = this.insertionPoint()
+    return ip ? cellOf(ip) : null
+  }
+
+  /** Find the list item (<li> in a non-table <ul>/<ol>) containing a node, or null */
+  private listItemOf(node: Node): HTMLElement | null {
+    let current: Node | null = node
+    while (current && current !== this.parts.doc) {
+      if (
+        current instanceof Element &&
+        current.tagName === 'LI' &&
+        current.parentElement &&
+        (current.parentElement.tagName === 'UL' || current.parentElement.tagName === 'OL') &&
+        !current.parentElement.classList.contains('editor-table')
+      ) {
+        return current as HTMLElement
+      }
+      current = current.parentNode
+    }
+    return null
+  }
+
+  /** Move the caret (bounds) into a cell, selecting all content */
+  private moveCaretToCell(cell: HTMLElement): void {
+    this.selectable.unmark()
+    this.selectable.removeBounds()
+    const start = document.createElement('input')
+    start.className = 'sel-start'
+    const end = document.createElement('input')
+    end.className = 'sel-end caret'
+    cell.insertBefore(start, cell.firstChild)
+    cell.appendChild(end)
+    this.selectable.normalize()
+    this.selectable.markBounds()
+    this.selectable.selectionChanged()
+  }
+
+  /** Insert a new row above the current cell and move caret into it */
+  private tableMoveUp(cell: HTMLElement): void {
+    const table = tableOf(cell)
+    if (!table) return
+    const colCount = getColumnCount(table)
+    const row = rowOfCell(cell, colCount)
+    const rowCells = getCellsInRow(table, row, colCount)
+    const firstRowCell = rowCells[0]
+    for (let c = 0; c < colCount; c++) {
+      firstRowCell.before(createCell())
+    }
+    const newAbove = cellAbove(cell)
+    if (newAbove) this.moveCaretToCell(newAbove)
+    this.updateUndo('new')
+  }
+
+  /** Insert a new row below the current cell and move caret into it */
+  private tableMoveDown(cell: HTMLElement): void {
+    const table = tableOf(cell)
+    if (!table) return
+    const colCount = getColumnCount(table)
+    const row = rowOfCell(cell, colCount)
+    const rowCells = getCellsInRow(table, row, colCount)
+    const lastRowCell = rowCells[rowCells.length - 1]
+    for (let c = 0; c < colCount; c++) {
+      lastRowCell.after(createCell())
+    }
+    const newBelow = cellBelow(cell)
+    if (newBelow) this.moveCaretToCell(newBelow)
+    this.updateUndo('new')
+  }
+
+  /** Exit the table, placing the caret in the block before or after it */
+  private exitTable(cell: HTMLElement, direction: 'before' | 'after'): void {
+    const table = tableOf(cell)
+    if (!table) return
+    const tableBlock = this.block(table)
+    if (!tableBlock) return
+
+    const sibling =
+      direction === 'before'
+        ? tableBlock.previousElementSibling
+        : tableBlock.nextElementSibling
+
+    if (sibling) {
+      this.selectable.unmark()
+      this.selectable.removeBounds()
+      if (direction === 'before') {
+        sibling.appendChild(this.selectable.createBounds())
+      } else {
+        sibling.insertBefore(this.selectable.createBounds(), sibling.firstChild)
+      }
+      this.selectable.normalize()
+      this.selectable.markBounds()
+      this.selectable.selectionChanged()
+    } else {
+      // No sibling — create a new paragraph
+      const p = document.createElement('p')
+      p.textContent = '\u00A0'
+      if (direction === 'before') {
+        tableBlock.before(p)
+      } else {
+        tableBlock.after(p)
+      }
+      this.selectable.unmark()
+      this.selectable.removeBounds()
+      p.appendChild(this.selectable.createBounds())
+      this.selectable.normalize()
+      this.selectable.markBounds()
+      this.selectable.selectionChanged()
+      this.updateUndo('new')
+    }
+  }
+
+  /** Split a list item at the caret, creating a new <li> after it.
+   *  If the item is empty, exit the list instead (convert to <p>). */
+  private splitListItem(li: HTMLElement): void {
+    const ip = this.insertionPoint()
+    if (!ip) return
+
+    const list = li.parentElement
+    if (!list) return
+
+    // If the <li> is empty (just whitespace/nbsp), exit the list
+    const textContent = li.textContent?.replace(/\u00A0/g, '').trim()
+    if (!textContent) {
+      // Convert this <li> to a <p> after the list
+      const p = document.createElement('p')
+      p.textContent = '\u00A0'
+      // Move bounds into the new paragraph
+      this.selectable.removeBounds()
+      p.appendChild(this.selectable.createBounds())
+
+      // If this is the only <li>, remove the entire list
+      if (list.children.length <= 1) {
+        list.after(p)
+        list.remove()
+      } else if (!li.previousElementSibling) {
+        // First item — put <p> before the list
+        list.before(p)
+        li.remove()
+      } else if (!li.nextElementSibling) {
+        // Last item — put <p> after the list
+        list.after(p)
+        li.remove()
+      } else {
+        // Middle item — split the list in two
+        const newList = document.createElement(list.tagName)
+        let sibling = li.nextElementSibling
+        while (sibling) {
+          const next = sibling.nextElementSibling
+          newList.appendChild(sibling)
+          sibling = next
+        }
+        list.after(p)
+        p.after(newList)
+        li.remove()
+      }
+
+      this.selectable.normalize()
+      this.selectable.markBounds()
+      this.updateUndo('new')
+      return
+    }
+
+    // Split the <li>: create a new <li> and move content after the caret into it
+    const newLi = document.createElement('li')
+    let node: Node | null = ip.nextSibling
+    while (node) {
+      const next: Node | null = node.nextSibling
+      newLi.appendChild(node)
+      node = next
+    }
+
+    // Move the caret markers into the new <li>
+    const selStart = li.querySelector('.sel-start')
+    const selEnd = li.querySelector('.sel-end')
+    if (selEnd) newLi.insertBefore(selEnd, newLi.firstChild)
+    if (selStart) newLi.insertBefore(selStart, newLi.firstChild)
+
+    // Ensure neither <li> is empty
+    if (!newLi.textContent?.trim()) {
+      const placeholder = document.createTextNode('\u00A0')
+      if (selStart) selStart.before(placeholder)
+      else newLi.appendChild(placeholder)
+    }
+    if (!li.textContent?.trim()) {
+      li.appendChild(document.createTextNode('\u00A0'))
+    }
+
+    li.after(newLi)
+    this.selectable.markBounds()
+    this.updateUndo('new')
+  }
+
+  /** Check if a list item is effectively empty (only whitespace/nbsp/bounds) */
+  private isListItemEmpty(li: HTMLElement): boolean {
+    return !li.textContent?.replace(/\u00A0/g, '').trim()
+  }
+
+  /** Remove a list item, merging with previous <li> or exiting the list */
+  private removeListItem(li: HTMLElement): void {
+    const list = li.parentElement
+    if (!list) return
+
+    const prevLi = li.previousElementSibling
+    if (prevLi && prevLi.tagName === 'LI') {
+      // Merge this <li>'s content into the previous <li>
+      while (li.firstChild) {
+        prevLi.appendChild(li.firstChild)
+      }
+      li.remove()
+    } else {
+      // First <li> — convert to <p> before the list
+      const p = document.createElement('p')
+      while (li.firstChild) {
+        p.appendChild(li.firstChild)
+      }
+      list.before(p)
+      li.remove()
+      if (list.children.length === 0) {
+        list.remove()
+      }
+    }
+    this.normalize()
+    this.selectable.markBounds()
+    this.updateUndo('new')
+  }
+
+  /** Backspace inside a list item: delete within the <li>, or merge with previous <li> */
+  private listBackspace(li: HTMLElement): void {
+    if (!this.deleteSelection()) {
+      const ip = this.insertionPoint()
+      if (!ip) return
+
+      // If item is empty, remove it immediately
+      if (this.isListItemEmpty(li)) {
+        this.removeListItem(li)
+        return
+      }
+
+      const prev = previousLeafNode(ip, li, deletableFilter)
+      if (prev) {
+        // There's content before the caret in this <li> — delete it normally
+        if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
+          prev.textContent = prev.textContent!.slice(0, -1)
+        } else {
+          const top = topSingleParentAncestor(prev)
+          if (li.contains(top)) {
+            top.parentNode?.removeChild(top)
+          }
+        }
+        this.normalize()
+        this.updateUndo()
+      } else {
+        // At start of <li> — merge with previous <li> or exit list
+        this.removeListItem(li)
+      }
+    }
+  }
+
+  /** Forward delete inside a list item: delete within the <li>, or merge with next <li> */
+  private listForwardDelete(li: HTMLElement): void {
+    if (!this.deleteSelection()) {
+      const ip = this.insertionPoint()
+      if (!ip) return
+
+      const next = nextLeafNode(ip, li, deletableFilter)
+      if (next) {
+        // There's content after the caret in this <li> — delete it normally
+        if (next.nodeType === 3 && (next.textContent || '').length > 1) {
+          next.textContent = next.textContent!.slice(1)
+        } else {
+          const top = topSingleParentAncestor(next)
+          if (li.contains(top)) {
+            top.parentNode?.removeChild(top)
+          }
+        }
+        this.normalize()
+        this.updateUndo()
+      } else {
+        // At end of <li> — merge next <li> into this one
+        const nextLi = li.nextElementSibling
+        if (nextLi && nextLi.tagName === 'LI') {
+          while (nextLi.firstChild) {
+            li.appendChild(nextLi.firstChild)
+          }
+          nextLi.remove()
+          this.normalize()
+          this.selectable.markBounds()
+          this.updateUndo('new')
+        }
+        // If last <li>, do nothing (don't escape the list)
+      }
+    }
+  }
+
+  /** Group spanified characters by visual line (rounded top value) */
+  private groupByLine(spans: Element[]): Element[][] {
+    const lineMap = new Map<number, Element[]>()
+    for (const span of spans) {
+      const rect = span.getBoundingClientRect()
+      const top = Math.round(rect.top)
+      let line = lineMap.get(top)
+      if (!line) {
+        line = []
+        lineMap.set(top, line)
+      }
+      line.push(span)
+    }
+    // Sort by top position, return as array of lines
+    const sortedKeys = Array.from(lineMap.keys()).sort((a, b) => a - b)
+    return sortedKeys.map((k) => lineMap.get(k)!)
+  }
+
+  /** Find the spanified char on a line closest to targetX */
+  private closestCharOnLine(line: Element[], targetX: number): Element {
+    let best = line[0]
+    let bestDist = Infinity
+    for (const span of line) {
+      const rect = span.getBoundingClientRect()
+      const mid = rect.left + rect.width / 2
+      const dist = Math.abs(mid - targetX)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = span
+      }
+    }
+    return best
+  }
+
+  /** Position bounds at a spanified character, then despanify the block */
+  private positionAtSpanChar(
+    span: Element,
+    targetX: number,
+    extendSelection: boolean,
+    blockToDespanify: Element,
+  ): void {
+    // Place bounds while spans still exist in the DOM
+    const rect = span.getBoundingClientRect()
+    const start = this.selectable.find('.sel-start')
+    const end = this.selectable.find('.sel-end')
+    if (!start || !end) return
+
+    if (targetX < rect.left + rect.width / 2) {
+      span.before(end)
+    } else {
+      span.after(end)
+    }
+    if (!extendSelection) {
+      end.parentNode?.insertBefore(start, end)
+    }
+    // Despanify, then mark selection
+    spanify(blockToDespanify, false)
+    this.selectable.markBounds()
+    this.focus()
+  }
+
+  /** Move caret up or down by visual line */
+  private moveVertical(direction: 'up' | 'down', extendSelection: boolean): void {
+    const ip = this.insertionPoint()
+    if (!ip) return
+
+    const currentBlock = this.block(ip)
+    if (!currentBlock) return
+
+    // Determine sticky X: capture on first vertical move, reuse on subsequent ones
+    const isConsecutiveVertical = this.lastKey === 38 || this.lastKey === 40
+    if (!isConsecutiveVertical) {
+      const caretRect = ip.getBoundingClientRect()
+      this.lastCursorX = caretRect.left
+    }
+    const targetX = this.lastCursorX
+
+    // When inside a list item, use the <li> as the container for spanification
+    // instead of the whole <ul>/<ol> block
+    const li = this.listItemOf(ip)
+    const container = li || currentBlock
+
+    // Spanify current container to get character positions
+    spanify(container, true)
+    const spans = Array.from(container.querySelectorAll('.spanified'))
+
+    if (spans.length > 0) {
+      const lines = this.groupByLine(spans)
+      const caretRect = ip.getBoundingClientRect()
+      const caretTop = Math.round(caretRect.top)
+
+      // Find which line the caret is on (nearest by top)
+      let currentLineIdx = 0
+      let bestDist = Infinity
+      for (let i = 0; i < lines.length; i++) {
+        const lineTop = Math.round(lines[i][0].getBoundingClientRect().top)
+        const dist = Math.abs(lineTop - caretTop)
+        if (dist < bestDist) {
+          bestDist = dist
+          currentLineIdx = i
+        }
+      }
+
+      const targetLineIdx = direction === 'up' ? currentLineIdx - 1 : currentLineIdx + 1
+
+      if (targetLineIdx >= 0 && targetLineIdx < lines.length) {
+        // Target line is within this container
+        const targetChar = this.closestCharOnLine(lines[targetLineIdx], targetX)
+        this.positionAtSpanChar(targetChar, targetX, extendSelection, container)
+        return
+      }
+    }
+
+    // Target line is outside this container
+    spanify(container, false)
+
+    if (li) {
+      // Inside a list: move to adjacent <li> sibling, or exit the list
+      const siblingLi = direction === 'up'
+        ? li.previousElementSibling
+        : li.nextElementSibling
+
+      if (siblingLi && siblingLi.tagName === 'LI') {
+        // Move to adjacent list item
+        spanify(siblingLi, true)
+        const siblingSpans = Array.from(siblingLi.querySelectorAll('.spanified'))
+
+        if (siblingSpans.length === 0) {
+          spanify(siblingLi, false)
+          this.moveCaretToEmptyContainer(siblingLi, direction, extendSelection)
+          return
+        }
+
+        const siblingLines = this.groupByLine(siblingSpans)
+        const targetLine = direction === 'up'
+          ? siblingLines[siblingLines.length - 1]
+          : siblingLines[0]
+        const targetChar = this.closestCharOnLine(targetLine, targetX)
+        this.positionAtSpanChar(targetChar, targetX, extendSelection, siblingLi)
+        return
+      }
+
+      // No sibling <li> — exit the list to adjacent block
+      const sibling = direction === 'up'
+        ? currentBlock.previousElementSibling
+        : currentBlock.nextElementSibling
+
+      if (!sibling) return
+      this.moveVerticalToBlock(sibling, direction, targetX, extendSelection)
+      return
+    }
+
+    // Not in a list: move to adjacent block
+    const sibling = direction === 'up'
+      ? currentBlock.previousElementSibling
+      : currentBlock.nextElementSibling
+
+    if (!sibling) return
+    this.moveVerticalToBlock(sibling, direction, targetX, extendSelection)
+  }
+
+  /** Move caret into an empty container (no spanifiable content) */
+  private moveCaretToEmptyContainer(
+    container: Element,
+    direction: 'up' | 'down',
+    extendSelection: boolean,
+  ): void {
+    const start = this.selectable.find('.sel-start')
+    const end = this.selectable.find('.sel-end')
+    if (!start || !end) return
+
+    if (direction === 'up') {
+      container.appendChild(end)
+    } else {
+      container.insertBefore(end, container.firstChild)
+    }
+    if (!extendSelection) {
+      end.parentNode?.insertBefore(start, end)
+    }
+    this.selectable.markBounds()
+    this.focus()
+  }
+
+  /** Move caret vertically into a sibling block, handling lists and regular blocks */
+  private moveVerticalToBlock(
+    sibling: Element,
+    direction: 'up' | 'down',
+    targetX: number,
+    extendSelection: boolean,
+  ): void {
+    // If sibling is a list, enter its first/last <li>
+    const isList = (sibling.tagName === 'UL' || sibling.tagName === 'OL') &&
+      !sibling.classList.contains('editor-table')
+    const targetContainer = isList
+      ? (direction === 'up'
+        ? sibling.querySelector(':scope > li:last-child')
+        : sibling.querySelector(':scope > li:first-child')) || sibling
+      : sibling
+
+    spanify(targetContainer, true)
+    const siblingSpans = Array.from(targetContainer.querySelectorAll('.spanified'))
+
+    if (siblingSpans.length === 0) {
+      spanify(targetContainer, false)
+      this.moveCaretToEmptyContainer(targetContainer, direction, extendSelection)
+      return
+    }
+
+    const siblingLines = this.groupByLine(siblingSpans)
+    const targetLine = direction === 'up'
+      ? siblingLines[siblingLines.length - 1]
+      : siblingLines[0]
+
+    const targetChar = this.closestCharOnLine(targetLine, targetX)
+    this.positionAtSpanChar(targetChar, targetX, extendSelection, targetContainer)
   }
 
   /** Insert a character at the caret */
@@ -762,19 +1323,110 @@ export class TosiEditable extends WebComponent<EditableParts> {
     const target = evt.target as Element
     if (target.closest('.not-editable')) return
 
+    const cell = this.caretCell()
+    const ip = this.insertionPoint()
+    const li = ip ? this.listItemOf(ip) : null
+
     switch (evt.key) {
+      case 'Tab':
+        evt.preventDefault()
+        if (cell) {
+          if (evt.shiftKey) {
+            // Move to previous cell
+            const prev = prevCell(cell)
+            if (prev) this.moveCaretToCell(prev)
+          } else {
+            // Move to next cell, or create a new row if at the end
+            const next = nextCell(cell)
+            if (next) {
+              this.moveCaretToCell(next)
+            } else {
+              // At last cell — create a new row
+              const table = tableOf(cell)
+              if (table) {
+                const colCount = getColumnCount(table)
+                for (let c = 0; c < colCount; c++) {
+                  table.appendChild(createCell())
+                }
+                const newFirst = nextCell(cell)
+                if (newFirst) this.moveCaretToCell(newFirst)
+                this.updateUndo('new')
+              }
+            }
+          }
+        }
+        break
       case 'Backspace':
         evt.preventDefault()
-        this.backspace()
+        if (cell) {
+          // In a table cell: don't let backspace escape the cell
+          if (ip) {
+            const prev = previousLeafNode(ip, cell, deletableFilter)
+            if (prev) {
+              if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
+                prev.textContent = prev.textContent!.slice(0, -1)
+              } else {
+                const top = topSingleParentAncestor(prev)
+                if (cell.contains(top)) {
+                  top.parentNode?.removeChild(top)
+                }
+              }
+              this.normalize()
+              this.updateUndo()
+            }
+          }
+        } else if (li) {
+          this.listBackspace(li)
+        } else {
+          this.backspace()
+        }
         break
       case 'Delete':
         evt.preventDefault()
-        this.forwardDelete()
+        if (cell) {
+          // In a table cell: don't let delete escape the cell
+          if (ip) {
+            const next = nextLeafNode(ip, cell, deletableFilter)
+            if (next) {
+              if (next.nodeType === 3 && (next.textContent || '').length > 1) {
+                next.textContent = next.textContent!.slice(1)
+              } else {
+                const top = topSingleParentAncestor(next)
+                if (cell.contains(top)) {
+                  top.parentNode?.removeChild(top)
+                }
+              }
+              this.normalize()
+              this.updateUndo()
+            }
+          }
+        } else if (li) {
+          this.listForwardDelete(li)
+        } else {
+          this.forwardDelete()
+        }
         break
       case 'Enter':
         evt.preventDefault()
-        this.deleteSelection()
-        this.splitAtCaret()
+        if (cell) {
+          if (evt.shiftKey) {
+            // Shift+Enter: move to cell below, or create a new row
+            this.tableMoveDown(cell)
+          } else {
+            // Enter: insert <br> within the cell
+            if (ip) {
+              ip.before(document.createElement('br'))
+              this.normalize()
+              this.updateUndo()
+            }
+          }
+        } else if (li) {
+          this.deleteSelection()
+          this.splitListItem(li)
+        } else {
+          this.deleteSelection()
+          this.splitAtCaret()
+        }
         break
       case 'ArrowLeft':
         evt.preventDefault()
@@ -786,10 +1438,41 @@ export class TosiEditable extends WebComponent<EditableParts> {
         break
       case 'ArrowUp':
         evt.preventDefault()
-        // Arrow up/down require layout info not available in unit tests
+        if (cell) {
+          if (evt.shiftKey) {
+            // Shift+ArrowUp: move up or create new row above
+            this.tableMoveUp(cell)
+          } else {
+            const above = cellAbove(cell)
+            if (above) {
+              this.moveCaretToCell(above)
+            } else {
+              // At first row — exit table upward
+              this.exitTable(cell, 'before')
+            }
+          }
+        } else {
+          this.moveVertical('up', evt.shiftKey)
+        }
         break
       case 'ArrowDown':
         evt.preventDefault()
+        if (cell) {
+          if (evt.shiftKey) {
+            // Shift+ArrowDown: move down or create new row
+            this.tableMoveDown(cell)
+          } else {
+            const below = cellBelow(cell)
+            if (below) {
+              this.moveCaretToCell(below)
+            } else {
+              // At last row — exit table downward
+              this.exitTable(cell, 'after')
+            }
+          }
+        } else {
+          this.moveVertical('down', evt.shiftKey)
+        }
         break
     }
     this.lastKey = evt.keyCode
@@ -860,6 +1543,86 @@ export class TosiEditable extends WebComponent<EditableParts> {
     this.normalize()
     this.updateUndo('new')
     evt.preventDefault()
+  }
+
+  /** Find the cell edge near a pointer position, returns [table, colIndex] or null */
+  private cellEdgeAt(evt: PointerEvent): [HTMLElement, number] | null {
+    const target = evt.target as Element
+    const cell = target.closest('.editor-table > li') as HTMLElement | null
+    if (!cell) return null
+    const table = cell.parentElement
+    if (!table || !table.classList.contains('editor-table')) return null
+
+    const rect = cell.getBoundingClientRect()
+    const colCount = getColumnCount(table)
+    const col = colOfCell(cell, colCount)
+    const edgeThreshold = 4
+
+    // Check right edge (resize column to the right)
+    if (
+      Math.abs(evt.clientX - rect.right) < edgeThreshold &&
+      col < colCount - 1
+    ) {
+      return [table, col]
+    }
+    // Check left edge (resize column to the left)
+    if (Math.abs(evt.clientX - rect.left) < edgeThreshold && col > 0) {
+      return [table, col - 1]
+    }
+    return null
+  }
+
+  private handleResizePointerDown = (evt: PointerEvent): void => {
+    const edge = this.cellEdgeAt(evt)
+    if (!edge) return
+
+    const [table, col] = edge
+    this.resizeTable = table
+    this.resizeCol = col
+    this.resizeStartX = evt.clientX
+
+    // Get current pixel widths from the table's actual rendered columns
+    const firstRowCells = getCellsInRow(table, 0, getColumnCount(table))
+    this.resizeStartWidths = firstRowCells.map(
+      (c) => c.getBoundingClientRect().width,
+    )
+
+    evt.preventDefault()
+    evt.stopPropagation()
+    this.parts.doc.setPointerCapture(evt.pointerId)
+  }
+
+  private handleResizePointerMove = (evt: PointerEvent): void => {
+    // Update cursor when hovering near cell edges
+    if (!this.resizeTable) {
+      const edge = this.cellEdgeAt(evt)
+      this.parts.doc.style.cursor = edge ? 'col-resize' : ''
+      return
+    }
+
+    // Active resize drag
+    const dx = evt.clientX - this.resizeStartX
+    const newWidths = [...this.resizeStartWidths]
+    newWidths[this.resizeCol] = Math.max(30, newWidths[this.resizeCol] + dx)
+    newWidths[this.resizeCol + 1] = Math.max(
+      30,
+      newWidths[this.resizeCol + 1] - dx,
+    )
+
+    setColumnWidths(
+      this.resizeTable,
+      newWidths.map((w) => `${w}px`),
+    )
+  }
+
+  private handleResizePointerUp = (evt: PointerEvent): void => {
+    if (this.resizeTable) {
+      this.updateUndo('new')
+      this.resizeTable = null
+      this.resizeCol = -1
+      this.parts.doc.style.cursor = ''
+      this.parts.doc.releasePointerCapture(evt.pointerId)
+    }
   }
 
   private isToolbarEvent(target: Element): boolean {

@@ -7,7 +7,7 @@
  */
 
 import { elements } from 'tosijs'
-import { icons, tosiMenu, type MenuItem } from 'tosijs-ui'
+import { icons, tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui'
 import type { TosiEditable } from './tosi-editable'
 
 const { button, span } = elements
@@ -230,6 +230,38 @@ export function defaultToolbar(): HTMLElement[] {
   ]
 }
 
+/** Table menu */
+export function tableMenu(editor: TosiEditable): HTMLElement {
+  return tosiMenu(
+    {
+      slot: 'menubar',
+      menuItems: [
+        {
+          caption: 'Insert Table',
+          menuItems: [
+            editorMenuItem(editor, '2 Columns', 'insertTable 2'),
+            editorMenuItem(editor, '3 Columns', 'insertTable 3'),
+            editorMenuItem(editor, '4 Columns', 'insertTable 4'),
+            editorMenuItem(editor, '5 Columns', 'insertTable 5'),
+          ],
+        } as SubMenu,
+        null,
+        editorMenuItem(editor, 'Insert Row After', 'insertTableRow after'),
+        editorMenuItem(editor, 'Insert Row Before', 'insertTableRow before'),
+        editorMenuItem(editor, 'Insert Column After', 'insertTableCol after'),
+        editorMenuItem(editor, 'Insert Column Before', 'insertTableCol before'),
+        null,
+        editorMenuItem(editor, 'Delete Row', 'deleteTableRow'),
+        editorMenuItem(editor, 'Delete Column', 'deleteTableCol'),
+        null,
+        editorMenuItem(editor, 'Toggle Header Row', 'toggleHeaderRow'),
+      ],
+    },
+    icons.grid(),
+    ' Table',
+  ) as unknown as HTMLElement
+}
+
 /** Default menubar */
 export function defaultMenubar(editor: TosiEditable): HTMLElement[] {
   return [
@@ -238,5 +270,6 @@ export function defaultMenubar(editor: TosiEditable): HTMLElement[] {
     fontFamilyMenu(editor),
     fontSizeMenu(editor),
     lineSpacingMenu(editor),
+    tableMenu(editor),
   ]
 }

@@ -22,6 +22,8 @@ editor.value = `
     <li>Undo and redo changes</li>
   </ul>
   <p>Click anywhere to place the cursor and start typing!</p>
+  <ul class="editor-table" style="grid-template-columns: 1fr 1fr 1fr"><li class="table-header">Name</li><li class="table-header">Role</li><li class="table-header">Location</li><li>Alice</li><li>Engineer</li><li>New York</li><li>Bob</li><li>Designer</li><li>London</li></ul>
+  <p>The table above uses CSS Grid. Use the <b>Table</b> menu to insert and modify tables. Press <b>Tab</b> to move between cells.</p>
 `
 
 // Add to DOM first so connectedCallback runs and editor is initialized

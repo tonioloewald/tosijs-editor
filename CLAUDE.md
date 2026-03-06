@@ -12,8 +12,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 bun install          # Install dependencies
 bun start            # Dev server with hot reload (http://localhost:8789)
 bun test             # Run all unit tests
+bun test src/dom-utils.test.ts  # Run a single test file
 bun run build        # Production build only
+bun run format       # ESLint --fix + Prettier
 ```
+
+Build produces two outputs in `dist/`: `module.js` (ESM, peer deps external) and `index.js` (IIFE, fully bundled). Demo is built to `docs/`.
 
 ## Architecture
 
@@ -30,6 +34,9 @@ Pure functions for leaf-node navigation: `firstLeafNode`, `lastLeafNode`, `nextL
 
 ### src/commands.ts — Command Definitions
 Extracted for testability. Commands: `setText` (character styling), `setBlockType` (paragraph type), `setBlocks` (block-level CSS), `updateUndo` (undo/redo), `setDebug`, `annotate`. Multiple commands chain with semicolons.
+
+### src/table-utils.ts — Grid Table Support
+Tables are `<ul class="editor-table">` with CSS grid layout. Cells are `<li>` elements. Provides cell navigation, row/column insert/delete, and header toggling.
 
 ### src/toolbar.ts — Toolbar Factory
 `defaultToolbar()` and `minimalToolbar()` create toolbar widgets using tosijs-ui `icons` and `tosiSelect`. Helper functions: `commandButton`, `blockStyleSelect`, `toolbarSpacer`.

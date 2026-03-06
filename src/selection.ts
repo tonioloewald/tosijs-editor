@@ -226,6 +226,15 @@ export class Selectable {
         // Double/triple click — extend selection mode
         this.extendSelection()
       }
+    } else if (
+      target instanceof HTMLElement &&
+      target.querySelectorAll('.spanified').length === 0 &&
+      target !== this.root
+    ) {
+      // Clicked an empty element (e.g. empty table cell) — place caret inside it
+      this.removeBounds()
+      const bounds = this.createBounds()
+      target.appendChild(bounds)
     }
 
     evt.preventDefault()
@@ -542,6 +551,15 @@ export class Selectable {
       const child = root.childNodes[i]
       if (child.nodeType === 3 && /^\s*$/.test(child.textContent || '')) {
         root.removeChild(child)
+      }
+    }
+    // Strip whitespace text nodes from grid tables — they become grid items and break layout
+    for (const table of Array.from(root.querySelectorAll('.editor-table'))) {
+      for (let i = table.childNodes.length - 1; i >= 0; i--) {
+        const child = table.childNodes[i]
+        if (child.nodeType === 3) {
+          table.removeChild(child)
+        }
       }
     }
     root.normalize()
