@@ -36,7 +36,7 @@ describe('TosiEditable', () => {
   test('creates element', () => {
     const el = tosiEditable()
     expect(el).toBeInstanceOf(HTMLElement)
-    expect(el.tagName.toLowerCase()).toBe('tosi-editable')
+    expect(el.tagName.toLowerCase()).toBe('tosi-styled-editor')
   })
 
   test('creates element with initial content', () => {
@@ -79,6 +79,46 @@ describe('TosiEditable', () => {
     const el = tosiEditable() as TosiEditable
     container.appendChild(el)
     expect(el.pastemode).toBe('merge')
+  })
+
+  describe('touch affordances', () => {
+    test('creates touch affordance elements in doc', () => {
+      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      container.appendChild(el)
+      const affordances = el.parts.doc.querySelector('.touch-affordances')
+      expect(affordances).not.toBeNull()
+    })
+
+    test('touch affordances contain three children', () => {
+      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      container.appendChild(el)
+      const affordances = el.parts.doc.querySelector('.touch-affordances')!
+      expect(affordances.children.length).toBe(3)
+    })
+
+    test('touch affordances have correct classes', () => {
+      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      container.appendChild(el)
+      const doc = el.parts.doc
+      expect(doc.querySelector('.touch-handle-start')).not.toBeNull()
+      expect(doc.querySelector('.touch-context-menu')).not.toBeNull()
+      expect(doc.querySelector('.touch-handle-end')).not.toBeNull()
+    })
+
+    test('touch affordances not visible without touch interaction', () => {
+      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      container.appendChild(el)
+      // Without touch interaction, affordances should not be displayed as 'block'
+      const affordances = el.parts.doc.querySelector('.touch-affordances') as HTMLElement
+      expect(affordances.style.display).not.toBe('block')
+    })
+
+    test('touch affordances have do-not-spanify class', () => {
+      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      container.appendChild(el)
+      const affordances = el.parts.doc.querySelector('.touch-affordances')!
+      expect(affordances.classList.contains('do-not-spanify')).toBe(true)
+    })
   })
 
   describe('value property', () => {

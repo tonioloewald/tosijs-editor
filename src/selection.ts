@@ -102,6 +102,7 @@ export function spanify(element: Element, make: boolean, byWord = false): void {
 export class Selectable {
   root: HTMLElement
   selecting: number | false = false
+  touchMode = false
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -116,6 +117,15 @@ export class Selectable {
     this.root.addEventListener('mousedown', this.handleMouseDown)
     this.root.addEventListener('mouseup', this.handleMouseUp)
     this.root.addEventListener('mouseleave', this.handleMouseLeave)
+    this.root.addEventListener('touchstart', this.handleTouchStart, {
+      passive: false,
+    })
+    this.root.addEventListener('touchmove', this.handleTouchMove, {
+      passive: false,
+    })
+    this.root.addEventListener('touchend', this.handleTouchEnd, {
+      passive: false,
+    })
   }
 
   destroy(): void {
@@ -123,6 +133,9 @@ export class Selectable {
     this.root.removeEventListener('mousedown', this.handleMouseDown)
     this.root.removeEventListener('mouseup', this.handleMouseUp)
     this.root.removeEventListener('mouseleave', this.handleMouseLeave)
+    this.root.removeEventListener('touchstart', this.handleTouchStart)
+    this.root.removeEventListener('touchmove', this.handleTouchMove)
+    this.root.removeEventListener('touchend', this.handleTouchEnd)
   }
 
   private handleMouseMove = (evt: MouseEvent): void => {
@@ -172,6 +185,7 @@ export class Selectable {
   }
 
   private handleMouseDown = (evt: MouseEvent): void => {
+    this.touchMode = false
     let target = evt.target as Element
     if (
       target.closest('.not-selectable') ||
@@ -276,6 +290,126 @@ export class Selectable {
       }
       this.lastHovered = null
     }
+  }
+
+  private handleTouchStart = (evt: TouchEvent): void => {
+    if (evt.touches.length !== 1) return
+    this.touchMode = true
+    const touch = evt.touches[0]
+    let target = evt.target as Element
+    if (
+      target.closest('.not-selectable') ||
+      target.classList.contains('not-selectable')
+    ) {
+      return
+    }
+
+    this.selecting = 1
+
+    // Spanify the touched element so we can find exact character positions
+    if (!target.classList.contains('spanified') && target instanceof Element) {
+      spanify(target, true, true)
+      // Find the spanified char at touch position
+      for (const span of Array.from(target.querySelectorAll('.spanified'))) {
+        const r = span.getBoundingClientRect()
+        if (
+          touch.clientX >= r.left &&
+          touch.clientX <= r.right &&
+          touch.clientY >= r.top &&
+          touch.clientY <= r.bottom
+        ) {
+          target = span
+          break
+        }
+      }
+    }
+
+    if (target.classList.contains('spanified')) {
+      const rect = target.getBoundingClientRect()
+      this.removeBounds()
+      const bounds = this.createBounds()
+      if (touch.clientX - rect.left < rect.width / 2) {
+        target.before(bounds)
+      } else {
+        target.after(bounds)
+      }
+    } else if (
+      target instanceof HTMLElement &&
+      target.querySelectorAll('.spanified').length === 0 &&
+      target !== this.root
+    ) {
+      // Empty element (e.g. empty table cell)
+      this.removeBounds()
+      const bounds = this.createBounds()
+      target.appendChild(bounds)
+    }
+
+    if (evt.cancelable) evt.preventDefault()
+  }
+
+  private handleTouchMove = (evt: TouchEvent): void => {
+    if (!this.selecting || evt.touches.length !== 1) return
+    const touch = evt.touches[0]
+    const rootNode = this.root.getRootNode() as Document | ShadowRoot
+    let target = (rootNode.elementFromPoint
+      ? rootNode.elementFromPoint(touch.clientX, touch.clientY)
+      : document.elementFromPoint(touch.clientX, touch.clientY)
+    ) as Element | null
+    if (
+      !target ||
+      target.closest('.not-selectable') ||
+      target.classList.contains('not-selectable')
+    ) {
+      return
+    }
+
+    // Spanify if needed
+    if (!target.classList.contains('spanified') && target instanceof Element) {
+      spanify(target, true, true)
+      for (const span of Array.from(target.querySelectorAll('.spanified'))) {
+        const r = span.getBoundingClientRect()
+        if (
+          touch.clientX >= r.left &&
+          touch.clientX <= r.right &&
+          touch.clientY >= r.top &&
+          touch.clientY <= r.bottom
+        ) {
+          target = span
+          break
+        }
+      }
+    }
+
+    if (target && target.classList.contains('spanified')) {
+      const rect = target.getBoundingClientRect()
+      const selEnd = this.find('.sel-end')
+      if (selEnd) {
+        if (touch.clientX - rect.left < rect.width / 2) {
+          target.before(selEnd)
+        } else {
+          target.after(selEnd)
+        }
+        this.extendSelection()
+      }
+    }
+
+    if (evt.cancelable) evt.preventDefault()
+  }
+
+  private handleTouchEnd = (evt: TouchEvent): void => {
+    if (this.selecting) {
+      this.extendSelection()
+      this.selecting = false
+    }
+    // Despanify non-selected blocks
+    for (const child of Array.from(this.root.children)) {
+      if (!child.classList.contains('selected-block')) {
+        spanify(child, false)
+      }
+    }
+    this.lastHovered = null
+    this.selectionChanged()
+    if (evt.cancelable) evt.preventDefault()
   }
 
   /** Trigger selectionchanged event and focus the caret */

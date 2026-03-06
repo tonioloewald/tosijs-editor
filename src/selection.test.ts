@@ -209,6 +209,12 @@ describe('Selectable', () => {
     })
   })
 
+  describe('touchMode', () => {
+    test('defaults to false', () => {
+      expect(sel.touchMode).toBe(false)
+    })
+  })
+
   describe('selectionChanged', () => {
     test('dispatches selectionchanged event', () => {
       let fired = false

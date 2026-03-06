@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>tosi-editable Demo</title>
+        <title>tosi-styled-editor Demo</title>
         <style>
             body {
                 font-family:
@@ -22,7 +22,7 @@
                 color: #666;
                 margin-top: 0;
             }
-            tosi-editable {
+            tosi-styled-editor {
                 background: white;
                 border: 1px solid #aaa;
                 border-radius: 4px;
@@ -32,21 +32,32 @@
                     serif;
             }
             /* ::part() selectors pierce the shadow DOM */
-            tosi-editable::part(menubar) {
+            tosi-styled-editor::part(menubar) {
                 background: #f0f0f0;
                 border-bottom: 1px solid #ddd;
-                padding: 4px 8px;
+                padding: 0;
             }
-            tosi-editable::part(toolbar) {
+            tosi-menu button {
+                border: none;
+                padding: 8px 12px;
+                background: transparent;
+                cursor: pointer;
+                font: inherit;
+            }
+            tosi-menu button:hover {
+                background: #e0e0e0;
+            }
+            tosi-styled-editor::part(toolbar) {
                 background: #f8f8f8;
                 border-bottom: 1px solid #ddd;
                 padding: 4px 8px;
             }
-            tosi-editable::part(doc) {
-                padding: 12px;
+            tosi-styled-editor::part(doc) {
+                padding-left: 12px;
+                padding-right: 12px;
             }
             /* Toolbar button styling */
-            tosi-editable button[slot='toolbar'] {
+            tosi-styled-editor button[slot='toolbar'] {
                 background: #e8e8e8;
                 border: 1px solid #ccc;
                 border-radius: 3px;
@@ -58,20 +69,20 @@
                 min-width: 28px;
                 min-height: 28px;
             }
-            tosi-editable button[slot='toolbar']:hover {
+            tosi-styled-editor button[slot='toolbar']:hover {
                 background: #d8d8d8;
             }
-            tosi-editable button[slot='toolbar']:active {
+            tosi-styled-editor button[slot='toolbar']:active {
                 background: #c8c8c8;
             }
-            tosi-editable button[slot='toolbar'] svg {
+            tosi-styled-editor button[slot='toolbar'] svg {
                 width: 16px;
                 height: 16px;
             }
         </style>
     </head>
     <body>
-        <h1>tosi-editable</h1>
+        <h1>tosi-styled-editor</h1>
         <p class="subtitle">
             Rich text editor — no contentEditable, no execCommand, no browser
             selection APIs.

@@ -58,6 +58,7 @@ import {
   elements,
   type XinStyleSheet,
 } from 'tosijs'
+import { icons } from 'tosijs-ui'
 import { Selectable, spanify } from './selection'
 import { commands, executeCommand, type EditableContext } from './commands'
 import {
@@ -99,9 +100,6 @@ function deletableFilter(node: Node): boolean {
   return node.nodeType !== 3 || node.textContent !== ''
 }
 
-function whitespaceFilter(node: Node): boolean {
-  return node.nodeType === 3 && /\s/.test(node.textContent || '')
-}
 
 interface EditableParts extends PartsMap {
   menubar: HTMLElement
@@ -128,9 +126,9 @@ export class TosiEditable extends WebComponent<EditableParts> {
       flex: '0 0 auto',
     },
     ':host [part="menubar"]': {
-      padding: '2px 4px',
+      padding: '0',
       display: 'flex',
-      gap: '2px',
+      gap: '0',
       flex: '0 0 auto',
       flexWrap: 'wrap',
       alignItems: 'center',
@@ -148,6 +146,8 @@ export class TosiEditable extends WebComponent<EditableParts> {
       padding: '8px',
       cursor: 'text',
       overflowY: 'auto',
+      position: 'relative',
+      transition: 'padding-top 0.15s ease-out, padding-bottom 0.15s ease-out',
     },
     // Blocks inside doc
     ':host [part="doc"] > *': {
@@ -278,6 +278,83 @@ export class TosiEditable extends WebComponent<EditableParts> {
       fontWeight: 'bold',
       background: '#f0f0f0',
     },
+    // Touch selection affordances
+    ':host .touch-affordances': {
+      display: 'none',
+      position: 'absolute',
+      pointerEvents: 'none',
+      zIndex: '1000',
+      top: '0',
+      left: '0',
+      width: '0',
+      height: '0',
+      transition: 'opacity 0.1s ease-out',
+    },
+    ':host .touch-affordance': {
+      position: 'absolute',
+      width: '44px',
+      height: '44px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'auto',
+      touchAction: 'none',
+      background: 'transparent',
+      transition: 'left 0.1s ease-out, top 0.1s ease-out',
+    },
+    ':host .touch-affordances.dragging .touch-affordance': {
+      transition: 'none',
+    },
+    ':host .touch-icon': {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '24px',
+      height: '24px',
+      background: '#0078ff',
+      color: 'white',
+      fontSize: '13px',
+      fontWeight: 'bold',
+      border: '2px solid white',
+      boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
+    },
+    ':host .touch-icon svg': {
+      width: '16px',
+      height: '16px',
+      stroke: 'white',
+      fill: 'none',
+    },
+    ':host .touch-handle-start .touch-icon': {
+      borderRadius: '4px 4px 0 4px',
+    },
+    ':host .touch-handle-end .touch-icon': {
+      borderRadius: '0 4px 4px 4px',
+    },
+    ':host .touch-context-menu .touch-icon': {
+      borderRadius: '4px',
+    },
+    ':host .touch-menu': {
+      position: 'absolute',
+      display: 'flex',
+      gap: '0',
+      background: 'rgba(0,0,0,0.85)',
+      borderRadius: '8px',
+      padding: '0',
+      zIndex: '1001',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+      pointerEvents: 'auto',
+      overflow: 'hidden',
+    },
+    ':host .touch-menu-item': {
+      background: 'transparent',
+      color: 'white',
+      border: 'none',
+      padding: '12px 16px',
+      fontSize: '15px',
+      borderRadius: '0',
+      whiteSpace: 'nowrap',
+      margin: '0',
+    },
   }
 
   selectable!: Selectable
@@ -290,6 +367,19 @@ export class TosiEditable extends WebComponent<EditableParts> {
   private lastKey = 0
   private lastCursorX = 0
   private isInitialized = false
+
+  // Touch affordance state
+  private touchAffordances: HTMLElement | null = null
+  private touchHandleStart: HTMLElement | null = null
+  private touchContextMenu: HTMLElement | null = null
+  private touchHandleEnd: HTMLElement | null = null
+  private touchMenuEl: HTMLElement | null = null
+  private isTouchInteraction = false
+  // Per-pointer drag state for multitouch support
+  private touchDrags = new Map<
+    number,
+    { target: 'start' | 'end'; offsetX: number; offsetY: number }
+  >()
 
   // Column resize state
   private resizeTable: HTMLElement | null = null
@@ -388,9 +478,61 @@ export class TosiEditable extends WebComponent<EditableParts> {
     doc.addEventListener('pointermove', this.handleResizePointerMove)
     doc.addEventListener('pointerup', this.handleResizePointerUp)
 
-    // Selection change updates undo
+    // Touch affordances
+    this.touchAffordances = document.createElement('div')
+    this.touchAffordances.className =
+      'touch-affordances not-selectable do-not-spanify'
+
+    this.touchHandleStart = document.createElement('div')
+    this.touchHandleStart.className =
+      'touch-affordance touch-handle-start not-selectable do-not-spanify'
+    const startIcon = document.createElement('span')
+    startIcon.className = 'touch-icon'
+    startIcon.appendChild(icons.chevronLeft())
+    this.touchHandleStart.appendChild(startIcon)
+
+    this.touchContextMenu = document.createElement('div')
+    this.touchContextMenu.className =
+      'touch-affordance touch-context-menu not-selectable do-not-spanify'
+    const menuIcon = document.createElement('span')
+    menuIcon.className = 'touch-icon'
+    menuIcon.innerHTML = '\u22EE'
+    this.touchContextMenu.appendChild(menuIcon)
+
+    this.touchHandleEnd = document.createElement('div')
+    this.touchHandleEnd.className =
+      'touch-affordance touch-handle-end not-selectable do-not-spanify'
+    const endIcon = document.createElement('span')
+    endIcon.className = 'touch-icon'
+    endIcon.appendChild(icons.chevronRight())
+    this.touchHandleEnd.appendChild(endIcon)
+
+    this.touchAffordances.append(
+      this.touchHandleStart,
+      this.touchContextMenu,
+      this.touchHandleEnd,
+    )
+    doc.appendChild(this.touchAffordances)
+
+    // Drag handlers for touch affordance handles
+    for (const handle of [this.touchHandleStart, this.touchHandleEnd]) {
+      handle.addEventListener('pointerdown', this.handleAffordanceDragStart)
+      handle.addEventListener('pointermove', this.handleAffordanceDragMove)
+      handle.addEventListener('pointerup', this.handleAffordanceDragEnd)
+    }
+    this.touchContextMenu.addEventListener(
+      'pointerdown',
+      this.handleTouchContextMenu,
+    )
+
+    // Selection change updates undo and touch affordances
     doc.addEventListener('selectionchanged', () => {
-      this.updateUndo('new', 'selectionchanged')
+      this.isTouchInteraction = this.selectable.touchMode
+      if (!this.touchMenuEl) {
+        // Don't push undo while touch menu is open
+        this.updateUndo('new', 'selectionchanged')
+      }
+      this.updateTouchAffordances()
     })
 
     // Toolbar button events — listen on host since buttons are slotted light DOM
@@ -611,9 +753,9 @@ export class TosiEditable extends WebComponent<EditableParts> {
       } else {
         // Middle item — split the list in two
         const newList = document.createElement(list.tagName)
-        let sibling = li.nextElementSibling
+        let sibling: Element | null = li.nextElementSibling
         while (sibling) {
-          const next = sibling.nextElementSibling
+          const next: Element | null = sibling.nextElementSibling
           newList.appendChild(sibling)
           sibling = next
         }
@@ -1169,14 +1311,14 @@ export class TosiEditable extends WebComponent<EditableParts> {
     const start = this.selectable.find('.sel-start')
     if (!start) return
 
-    let previous: Node | null
     if (evt.altKey) {
-      previous = previousLeafNode(start, this.parts.doc, whitespaceFilter)
+      // Word movement: skip backwards to the start of the previous word
+      this.moveWordLeft(evt.shiftKey)
     } else {
-      previous = previousLeafNode(start, this.parts.doc, deletableFilter)
-    }
-    if (previous) {
-      this.moveBoundsBefore(previous, evt.shiftKey)
+      const previous = previousLeafNode(start, this.parts.doc, deletableFilter)
+      if (previous) {
+        this.moveBoundsBefore(previous, evt.shiftKey)
+      }
     }
   }
 
@@ -1185,14 +1327,70 @@ export class TosiEditable extends WebComponent<EditableParts> {
     const end = this.selectable.find('.sel-end')
     if (!end) return
 
-    let next: Node | null
     if (evt.altKey) {
-      next = nextLeafNode(end, this.parts.doc, whitespaceFilter)
+      // Word movement: skip forwards to the end of the next word
+      this.moveWordRight(evt.shiftKey)
     } else {
-      next = nextLeafNode(end, this.parts.doc, deletableFilter)
+      const next = nextLeafNode(end, this.parts.doc, deletableFilter)
+      if (next) {
+        this.moveBoundsAfter(next, evt.shiftKey)
+      }
     }
-    if (next) {
-      this.moveBoundsAfter(next, evt.shiftKey)
+  }
+
+  /** Move caret left by one word */
+  private moveWordLeft(extendSelection: boolean): void {
+    const marker = this.selectable.find('.sel-start')
+    if (!marker) return
+
+    let node: Node | null = previousLeafNode(marker, this.parts.doc, deletableFilter)
+    if (!node) return
+
+    // Skip whitespace
+    while (node && node.nodeType === 3 && /^\s+$/.test(node.textContent || '')) {
+      node = previousLeafNode(node, this.parts.doc, deletableFilter)
+    }
+    // Skip word characters (non-whitespace)
+    let last = node
+    while (node && node.nodeType === 3 && /\S/.test(node.textContent || '')) {
+      last = node
+      const prev = previousLeafNode(node, this.parts.doc, deletableFilter)
+      if (prev && prev.nodeType === 3 && /\S/.test(prev.textContent || '')) {
+        node = prev
+      } else {
+        break
+      }
+    }
+    if (last) {
+      this.moveBoundsBefore(last, extendSelection)
+    }
+  }
+
+  /** Move caret right by one word */
+  private moveWordRight(extendSelection: boolean): void {
+    const marker = this.selectable.find('.sel-end')
+    if (!marker) return
+
+    let node: Node | null = nextLeafNode(marker, this.parts.doc, deletableFilter)
+    if (!node) return
+
+    // Skip whitespace
+    while (node && node.nodeType === 3 && /^\s+$/.test(node.textContent || '')) {
+      node = nextLeafNode(node, this.parts.doc, deletableFilter)
+    }
+    // Skip word characters (non-whitespace)
+    let last = node
+    while (node && node.nodeType === 3 && /\S/.test(node.textContent || '')) {
+      last = node
+      const next = nextLeafNode(node, this.parts.doc, deletableFilter)
+      if (next && next.nodeType === 3 && /\S/.test(next.textContent || '')) {
+        node = next
+      } else {
+        break
+      }
+    }
+    if (last) {
+      this.moveBoundsAfter(last, extendSelection)
     }
   }
 
@@ -1358,7 +1556,9 @@ export class TosiEditable extends WebComponent<EditableParts> {
         break
       case 'Backspace':
         evt.preventDefault()
-        if (cell) {
+        if (this.deleteSelection()) {
+          this.updateUndo('new')
+        } else if (cell) {
           // In a table cell: don't let backspace escape the cell
           if (ip) {
             const prev = previousLeafNode(ip, cell, deletableFilter)
@@ -1383,7 +1583,9 @@ export class TosiEditable extends WebComponent<EditableParts> {
         break
       case 'Delete':
         evt.preventDefault()
-        if (cell) {
+        if (this.deleteSelection()) {
+          this.updateUndo('new')
+        } else if (cell) {
           // In a table cell: don't let delete escape the cell
           if (ip) {
             const next = nextLeafNode(ip, cell, deletableFilter)
@@ -1572,6 +1774,348 @@ export class TosiEditable extends WebComponent<EditableParts> {
     return null
   }
 
+  // ---- Touch affordance methods ----
+
+  /** Update position of touch affordance handles based on selection bounds */
+  private updateTouchAffordances(): void {
+    if (!this.touchAffordances) return
+
+    if (!this.isTouchInteraction && !this.touchMenuEl) {
+      this.touchAffordances.style.display = 'none'
+      this.parts.doc.style.paddingTop = ''
+      this.parts.doc.style.paddingBottom = ''
+      return
+    }
+
+    const selStart = this.parts.doc.querySelector('.sel-start')
+    const selEnd = this.parts.doc.querySelector('.sel-end')
+    if (!selStart || !selEnd) {
+      this.touchAffordances.style.display = 'none'
+      this.parts.doc.style.paddingTop = ''
+      this.parts.doc.style.paddingBottom = ''
+      return
+    }
+
+    const docRect = this.parts.doc.getBoundingClientRect()
+    const startRect = selStart.getBoundingClientRect()
+    const endRect = selEnd.getBoundingClientRect()
+
+    // Check if padding is needed (skip during drag)
+    let needsPaddingChange = false
+    if (this.touchDrags.size === 0) {
+      // Subtract existing padding to check where selection would be without it
+      const existingTopPad = parseFloat(this.parts.doc.style.paddingTop) || 0
+      const existingBottomPad = parseFloat(this.parts.doc.style.paddingBottom) || 0
+      const selTop = Math.min(startRect.top, endRect.top) - 48 - existingTopPad
+      const selBottom = Math.max(startRect.bottom, endRect.bottom) + 48 + existingBottomPad
+      const wantTop = selTop < docRect.top ? '52px' : ''
+      const wantBottom = selBottom > docRect.bottom ? '52px' : ''
+      const hadTop = this.parts.doc.style.paddingTop
+      const hadBottom = this.parts.doc.style.paddingBottom
+      if (wantTop !== hadTop || wantBottom !== hadBottom) {
+        needsPaddingChange = true
+        this.parts.doc.style.paddingTop = wantTop
+        this.parts.doc.style.paddingBottom = wantBottom
+      }
+    }
+
+    if (needsPaddingChange) {
+      // Hide affordances, wait for padding transition, then position and fade in
+      this.touchAffordances.style.opacity = '0'
+      this.touchAffordances.style.display = 'block'
+      setTimeout(() => {
+        this.positionAffordances()
+        this.touchAffordances!.style.opacity = '1'
+      }, 160)
+    } else {
+      this.positionAffordances()
+      this.touchAffordances.style.display = 'block'
+      this.touchAffordances.style.opacity = '1'
+    }
+  }
+
+  private positionAffordances(): void {
+    const selStart = this.parts.doc.querySelector('.sel-start')
+    const selEnd = this.parts.doc.querySelector('.sel-end')
+    if (!selStart || !selEnd) return
+
+    const docRect = this.parts.doc.getBoundingClientRect()
+    const startRect = selStart.getBoundingClientRect()
+    const endRect = selEnd.getBoundingClientRect()
+
+    const startX =
+      startRect.left - docRect.left + this.parts.doc.scrollLeft
+    const startY =
+      startRect.top - docRect.top + this.parts.doc.scrollTop
+    const endX =
+      endRect.right - docRect.left + this.parts.doc.scrollLeft
+    const endY =
+      endRect.bottom - docRect.top + this.parts.doc.scrollTop
+
+    const isCollapsed = selStart.nextElementSibling === selEnd
+
+    if (isCollapsed) {
+      this.touchHandleStart!.style.left = `${startX - 44}px`
+      this.touchHandleStart!.style.top = `${startY - 44}px`
+      this.touchContextMenu!.style.left = `${startX}px`
+      this.touchContextMenu!.style.top = `${startY - 44}px`
+      this.touchHandleEnd!.style.left = `${endX}px`
+      this.touchHandleEnd!.style.top = `${endY}px`
+    } else {
+      this.touchHandleStart!.style.left = `${startX - 44}px`
+      this.touchHandleStart!.style.top = `${startY - 44}px`
+      this.touchHandleEnd!.style.left = `${endX}px`
+      this.touchHandleEnd!.style.top = `${endY}px`
+      const midX = (startX + endX) / 2 - 22
+      const topY = Math.min(startY, endY) - 44
+      this.touchContextMenu!.style.left = `${midX}px`
+      this.touchContextMenu!.style.top = `${topY}px`
+    }
+  }
+
+  private handleAffordanceDragStart = (evt: PointerEvent): void => {
+    const handle = evt.currentTarget as HTMLElement
+    const which = handle === this.touchHandleStart ? 'start' : 'end'
+    handle.setPointerCapture(evt.pointerId)
+
+    // The cursor position is at the handle's anchor corner offset by
+    // half a line-height. A's anchor is its bottom-right, C's is top-left.
+    const handleRect = handle.getBoundingClientRect()
+    const markerSelector = which === 'start' ? '.sel-start' : '.sel-end'
+    const marker = this.parts.doc.querySelector(markerSelector)
+    const rawLineHeight = marker
+      ? parseFloat(getComputedStyle(marker).lineHeight)
+      : NaN
+    const halfLine = isNaN(rawLineHeight) ? 10 : rawLineHeight / 2
+
+    let offsetX: number
+    let offsetY: number
+    if (which === 'start') {
+      offsetX = handleRect.right - evt.clientX
+      offsetY = handleRect.bottom + halfLine - evt.clientY
+    } else {
+      offsetX = handleRect.left - evt.clientX
+      offsetY = handleRect.top - halfLine - evt.clientY
+    }
+
+    this.touchDrags.set(evt.pointerId, {
+      target: which,
+      offsetX,
+      offsetY,
+    })
+
+    // Disable transitions during drag
+    this.touchAffordances!.classList.add('dragging')
+
+    evt.preventDefault()
+    evt.stopPropagation()
+  }
+
+  private handleAffordanceDragMove = (evt: PointerEvent): void => {
+    const drag = this.touchDrags.get(evt.pointerId)
+    if (!drag) return
+
+    // Apply offset so the cursor position is below/above the finger
+    const cursorX = evt.clientX + drag.offsetX
+    const cursorY = evt.clientY + drag.offsetY
+
+    // Temporarily hide affordances to find element at the offset position
+    const affordanceEl = evt.currentTarget as HTMLElement
+    affordanceEl.style.pointerEvents = 'none'
+    this.touchAffordances!.style.pointerEvents = 'none'
+    const elementAtPoint = this.shadowRoot!.elementFromPoint(
+      cursorX,
+      cursorY,
+    )
+    affordanceEl.style.pointerEvents = 'auto'
+    this.touchAffordances!.style.pointerEvents = ''
+
+    if (
+      !elementAtPoint ||
+      elementAtPoint.closest('.not-selectable') ||
+      elementAtPoint.classList.contains('not-selectable')
+    ) {
+      return
+    }
+
+    // Spanify the target area
+    if (
+      !elementAtPoint.classList.contains('spanified') &&
+      elementAtPoint instanceof Element
+    ) {
+      spanify(elementAtPoint, true, true)
+    }
+
+    // Find the closest spanified character at the offset cursor position
+    let target: Element | null = null
+    if (elementAtPoint.classList.contains('spanified')) {
+      target = elementAtPoint
+    } else {
+      let bestDist = Infinity
+      for (const span of Array.from(
+        elementAtPoint.querySelectorAll('.spanified'),
+      )) {
+        const r = span.getBoundingClientRect()
+        const cx = (r.left + r.right) / 2
+        const cy = (r.top + r.bottom) / 2
+        const dist = Math.hypot(cursorX - cx, cursorY - cy)
+        if (dist < bestDist) {
+          bestDist = dist
+          target = span
+        }
+      }
+    }
+
+    if (!target) return
+
+    const rect = target.getBoundingClientRect()
+    const markerSelector =
+      drag.target === 'start' ? '.sel-start' : '.sel-end'
+    const marker = this.parts.doc.querySelector(markerSelector)
+
+    if (marker) {
+      if (cursorX - rect.left < rect.width / 2) {
+        target.before(marker)
+      } else {
+        target.after(marker)
+      }
+      this.selectable.markBounds()
+
+      // Just move the dragged handle to follow the pointer
+      const docRect = this.parts.doc.getBoundingClientRect()
+      const handle = evt.currentTarget as HTMLElement
+      const handleX = evt.clientX - docRect.left + this.parts.doc.scrollLeft
+      const handleY = evt.clientY - docRect.top + this.parts.doc.scrollTop
+      handle.style.left = `${handleX - 22}px`
+      handle.style.top = `${handleY - 22}px`
+    }
+
+    evt.preventDefault()
+    evt.stopPropagation()
+  }
+
+  private handleAffordanceDragEnd = (evt: PointerEvent): void => {
+    if (!this.touchDrags.has(evt.pointerId)) return
+
+    const handle = evt.currentTarget as HTMLElement
+    handle.releasePointerCapture(evt.pointerId)
+    this.touchDrags.delete(evt.pointerId)
+
+    // Only despanify when all drags are done
+    if (this.touchDrags.size === 0) {
+      this.selectable.despanify()
+      this.selectable.selectionChanged()
+      // Remove dragging class after reposition so handles settle with transition
+      requestAnimationFrame(() => {
+        this.touchAffordances!.classList.remove('dragging')
+      })
+    }
+
+    evt.preventDefault()
+    evt.stopPropagation()
+  }
+
+  private handleTouchContextMenu = (evt: Event): void => {
+    evt.preventDefault()
+    evt.stopPropagation()
+
+    if (this.touchMenuEl) {
+      this.hideTouchMenu()
+      return
+    }
+    this.showTouchMenu()
+  }
+
+  private showTouchMenu(): void {
+    this.hideTouchMenu()
+
+    const menu = document.createElement('div')
+    menu.className = 'touch-menu not-selectable do-not-spanify'
+
+    const actions: Array<{ label: string; action: () => void }> = [
+      {
+        label: 'Copy',
+        action: () => {
+          const selected = this.selectable.findAll('.selected')
+          const text = selected.map((el) => el.textContent).join('')
+          navigator.clipboard.writeText(text)
+        },
+      },
+      {
+        label: 'Paste',
+        action: () => {
+          navigator.clipboard.readText().then((text) => {
+            if (text) {
+              this.deleteSelection()
+              const ip = this.insertionPoint()
+              if (ip) {
+                ip.before(document.createTextNode(text))
+                this.normalize()
+                this.updateUndo('new')
+              }
+            }
+          })
+        },
+      },
+      {
+        label: 'Delete',
+        action: () => {
+          this.deleteSelection()
+          this.updateUndo('new')
+        },
+      },
+      {
+        label: 'Bold',
+        action: () => this.doCommand('setText font-weight bold'),
+      },
+      {
+        label: 'Italic',
+        action: () => this.doCommand('setText font-style italic'),
+      },
+      {
+        label: 'Plain',
+        action: () =>
+          this.doCommand(
+            'setText font-weight normal; setText font-style normal; setText text-decoration none',
+          ),
+      },
+    ]
+
+    for (const { label, action } of actions) {
+      const btn = document.createElement('button')
+      btn.className = 'touch-menu-item not-selectable'
+      btn.textContent = label
+      btn.addEventListener('pointerdown', (e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        action()
+        this.hideTouchMenu()
+      })
+      menu.appendChild(btn)
+    }
+
+    // Position above the context menu button, clamped to doc boundaries
+    const bRect = this.touchContextMenu!.getBoundingClientRect()
+    const docRect = this.parts.doc.getBoundingClientRect()
+    const menuWidth = actions.length * 70
+    let menuLeft = bRect.left - docRect.left + this.parts.doc.scrollLeft + 22 - menuWidth / 2
+    // Clamp to doc edges
+    if (menuLeft < 0) menuLeft = 4
+    if (menuLeft + menuWidth > docRect.width) menuLeft = docRect.width - menuWidth - 4
+    menu.style.left = `${menuLeft}px`
+    menu.style.top = `${bRect.top - docRect.top + this.parts.doc.scrollTop - 44}px`
+
+    this.touchMenuEl = menu
+    this.touchAffordances!.appendChild(menu)
+  }
+
+  private hideTouchMenu(): void {
+    if (this.touchMenuEl) {
+      this.touchMenuEl.remove()
+      this.touchMenuEl = null
+    }
+  }
+
   private handleResizePointerDown = (evt: PointerEvent): void => {
     const edge = this.cellEdgeAt(evt)
     if (!edge) return
@@ -1665,5 +2209,5 @@ export class TosiEditable extends WebComponent<EditableParts> {
 }
 
 export const tosiEditable = TosiEditable.elementCreator({
-  tag: 'tosi-editable',
+  tag: 'tosi-styled-editor',
 }) as ElementCreator<TosiEditable>
