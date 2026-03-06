@@ -389,15 +389,34 @@ export class TosiEditable extends WebComponent<EditableParts> {
 
   private _value = ''
 
+  /** Get doc innerHTML excluding UI affordances */
+  private get docHTML(): string {
+    this.touchAffordances?.remove()
+    const html = this.parts.doc.innerHTML
+    if (this.touchAffordances) {
+      this.parts.doc.appendChild(this.touchAffordances)
+    }
+    return html
+  }
+
+  /** Set doc innerHTML and re-attach UI affordances */
+  private set docHTML(html: string) {
+    this.touchAffordances?.remove()
+    this.parts.doc.innerHTML = html
+    if (this.touchAffordances) {
+      this.parts.doc.appendChild(this.touchAffordances)
+    }
+  }
+
   get value(): string {
-    return this.isInitialized ? this.parts.doc.innerHTML : this._value
+    return this.isInitialized ? this.docHTML : this._value
   }
 
   set value(html: string) {
     const oldValue = this._value
     this._value = html
-    if (this.isInitialized && this.parts.doc.innerHTML !== html) {
-      this.parts.doc.innerHTML = html
+    if (this.isInitialized && this.docHTML !== html) {
+      this.docHTML = html
     }
     if (oldValue !== html && this.internals) {
       this.internals.setFormValue(html)
@@ -1233,13 +1252,28 @@ export class TosiEditable extends WebComponent<EditableParts> {
     // Clean up selection markers
     this.selectable.unmark()
 
+    // Remove blocks that are now empty (no text content) after leaf node deletion
+    // but keep the block containing the caret
+    const caret = this.parts.doc.querySelector('.caret')
+    for (const block of blocks) {
+      if (
+        this.parts.doc.contains(block) &&
+        (!caret || !block.contains(caret)) &&
+        !block.textContent?.trim()
+      ) {
+        block.remove()
+      }
+    }
+
     if (blocks.length > 1) {
-      // Merge first and last blocks
+      // Merge first and last blocks (if both still exist and aren't tables)
       const firstBlock = blocks[0]
       const lastBlock = blocks[blocks.length - 1]
       if (
         this.parts.doc.contains(firstBlock) &&
-        this.parts.doc.contains(lastBlock)
+        this.parts.doc.contains(lastBlock) &&
+        !firstBlock.classList.contains('editor-table') &&
+        !lastBlock.classList.contains('editor-table')
       ) {
         while (firstBlock.firstChild) {
           lastBlock.insertBefore(firstBlock.firstChild, lastBlock.firstChild)
@@ -1343,27 +1377,46 @@ export class TosiEditable extends WebComponent<EditableParts> {
     const marker = this.selectable.find('.sel-start')
     if (!marker) return
 
-    let node: Node | null = previousLeafNode(marker, this.parts.doc, deletableFilter)
-    if (!node) return
+    const block = this.block(marker)
+    if (!block) return
 
-    // Skip whitespace
-    while (node && node.nodeType === 3 && /^\s+$/.test(node.textContent || '')) {
-      node = previousLeafNode(node, this.parts.doc, deletableFilter)
+    // Spanify to get character-level granularity
+    spanify(block, true)
+
+    let node: Node | null = previousLeafNode(marker, block, deletableFilter)
+    if (!node) {
+      spanify(block, false)
+      return
+    }
+
+    // Skip whitespace characters
+    while (node && node.nodeType === 3 && /^\s$/.test(node.textContent || '')) {
+      node = previousLeafNode(node, block, deletableFilter)
     }
     // Skip word characters (non-whitespace)
     let last = node
-    while (node && node.nodeType === 3 && /\S/.test(node.textContent || '')) {
+    while (node && node.nodeType === 3 && /^\S$/.test(node.textContent || '')) {
       last = node
-      const prev = previousLeafNode(node, this.parts.doc, deletableFilter)
-      if (prev && prev.nodeType === 3 && /\S/.test(prev.textContent || '')) {
+      const prev = previousLeafNode(node, block, deletableFilter)
+      if (prev && prev.nodeType === 3 && /^\S$/.test(prev.textContent || '')) {
         node = prev
       } else {
         break
       }
     }
     if (last) {
-      this.moveBoundsBefore(last, extendSelection)
+      const start = this.selectable.find('.sel-start')
+      const end = this.selectable.find('.sel-end')
+      if (start && end) {
+        last.parentNode?.insertBefore(start, last)
+        if (!extendSelection) {
+          start.after(end)
+        }
+      }
     }
+    spanify(block, false)
+    this.selectable.markBounds()
+    this.focus()
   }
 
   /** Move caret right by one word */
@@ -1371,27 +1424,46 @@ export class TosiEditable extends WebComponent<EditableParts> {
     const marker = this.selectable.find('.sel-end')
     if (!marker) return
 
-    let node: Node | null = nextLeafNode(marker, this.parts.doc, deletableFilter)
-    if (!node) return
+    const block = this.block(marker)
+    if (!block) return
 
-    // Skip whitespace
-    while (node && node.nodeType === 3 && /^\s+$/.test(node.textContent || '')) {
-      node = nextLeafNode(node, this.parts.doc, deletableFilter)
+    // Spanify to get character-level granularity
+    spanify(block, true)
+
+    let node: Node | null = nextLeafNode(marker, block, deletableFilter)
+    if (!node) {
+      spanify(block, false)
+      return
+    }
+
+    // Skip whitespace characters
+    while (node && node.nodeType === 3 && /^\s$/.test(node.textContent || '')) {
+      node = nextLeafNode(node, block, deletableFilter)
     }
     // Skip word characters (non-whitespace)
     let last = node
-    while (node && node.nodeType === 3 && /\S/.test(node.textContent || '')) {
+    while (node && node.nodeType === 3 && /^\S$/.test(node.textContent || '')) {
       last = node
-      const next = nextLeafNode(node, this.parts.doc, deletableFilter)
-      if (next && next.nodeType === 3 && /\S/.test(next.textContent || '')) {
+      const next = nextLeafNode(node, block, deletableFilter)
+      if (next && next.nodeType === 3 && /^\S$/.test(next.textContent || '')) {
         node = next
       } else {
         break
       }
     }
     if (last) {
-      this.moveBoundsAfter(last, extendSelection)
+      const start = this.selectable.find('.sel-start')
+      const end = this.selectable.find('.sel-end')
+      if (start && end) {
+        last.parentNode?.insertBefore(end, last.nextSibling)
+        if (!extendSelection) {
+          end.parentNode?.insertBefore(start, end)
+        }
+      }
     }
+    spanify(block, false)
+    this.selectable.markBounds()
+    this.focus()
   }
 
   /** Move bounds to before a target node */
@@ -1401,9 +1473,12 @@ export class TosiEditable extends WebComponent<EditableParts> {
     if (!start || !end) return
 
     if (target.nodeType === 3 && (target.textContent || '').length > 1) {
-      ;(target as Text).splitText((target.textContent || '').length - 1)
+      // splitText returns the second half — insert before it (the last char)
+      const lastChar = (target as Text).splitText((target.textContent || '').length - 1)
+      lastChar.parentNode?.insertBefore(start, lastChar)
+    } else {
+      target.parentNode?.insertBefore(start, target)
     }
-    target.parentNode?.insertBefore(start, target)
     if (!extendSelection) {
       start.after(end)
     }
@@ -1438,7 +1513,7 @@ export class TosiEditable extends WebComponent<EditableParts> {
     }
     this.reasonForLastUndo = reason
 
-    const html = this.parts.doc.innerHTML
+    const html = this.docHTML
 
     switch (command) {
       case 'init':
@@ -1455,14 +1530,14 @@ export class TosiEditable extends WebComponent<EditableParts> {
       case 'undo':
         if (this.undoDepth < this.undo.length - 1) {
           this.undoDepth++
-          this.parts.doc.innerHTML = this.undo[this.undoDepth]
+          this.docHTML = this.undo[this.undoDepth]
           this.focus()
         }
         break
       case 'redo':
         if (this.undoDepth > 0) {
           this.undoDepth--
-          this.parts.doc.innerHTML = this.undo[this.undoDepth]
+          this.docHTML = this.undo[this.undoDepth]
           this.focus()
         }
         break
@@ -1904,6 +1979,9 @@ export class TosiEditable extends WebComponent<EditableParts> {
       offsetY,
     })
 
+    // Dismiss context menu when starting a drag
+    this.hideTouchMenu()
+
     // Disable transitions during drag
     this.touchAffordances!.classList.add('dragging')
 
@@ -2094,22 +2172,55 @@ export class TosiEditable extends WebComponent<EditableParts> {
       menu.appendChild(btn)
     }
 
+    // Add close button
+    const closeBtn = document.createElement('button')
+    closeBtn.className = 'touch-menu-item touch-menu-close not-selectable'
+    closeBtn.textContent = '\u00D7'
+    closeBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      this.hideTouchMenu()
+    })
+    menu.appendChild(closeBtn)
+
     // Position above the context menu button, clamped to doc boundaries
     const bRect = this.touchContextMenu!.getBoundingClientRect()
     const docRect = this.parts.doc.getBoundingClientRect()
-    const menuWidth = actions.length * 70
+    const menuWidth = (actions.length + 1) * 70
     let menuLeft = bRect.left - docRect.left + this.parts.doc.scrollLeft + 22 - menuWidth / 2
-    // Clamp to doc edges
+    // Clamp horizontally
     if (menuLeft < 0) menuLeft = 4
     if (menuLeft + menuWidth > docRect.width) menuLeft = docRect.width - menuWidth - 4
     menu.style.left = `${menuLeft}px`
-    menu.style.top = `${bRect.top - docRect.top + this.parts.doc.scrollTop - 44}px`
+    let menuTop = bRect.top - docRect.top + this.parts.doc.scrollTop - 44
+    // If menu would clip above doc, position below the context menu button instead
+    if (menuTop < 0) {
+      menuTop = bRect.bottom - docRect.top + this.parts.doc.scrollTop + 4
+    }
+    menu.style.top = `${menuTop}px`
 
     this.touchMenuEl = menu
     this.touchAffordances!.appendChild(menu)
+
+    // Dismiss when tapping outside the menu
+    this.touchMenuDismiss = (e: Event) => {
+      if (this.touchMenuEl && !this.touchMenuEl.contains(e.target as Node)) {
+        this.hideTouchMenu()
+      }
+    }
+    // Use setTimeout so the current event doesn't immediately trigger dismissal
+    setTimeout(() => {
+      this.parts.doc.addEventListener('pointerdown', this.touchMenuDismiss!)
+    }, 0)
   }
 
+  private touchMenuDismiss: ((e: Event) => void) | null = null
+
   private hideTouchMenu(): void {
+    if (this.touchMenuDismiss) {
+      this.parts.doc.removeEventListener('pointerdown', this.touchMenuDismiss)
+      this.touchMenuDismiss = null
+    }
     if (this.touchMenuEl) {
       this.touchMenuEl.remove()
       this.touchMenuEl = null
