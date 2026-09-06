@@ -7,6 +7,10 @@ import { $ } from 'bun'
  */
 export default defineSiteConfig({
   name: 'tosijs-styled-editor',
+  // static/ is copied to the web root, so these resolve at the served root
+  favicon: '/tosijs-editor.svg',
+  logo: '/tosijs-editor.svg',
+  ogImage: '/tosijs-editor.svg',
   description:
     'Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs',
   // baseUrl already carries the project-page path, so basePath stays '/' (the
@@ -26,7 +30,7 @@ export default defineSiteConfig({
   docPaths: ['src', 'README.md'],
   outputDir: 'docs',
 
-  // Registers <tosi-styled-editor> so live examples in the docs actually run
+  // Registers <tosijs-styled-editor> so live examples in the docs actually run
   bundleEntry: 'demo/index.ts',
   checkExamples: {
     contextKeys: ['tosijs', 'tosijs-ui', 'tosijs-styled-editor'],

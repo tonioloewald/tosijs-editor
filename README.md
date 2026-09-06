@@ -1,6 +1,9 @@
-# tosijs-styled-editor
+# A Rich Text Editor Component
 
-Rich text editor web component — **no `contentEditable`**, **no browser selection APIs**, **no `execCommand`**.
+- Pure web-component
+- No `document.execCommand`
+- No `contentEditable`
+- No browser selection or Range APIs
 
 All selection and editing is handled through direct DOM manipulation, giving full control
 over editing behavior with none of the compatibility and accessibility nightmares of
@@ -32,20 +35,20 @@ Peer dependencies: `tosijs`, `tosijs-ui`
 ## Usage
 
 ```html
-<tosi-styled-editor>
+<tosijs-styled-editor widgets="default">
   <p>Edit this text!</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
-</tosi-styled-editor>
+</tosijs-styled-editor>
 ```
 
 ```css
-tosi-styled-editor {
+tosijs-styled-editor {
   background: var(--tosi-bg, Canvas);
   color: var(--tosi-text, CanvasText);
   border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
-tosi-styled-editor [part="toolbar"] {
+tosijs-styled-editor [part="toolbar"] {
   background: var(--tosi-bg-inset, Canvas);
   border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
@@ -54,10 +57,10 @@ tosi-styled-editor [part="toolbar"] {
 ### Setting up toolbars and menus
 
 ```typescript
-import { tosiEditable, type TosiEditable } from 'tosijs-styled-editor'
+import { tosijsStyledEditor, type TosijsStyledEditor } from 'tosijs-styled-editor'
 import { defaultToolbar, defaultMenubar } from 'tosijs-styled-editor'
 
-const editor = tosiEditable() as TosiEditable
+const editor = tosijsStyledEditor() as TosijsStyledEditor
 editor.value = '<p>Hello world</p>'
 document.body.appendChild(editor)
 

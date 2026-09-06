@@ -1,5 +1,5 @@
 /**
- * Selection management for tosi-editable.
+ * Selection management for tosijs-styled-editor.
  *
  * Replaces browser selection behavior entirely. Selections are tracked
  * using marker elements (.sel-start, .sel-end) and the .selected class.

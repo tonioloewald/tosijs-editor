@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
-import { TosiEditable, tosiEditable } from './tosi-editable'
+import { TosijsStyledEditor, tosijsStyledEditor } from './tosijs-styled-editor'
 
-describe('TosiEditable', () => {
+describe('TosijsStyledEditor', () => {
   let container: HTMLElement
 
   beforeEach(() => {
@@ -14,33 +14,33 @@ describe('TosiEditable', () => {
   })
 
   test('class exists', () => {
-    expect(TosiEditable).toBeDefined()
+    expect(TosijsStyledEditor).toBeDefined()
   })
 
   test('elementCreator exists', () => {
-    expect(tosiEditable).toBeDefined()
-    expect(typeof tosiEditable).toBe('function')
+    expect(tosijsStyledEditor).toBeDefined()
+    expect(typeof tosijsStyledEditor).toBe('function')
   })
 
   test('has static formAssociated', () => {
-    expect(TosiEditable.formAssociated).toBe(true)
+    expect(TosijsStyledEditor.formAssociated).toBe(true)
   })
 
   test('has initAttributes', () => {
-    expect(TosiEditable.initAttributes).toBeDefined()
-    expect(TosiEditable.initAttributes.widgets).toBe('none')
-    expect(TosiEditable.initAttributes.name).toBe('')
-    expect(TosiEditable.initAttributes.required).toBe(false)
+    expect(TosijsStyledEditor.initAttributes).toBeDefined()
+    expect(TosijsStyledEditor.initAttributes.widgets).toBe('none')
+    expect(TosijsStyledEditor.initAttributes.name).toBe('')
+    expect(TosijsStyledEditor.initAttributes.required).toBe(false)
   })
 
   test('creates element', () => {
-    const el = tosiEditable()
+    const el = tosijsStyledEditor()
     expect(el).toBeInstanceOf(HTMLElement)
-    expect(el.tagName.toLowerCase()).toBe('tosi-styled-editor')
+    expect(el.tagName.toLowerCase()).toBe('tosijs-styled-editor')
   })
 
   test('creates element with initial content', () => {
-    const el = tosiEditable({}, '<p>Hello</p>') as TosiEditable
+    const el = tosijsStyledEditor({}, '<p>Hello</p>') as TosijsStyledEditor
     container.appendChild(el)
     // Content gets moved to doc on connectedCallback
     expect(el.parts.doc).not.toBeNull()
@@ -48,7 +48,7 @@ describe('TosiEditable', () => {
   })
 
   test('has commands object', () => {
-    const el = tosiEditable() as TosiEditable
+    const el = tosijsStyledEditor() as TosijsStyledEditor
     container.appendChild(el)
     expect(el.commands).toBeDefined()
     expect(typeof el.commands.setText).toBe('function')
@@ -58,7 +58,7 @@ describe('TosiEditable', () => {
   })
 
   test('doCommand dispatches to custom commands added to editor.commands', () => {
-    const el = tosiEditable() as TosiEditable
+    const el = tosijsStyledEditor() as TosijsStyledEditor
     container.appendChild(el)
     const calls: string[][] = []
     el.commands.custom = (_ctx, ...args) => {
@@ -69,46 +69,46 @@ describe('TosiEditable', () => {
   })
 
   test('has selectable after connection', () => {
-    const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+    const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)
     expect(el.selectable).toBeDefined()
   })
 
   test('doCommand method exists', () => {
-    const el = tosiEditable() as TosiEditable
+    const el = tosijsStyledEditor() as TosijsStyledEditor
     container.appendChild(el)
     expect(typeof el.doCommand).toBe('function')
   })
 
   test('active defaults to true', () => {
-    const el = tosiEditable() as TosiEditable
+    const el = tosijsStyledEditor() as TosijsStyledEditor
     container.appendChild(el)
     expect(el.active).toBe(true)
   })
 
   test('pastemode defaults to merge', () => {
-    const el = tosiEditable() as TosiEditable
+    const el = tosijsStyledEditor() as TosijsStyledEditor
     container.appendChild(el)
     expect(el.pastemode).toBe('merge')
   })
 
   describe('touch affordances', () => {
     test('creates touch affordance elements in doc', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       const affordances = el.parts.doc.querySelector('.touch-affordances')
       expect(affordances).not.toBeNull()
     })
 
     test('touch affordances contain three children', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       const affordances = el.parts.doc.querySelector('.touch-affordances')!
       expect(affordances.children.length).toBe(3)
     })
 
     test('touch affordances have correct classes', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       const doc = el.parts.doc
       expect(doc.querySelector('.touch-handle-start')).not.toBeNull()
@@ -117,7 +117,7 @@ describe('TosiEditable', () => {
     })
 
     test('touch affordances not visible without touch interaction', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       // Without touch interaction, affordances should not be displayed as 'block'
       const affordances = el.parts.doc.querySelector('.touch-affordances') as HTMLElement
@@ -125,7 +125,7 @@ describe('TosiEditable', () => {
     })
 
     test('touch affordances have do-not-spanify class', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       const affordances = el.parts.doc.querySelector('.touch-affordances')!
       expect(affordances.classList.contains('do-not-spanify')).toBe(true)
@@ -134,13 +134,13 @@ describe('TosiEditable', () => {
 
   describe('value property', () => {
     test('get returns doc innerHTML', () => {
-      const el = tosiEditable({}, '<p>Hello</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Hello</p>') as TosijsStyledEditor
       container.appendChild(el)
       expect(el.value).toContain('Hello')
     })
 
     test('set updates doc innerHTML', () => {
-      const el = tosiEditable() as TosiEditable
+      const el = tosijsStyledEditor() as TosijsStyledEditor
       container.appendChild(el)
       el.value = '<p>New content</p>'
       expect(el.parts.doc.innerHTML).toContain('New content')
@@ -149,7 +149,7 @@ describe('TosiEditable', () => {
 
   describe('block detection', () => {
     test('finds top-level block for nested node', () => {
-      const el = tosiEditable() as TosiEditable
+      const el = tosijsStyledEditor() as TosijsStyledEditor
       container.appendChild(el)
       // Manually set up doc content for reliable testing
       el.parts.doc.innerHTML = '<p><b>Bold text</b></p>'
@@ -162,7 +162,7 @@ describe('TosiEditable', () => {
 
   describe('insertionPoint', () => {
     test('returns caret input when present', () => {
-      const el = tosiEditable() as TosiEditable
+      const el = tosijsStyledEditor() as TosijsStyledEditor
       container.appendChild(el)
       // Manually place caret in the doc
       el.parts.doc.innerHTML = '<p>Test</p>'
@@ -178,7 +178,7 @@ describe('TosiEditable', () => {
 
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       // Clear any selection marks
       for (const mark of el.parts.doc.querySelectorAll('.selected-block')) {
@@ -190,7 +190,7 @@ describe('TosiEditable', () => {
 
   describe('undo/redo', () => {
     test('updateUndo initializes on first call', () => {
-      const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       // Undo was initialized in connectedCallback
       // Should not throw when called again
@@ -198,7 +198,7 @@ describe('TosiEditable', () => {
     })
 
     test('undo restores previous state', () => {
-      const el = tosiEditable({}, '<p>Original</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Original</p>') as TosijsStyledEditor
       container.appendChild(el)
 
       // Make a change
@@ -211,7 +211,7 @@ describe('TosiEditable', () => {
     })
 
     test('redo restores undone state', () => {
-      const el = tosiEditable({}, '<p>Original</p>') as TosiEditable
+      const el = tosijsStyledEditor({}, '<p>Original</p>') as TosijsStyledEditor
       container.appendChild(el)
 
       el.parts.doc.innerHTML = '<p>Changed</p>'

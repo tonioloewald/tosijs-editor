@@ -8,19 +8,19 @@ A rich text editor web component that completely replaces browser `contentEditab
 `execCommand`, `getSelection`, and Range APIs with pure DOM manipulation. Built on the
 tosijs/tosijs-ui ecosystem.
 
-**Naming is inconsistent across the repo — don't "fix" one without checking the others:**
+**One name, everywhere: `tosijs-styled-editor`.** The repo directory is the only
+exception, and it is deliberate:
 
 | Thing | Value |
 |---|---|
 | repo directory | `tosijs-editor` |
 | npm package | `tosijs-styled-editor` |
-| custom element tag | `<tosi-styled-editor>` (set in `TosiEditable.elementCreator`) |
-| class / creator | `TosiEditable` / `tosiEditable()` |
-| main source file | `src/tosi-editable.ts` |
+| custom element | `<tosijs-styled-editor>` (`static preferredTagName`) |
+| class / creator | `TosijsStyledEditor` / `tosijsStyledEditor()` |
+| main source file | `src/tosijs-styled-editor.ts` |
 
-README.md and the doc comment at the top of `src/tosi-editable.ts` still say
-`<tosi-editable>`, which is **not** the registered tag. The demo (`demo/index.html`) uses
-the real one.
+Note the element does NOT use the ecosystem's `tosi-` prefix (`tosi-menu`,
+`tosi-doc-system`) — those are tosijs-ui's; this package is named for itself.
 
 ## Commands
 
@@ -30,9 +30,13 @@ bun start                       # build + watch + dev server on http://localhost
 bun test                        # all unit tests
 bun test src/dom-utils.test.ts  # single test file
 bun test -t "wraps each char"   # single test by name
-bun run build                   # build only, then exit
+bun run make                    # full build (site + dist), then exit
+bun run tls                     # once — locally-trusted dev certs (needs mkcert)
 bun run format                  # eslint --fix + prettier (see caveat below)
 ```
+
+**There is deliberately no `build` script.** `bun build` is a Bun builtin, so a
+script by that name makes `bun build` and `bun run build` different commands.
 
 `bun run format` is declared in package.json but **eslint and prettier are not in
 devDependencies and there is no eslint config in the repo** — expect it to fail or
@@ -40,18 +44,41 @@ auto-fetch. Don't assume it ran.
 
 ## Build System
 
-`dev.ts` is the entire build + dev server (no bundler config files). One script does:
+`bin/site.ts` is the ONLY build/dev entry — a thin wrapper over tosijs-ui's doc
+system (`buildSite` / `devServer`), configured in `tosijs-editor-site.config.ts`.
+There is no bundler config and no `dev.ts`.
 
-1. **prebuild** — regenerates `src/version.ts` from `package.json`'s version, then wipes `dist/`.
-   **Never hand-edit `src/version.ts`; bump `package.json` instead.**
-2. **build** — `tsc --emitDeclarationOnly` into `dist/`, then flattens `dist/src/index.d.ts`
-   to `dist/index.d.ts`; two Bun builds: `dist/module.js` (ESM, `tosijs`/`tosijs-ui`
-   external) and `dist/index.js` (IIFE, everything bundled); prints gzipped sizes;
-   copies `demo/` into `docs/`.
-3. **serve** — static server over `docs/` with `/dist/*` passthrough, unless `--build`.
+- `prebuild` stamps `src/version.ts` from `package.json`. **Never hand-edit it.**
+- `libraryBuild` emits the package: types, `dist/module.js` (ESM, peers external),
+  `dist/index.js` (IIFE). Bundling shells out to the `bun build` CLI — calling
+  `Bun.build()` from the long-lived dev server leaks tens of MB per rebuild
+  (oven-sh/bun#34053).
+- `docs/` is the generated Pages web root and IS committed. `docs/*.map` is not:
+  multi-MB per build, and it embeds dependency source that has tripped GitHub
+  push protection.
 
-`chokidar` watches `src/` (full rebuild) and `demo/` (demo rebuild). Both `dist/` and
-`docs/` are gitignored.
+### Doc-system traps (each of these cost a debugging session)
+
+- **`bundleEntry` REPLACES tosijs-ui's `iife.js`, it does not extend it.** If
+  `demo/index.ts` omits the doc system, `<tosi-doc-system>`/`<tosi-example>`
+  never register: no header, no menu, no live examples — and no error, because
+  the prerendered markup still renders. (tosijs-ui#145)
+- **Import the element creators BY NAME and reference them.** A bare
+  `import 'tosijs-ui/live-example'` is tree-shaken out, with the same silent
+  failure. `demo/index.ts` assigns them to `globalThis` to hold them in.
+- **`js`, `ts`, `html`, `css` and `test` fences all EXECUTE** in doc comments and
+  markdown. An illustrative CSS block becomes a global `<style>`; a lone `html`
+  block becomes a stray live example. Use a display-only language (`typescript`,
+  `xml`) for anything meant only to be read. (tosijs-ui#146)
+- **Adjacent fences form ONE `<tosi-example>`; prose between them starts a new
+  one.** Keep a `test` block next to the `html` it drives, or it builds its own
+  editor and renders an empty box.
+- **No `*/` inside a doc comment's examples** — it closes the `/*# … */` early,
+  and the error names the example, not the delimiter.
+- **`baseUrl` already carries the project-page path, so `basePath` stays `/`.**
+  Setting both doubles it in canonical/og/sitemap. (tosijs-ui#144)
+- **Restart the dev server after editing the site config** — the running process
+  holds the imported config, and a delegated build reuses the stale one.
 
 ## Architecture
 
@@ -104,7 +131,7 @@ on `;`, then splits each command on whitespace into name + args, and calls
 
 Commands never touch the component; they receive an `EditableContext` (`root`,
 `selectable`, `find`/`findAll`, `selectedLeafNodes`, `selectedBlocks`, `insertionPoint`,
-`block`, `normalize`, `focus`, `updateUndo`) built by `TosiEditable.getContext()`. This is
+`block`, `normalize`, `focus`, `updateUndo`) built by `TosijsStyledEditor.getContext()`. This is
 what makes commands unit-testable without a live component.
 
 **The command choreography** (deviating from it corrupts selection state) — see `setText`:
@@ -123,12 +150,12 @@ ctx.updateUndo('new')
 ```
 
 **Extension point:** `executeCommand` resolves names against `ctx.commands` and falls
-back to the module-level `commands` when a context omits it. `TosiEditable.getContext()`
+back to the module-level `commands` when a context omits it. `TosijsStyledEditor.getContext()`
 passes its per-instance `this.commands`, so assigning `editor.commands.myCommand = fn`
 (or overriding a built-in) takes effect on the next `doCommand()`.
 
-### `src/tosi-editable.ts` — the web component (~2300 lines)
-`TosiEditable extends Component` (tosijs), `formAssociated`, shadow parts
+### `src/tosijs-styled-editor.ts` — the web component (~2400 lines)
+`TosijsStyledEditor extends Component` (tosijs), `formAssociated`, shadow parts
 `menubar` / `toolbar` / `doc`. Everything event-driven lives here: keydown/keypress,
 copy/cut/paste, table-cell navigation, list-item Enter/Backspace/Delete, vertical arrow
 movement (via spanified line grouping in `groupByLine`/`closestCharOnLine`), touch

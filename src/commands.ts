@@ -1,5 +1,5 @@
 /**
- * Command system for tosi-editable.
+ * Command system for tosijs-styled-editor.
  *
  * Commands are the interface between the toolbar/keyboard and
  * the editing engine. Each command is a method that receives

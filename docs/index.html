@@ -29,24 +29,31 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="doc-system.css?v=0.2.0" data-tosi-doc-system />
-  <title>tosijs-styled-editor</title>
-  <meta name="description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
+  <title>A Rich Text Editor Component — tosijs-styled-editor</title>
+  <meta name="description" content="- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs" />
   <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
-  <meta property="og:title" content="tosijs-styled-editor" />
-  <meta property="og:description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
+  <meta property="og:title" content="A Rich Text Editor Component — tosijs-styled-editor" />
+  <meta property="og:description" content="- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs" />
   <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/" />
-  <meta name="twitter:card" content="summary" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosijs-styled-editor","description":"Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand.","url":"https://tonioloewald.github.io/tosijs-editor/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
-  <link rel="icon" href="favicon.svg" />
+  <meta property="og:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"A Rich Text Editor Component","description":"- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs","url":"https://tonioloewald.github.io/tosijs-editor/","inLanguage":"en","image":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <link rel="icon" href="tosijs-editor.svg" />
 <script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
+  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}">
   <article class="doc-content">
-<h1>tosijs-styled-editor</h1>
-<p>Rich text editor web component — <strong>no <code>contentEditable</code></strong>, <strong>no browser selection APIs</strong>, <strong>no <code>execCommand</code></strong>.</p>
+<h1>A Rich Text Editor Component</h1>
+<ul>
+<li>Pure web-component</li>
+<li>No <code>document.execCommand</code></li>
+<li>No <code>contentEditable</code></li>
+<li>No browser selection or Range APIs</li>
+</ul>
 <p>All selection and editing is handled through direct DOM manipulation, giving full control
 over editing behavior with none of the compatibility and accessibility nightmares of
 <code>contentEditable</code>.</p>
@@ -65,27 +72,27 @@ is configured in <code>tosijs-editor-site.config.ts</code>.</p>
 </code></pre>
 <p>Peer dependencies: <code>tosijs</code>, <code>tosijs-ui</code></p>
 <h2>Usage</h2>
-<pre><code class="language-html">&lt;tosi-styled-editor&gt;
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
   &lt;p&gt;Edit this text!&lt;/p&gt;
   &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
-&lt;/tosi-styled-editor&gt;
+&lt;/tosijs-styled-editor&gt;
 </code></pre>
-<pre><code class="language-css">tosi-styled-editor {
+<pre><code class="language-css">tosijs-styled-editor {
   background: var(--tosi-bg, Canvas);
   color: var(--tosi-text, CanvasText);
   border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
-tosi-styled-editor [part=&quot;toolbar&quot;] {
+tosijs-styled-editor [part=&quot;toolbar&quot;] {
   background: var(--tosi-bg-inset, Canvas);
   border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
 </code></pre>
 <h3>Setting up toolbars and menus</h3>
-<pre><code class="language-typescript">import { tosiEditable, type TosiEditable } from &#39;tosijs-styled-editor&#39;
+<pre><code class="language-typescript">import { tosijsStyledEditor, type TosijsStyledEditor } from &#39;tosijs-styled-editor&#39;
 import { defaultToolbar, defaultMenubar } from &#39;tosijs-styled-editor&#39;
 
-const editor = tosiEditable() as TosiEditable
+const editor = tosijsStyledEditor() as TosijsStyledEditor
 editor.value = &#39;&lt;p&gt;Hello world&lt;/p&gt;&#39;
 document.body.appendChild(editor)
 
@@ -396,8 +403,8 @@ editor.doCommand(&#39;myCommand arg1 arg2&#39;)
   </article>
   <nav class="doc-nav" aria-label="Documentation">
   <ul>
-    <li><a class="doc-link" href="tosi-editable/">tosi-styled-editor</a></li>
-    <li><a class="doc-link current" href="./" aria-current="page">tosijs-styled-editor</a></li>
+    <li><a class="doc-link current" href="./" aria-current="page">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link" href="tosijs-styled-editor/">Editor Component</a></li>
   </ul>
   </nav>
 

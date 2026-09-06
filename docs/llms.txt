@@ -26,7 +26,7 @@ use it to inspect STATE; a painted-output check needs a real test lane.
 
 ## Pages
 
-- https://tonioloewald.github.io/tosijs-editor/tosi-editable/ — tosi-styled-editor
-  `<tosi-styled-editor>` is a rich text editor web component that **does not use**
-- https://tonioloewald.github.io/tosijs-editor/ — tosijs-styled-editor
-  Rich text editor web component — **no `contentEditable`**, **no browser selection APIs**, **no `execCommand`**.
+- https://tonioloewald.github.io/tosijs-editor/ — A Rich Text Editor Component
+  All selection and editing is handled through direct DOM manipulation, giving full control
+- https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/ — Editor Component
+  `<tosijs-styled-editor>` is a rich text editor web component that **does not use**

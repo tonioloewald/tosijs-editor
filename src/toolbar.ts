@@ -1,5 +1,5 @@
 /**
- * Toolbar factory for tosi-editable.
+ * Toolbar factory for tosijs-styled-editor.
  *
  * Provides ready-made toolbar configurations using tosijs-ui icons and menus.
  * Toolbar buttons fire commands via their `value` attribute.
@@ -9,7 +9,7 @@
 import { elements } from 'tosijs'
 import { icons } from 'tosijs-ui/icons'
 import { tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui/menu'
-import type { TosiEditable } from './tosi-editable'
+import type { TosijsStyledEditor } from './tosijs-styled-editor'
 
 const { button, span } = elements
 
@@ -42,7 +42,7 @@ export function toolbarSpacer(width = '8px'): HTMLElement {
 
 /** Create a menu item that dispatches an editor command */
 function editorMenuItem(
-  editor: TosiEditable,
+  editor: TosijsStyledEditor,
   caption: string,
   command: string,
 ): MenuItem {
@@ -55,7 +55,7 @@ function editorMenuItem(
 }
 
 /** Paragraph style menu */
-export function paragraphStyleMenu(editor: TosiEditable): HTMLElement {
+export function paragraphStyleMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -80,7 +80,7 @@ export function paragraphStyleMenu(editor: TosiEditable): HTMLElement {
 }
 
 /** Justification menu */
-export function justificationMenu(editor: TosiEditable): HTMLElement {
+export function justificationMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -97,7 +97,7 @@ export function justificationMenu(editor: TosiEditable): HTMLElement {
 }
 
 /** Font family menu */
-export function fontFamilyMenu(editor: TosiEditable): HTMLElement {
+export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -122,7 +122,7 @@ export function fontFamilyMenu(editor: TosiEditable): HTMLElement {
 }
 
 /** Font size menu */
-export function fontSizeMenu(editor: TosiEditable): HTMLElement {
+export function fontSizeMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -140,7 +140,7 @@ export function fontSizeMenu(editor: TosiEditable): HTMLElement {
 }
 
 /** Line spacing menu */
-export function lineSpacingMenu(editor: TosiEditable): HTMLElement {
+export function lineSpacingMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -239,7 +239,7 @@ export function defaultToolbar(): HTMLElement[] {
 }
 
 /** Table menu */
-export function tableMenu(editor: TosiEditable): HTMLElement {
+export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
@@ -271,7 +271,7 @@ export function tableMenu(editor: TosiEditable): HTMLElement {
 }
 
 /** Default menubar */
-export function defaultMenubar(editor: TosiEditable): HTMLElement[] {
+export function defaultMenubar(editor: TosijsStyledEditor): HTMLElement[] {
   return [
     paragraphStyleMenu(editor),
     justificationMenu(editor),

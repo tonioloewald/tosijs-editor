@@ -1,7 +1,7 @@
 /*#
-# tosi-styled-editor
+# Editor Component
 
-`<tosi-styled-editor>` is a rich text editor web component that **does not use**
+`<tosijs-styled-editor>` is a rich text editor web component that **does not use**
 `contentEditable`, `execCommand`, or browser selection/range APIs.
 
 Instead, it manages selection and editing entirely through DOM manipulation,
@@ -10,19 +10,19 @@ giving full control over editing behavior.
 ## Usage
 
 ```html
-<tosi-styled-editor widgets="default">
+<tosijs-styled-editor widgets="default">
   <p>Edit this text!</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
-</tosi-styled-editor>
+</tosijs-styled-editor>
 ```
 ```css
-tosi-styled-editor {
+tosijs-styled-editor {
   background: var(--tosi-bg, Canvas);
   color: var(--tosi-text, CanvasText);
   border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
-tosi-styled-editor [part="toolbar"] {
+tosijs-styled-editor [part="toolbar"] {
   background: var(--tosi-bg-inset, Canvas);
   border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
@@ -32,7 +32,7 @@ tosi-styled-editor [part="toolbar"] {
 // position is resolved by measuring character spans with getBoundingClientRect,
 // and happy-dom has no layout — every rect is zero — so a unit test can only
 // assert against stubbed geometry. Both bugs below shipped past a green suite.
-const editor = await waitFor('tosi-styled-editor')
+const editor = await waitFor('tosijs-styled-editor')
 const doc = editor.parts.doc
 const paragraph = doc.querySelector('p')
 
@@ -149,10 +149,10 @@ interface EditableParts extends PartsMap {
   doc: HTMLElement
 }
 
-export class TosiEditable extends WebComponent<EditableParts> {
+export class TosijsStyledEditor extends WebComponent<EditableParts> {
   static formAssociated = true
 
-  static preferredTagName = 'tosi-styled-editor'
+  static preferredTagName = 'tosijs-styled-editor'
 
   static initAttributes = {
     widgets: 'none' as 'none' | 'minimal' | 'default',
@@ -2387,5 +2387,5 @@ export class TosiEditable extends WebComponent<EditableParts> {
 
 }
 
-export const tosiEditable =
-  TosiEditable.elementCreator() as ElementCreator<TosiEditable>
+export const tosijsStyledEditor =
+  TosijsStyledEditor.elementCreator() as ElementCreator<TosijsStyledEditor>

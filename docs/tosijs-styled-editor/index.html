@@ -29,40 +29,42 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="../doc-system.css?v=0.2.0" data-tosi-doc-system />
-  <title>tosi-styled-editor — tosijs-styled-editor</title>
-  <meta name="description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
-  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosi-editable/" />
+  <title>Editor Component — tosijs-styled-editor</title>
+  <meta name="description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
-  <meta property="og:title" content="tosi-styled-editor — tosijs-styled-editor" />
-  <meta property="og:description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
-  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosi-editable/" />
-  <meta name="twitter:card" content="summary" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosi-styled-editor","description":"\u003ctosi-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://tonioloewald.github.io/tosijs-editor/tosi-editable/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
-  <link rel="icon" href="../favicon.svg" />
+  <meta property="og:title" content="Editor Component — tosijs-styled-editor" />
+  <meta property="og:description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/" />
+  <meta property="og:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Editor Component","description":"\u003ctosijs-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/","inLanguage":"en","image":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <link rel="icon" href="../tosijs-editor.svg" />
 <script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
+  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}">
   <article class="doc-content">
-<h1>tosi-styled-editor</h1>
-<p><code>&lt;tosi-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
+<h1>Editor Component</h1>
+<p><code>&lt;tosijs-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
 <code>contentEditable</code>, <code>execCommand</code>, or browser selection/range APIs.</p>
 <p>Instead, it manages selection and editing entirely through DOM manipulation,
 giving full control over editing behavior.</p>
 <h2>Usage</h2>
-<pre><code class="language-html">&lt;tosi-styled-editor widgets=&quot;default&quot;&gt;
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
   &lt;p&gt;Edit this text!&lt;/p&gt;
   &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
-&lt;/tosi-styled-editor&gt;
+&lt;/tosijs-styled-editor&gt;
 </code></pre>
-<pre><code class="language-css">tosi-styled-editor {
+<pre><code class="language-css">tosijs-styled-editor {
   background: var(--tosi-bg, Canvas);
   color: var(--tosi-text, CanvasText);
   border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
-tosi-styled-editor [part=&quot;toolbar&quot;] {
+tosijs-styled-editor [part=&quot;toolbar&quot;] {
   background: var(--tosi-bg-inset, Canvas);
   border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
@@ -71,7 +73,7 @@ tosi-styled-editor [part=&quot;toolbar&quot;] {
 // position is resolved by measuring character spans with getBoundingClientRect,
 // and happy-dom has no layout — every rect is zero — so a unit test can only
 // assert against stubbed geometry. Both bugs below shipped past a green suite.
-const editor = await waitFor(&#39;tosi-styled-editor&#39;)
+const editor = await waitFor(&#39;tosijs-styled-editor&#39;)
 const doc = editor.parts.doc
 const paragraph = doc.querySelector(&#39;p&#39;)
 
@@ -131,8 +133,8 @@ will show their keyboard automatically.</p>
   </article>
   <nav class="doc-nav" aria-label="Documentation">
   <ul>
-    <li><a class="doc-link current" href="../tosi-editable/" aria-current="page">tosi-styled-editor</a></li>
-    <li><a class="doc-link" href="../">tosijs-styled-editor</a></li>
+    <li><a class="doc-link" href="../">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link current" href="../tosijs-styled-editor/" aria-current="page">Editor Component</a></li>
   </ul>
   </nav>
 

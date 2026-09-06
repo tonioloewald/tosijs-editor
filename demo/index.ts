@@ -12,21 +12,29 @@
  * component, including `mapbox`, whose source carries a Mapbox token that
  * GitHub push protection blocks when it lands in a committed sourcemap.
  *
- * Importing our library registers <tosi-styled-editor>, so `html` examples in
+ * And import the element creators BY NAME, then reference them below. A bare
+ * `import 'tosijs-ui/doc-browser'` for side effects alone gets tree-shaken out
+ * of the bundle, and the failure is silent: the page keeps its prerendered
+ * markup, the custom elements never upgrade, and nothing errors.
+ *
+ * Importing our library registers <tosijs-styled-editor>, so `html` examples in
  * doc comments work with no import. The factories are also exposed globally so
  * `js` examples can build toolbars and menubars.
  */
-import 'tosijs-ui/doc-browser'
-import 'tosijs-ui/live-example'
+import { tosiDocSystem } from 'tosijs-ui/doc-system/doc-system'
+import { liveExample } from 'tosijs-ui/live-example'
 import {
-  tosiEditable,
+  tosijsStyledEditor,
   defaultToolbar,
   minimalToolbar,
   defaultMenubar,
 } from '../src/index'
 
+// Referenced so the registrations above survive tree-shaking
 Object.assign(globalThis, {
-  tosiEditable,
+  tosiDocSystem,
+  liveExample,
+  tosijsStyledEditor,
   defaultToolbar,
   minimalToolbar,
   defaultMenubar,

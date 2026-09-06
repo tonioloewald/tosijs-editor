@@ -1,7 +1,7 @@
 export * from './dom-utils'
 export * from './selection'
 export * from './commands'
-export * from './tosi-editable'
+export * from './tosijs-styled-editor'
 export * from './toolbar'
 export * from './table-utils'
 export { version } from './version'

@@ -1,5 +1,5 @@
 /**
- * DOM traversal utilities for the tosi-editable component.
+ * DOM traversal utilities for the tosijs-styled-editor component.
  *
  * All operations work in terms of "leaf nodes" — nodes with no children
  * (text nodes, <img>, <hr>, <input>, etc.).

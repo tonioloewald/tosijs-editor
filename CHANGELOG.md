@@ -30,9 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against the module-level registry, so the documented way to add a custom
   command had no effect. The registry now travels on `EditableContext`.
 - README and the component doc comment advertised `<tosi-editable>`, which was
-  never the registered tag. It is `<tosi-styled-editor>`.
+  never the registered tag. It is `<tosijs-styled-editor>`.
 
 ### Changed
+
+- **Renamed to one name everywhere: `tosijs-styled-editor`.** The element is now
+  `<tosijs-styled-editor>` (was `<tosi-styled-editor>`), the class is
+  `TosijsStyledEditor`, the creator is `tosijsStyledEditor()`, and the source is
+  `src/tosijs-styled-editor.ts`. Only the repo directory stays `tosijs-editor`.
+  Breaking, and free to take now because the package is unpublished.
+- Doc pages have distinct titles — "A Rich Text Editor Component" (README) and
+  "Editor Component" — so the site nav no longer shows two near-identical entries.
+- Site icon, header mark and social image now use `static/tosijs-editor.svg`.
 
 - **Build**: replaced the bespoke `dev.ts` with `bin/site.ts`, a thin wrapper
   over tosijs-ui's doc system (`buildSite`/`devServer`). The full build is
@@ -63,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Touch selection affordances and context menu; component renamed to
-  `<tosi-styled-editor>`.
+  `<tosijs-styled-editor>`.
 
 ## [0.1.0]
 

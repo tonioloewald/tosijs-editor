@@ -2,7 +2,7 @@
   "passed": 1,
   "failed": 0,
   "pages": {
-    "tosi-editable.ts": {
+    "tosijs-styled-editor.ts": {
       "passed": true,
       "tests": [
         {
