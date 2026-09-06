@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tonioloewald.github.io/tosijs-editor/sitemap.xml

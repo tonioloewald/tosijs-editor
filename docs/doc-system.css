@@ -1,0 +1,509 @@
+@import url('https://fonts.googleapis.com/css2?family=Aleo:ital,wght@0,100..900;1,100..900&famiSpline+Sans+Mono:ital,wght@0,300..700;1,300..700&display=swap');
+
+:root {
+  --font-family: 'Aleo', sans-serif;
+  --code-font-family: 'Spline Sans Mono', monospace;
+  --font-size: 16px;
+  --code-font-size: 14px;
+  --text-color: #222;
+  --brand-color: #d92270;
+  --background: #fafafa;
+  --button-bg: #fdfdfd;
+  --input-bg: #fdfdfd;
+  --background-shaded: #f5f5f5;
+  --nav-bg: #f7eeed;
+  --bar-color: #d6257066;
+  --focus-color: #d62570b3;
+  --placeholder-color: #d6257066;
+  --brand-text-color: #ffffff;
+  --inset-bg: #f7dfd3;
+  --code-bg: #fdfdfd;
+  --link-color: #6b1265;
+  --shadow-color: #0004;
+  --menu-bg: #fafafa;
+  --menu-item-active-color: #000;
+  --menu-item-icon-active-color: #000;
+  --menu-item-active-bg: #aaa;
+  --menu-item-hover-bg: #eee;
+  --menu-item-color: #222;
+  --menu-separator-color: #2224;
+  --menu-shadow: 0 4px 8px #0004;
+  --scroll-thumb-color: #0006;
+  --scroll-bar-color: #0001;
+  --input-border-shadow: inset 0 0 2px #0006;
+  --tosi-accent: var(--brand-color);
+  --tosi-bg: var(--background);
+  --tosi-text: var(--text-color);
+  --tosi-bg-inset: var(--inset-bg);
+  --spacing: 10px;
+  --line-height: calc(var(--font-size) * 1.6);
+  --h1-scale: 2;
+  --h2-scale: 1.5;
+  --h3-scale: 1.25;
+  --touch-size: 32px;
+  --header-height: calc( var(--line-height) * var(--h2-scale) + var(--spacing) * 2 );
+  --doc-content-max-width: 44em;
+}
+
+tosi-doc-system[data-layout="full-width"] {
+  --doc-content-max-width: none;
+}
+
+tosi-doc-system[data-layout="full-screen"] {
+  --doc-content-max-width: none;
+}
+
+tosi-doc-system[data-layout="full-screen"] .doc-content {
+  padding: 0;
+  height: 100%;
+  overflow: auto;
+  --doc-content-padding: 0;
+}
+
+tosi-doc-system[data-layout="full-screen"] > .doc-nav.doc-nav, tosi-doc-system[data-layout="full-screen"] > .doc-navbar.doc-navbar {
+  display: none;
+}
+
+.darkmode {
+  --text-color: #dddddd;
+  --brand-color: #e04a8a;
+  --background: #050505;
+  --button-bg: #020202;
+  --input-bg: #020202;
+  --background-shaded: #0a0a0a;
+  --nav-bg: #120908;
+  --bar-color: #da297466;
+  --focus-color: #da2974b3;
+  --placeholder-color: #da297466;
+  --brand-text-color: #000000;
+  --inset-bg: #2c1308;
+  --code-bg: #020202;
+  --link-color: #ed94e6;
+  --shadow-color: #d6257080;
+  --menu-bg: #050505;
+  --menu-item-active-color: #ffffff;
+  --menu-item-icon-active-color: #ffffff;
+  --menu-item-active-bg: #555555;
+  --menu-item-hover-bg: #111111;
+  --menu-item-color: #dddddd;
+  --menu-separator-color: #d6257080;
+  --scroll-thumb-color: #ffffff66;
+  --scroll-bar-color: #ffffff11;
+  --menu-shadow: 0 0 0 2px #d62570bf;
+}
+
+.high-contrast {
+  filter: contrast(2);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-color: var(--scroll-thumb-color) var(--scroll-bar-color);
+  scrollbar-width: thin;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  margin: 0;
+  line-height: var(--line-height);
+  background: var(--background);
+  --tosi-tabs-selected-color: var(--brand-color);
+  --tosi-tabs-bar-color: var(--brand-text-color);
+  --menu-item-icon-color: var(--brand-color);
+  color: var(--text-color);
+}
+
+tosi-doc-system {
+  display: block;
+}
+
+tosi-doc-system tosi-sidenav::part(nav) {
+  background: var(--nav-bg);
+}
+
+tosi-doc-system:not(:defined) {
+  display: block;
+  position: fixed;
+  inset: var(--header-height) 0 0 0;
+  overflow: auto;
+}
+
+tosi-doc-system:not(:defined)::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background: var(--brand-color);
+}
+
+tosi-doc-system:not(:defined) .doc-content {
+  display: block;
+  max-width: var(--doc-content-max-width);
+  margin: auto;
+  padding: var(--doc-content-padding, 0 1em);
+  overflow: hidden;
+}
+
+tosi-doc-system:not(:defined) .doc-navbar {
+  display: none;
+}
+
+tosi-doc-system:not(:defined) pre:has(> code.language-test) {
+  display: none;
+}
+
+tosi-doc-system:not(:defined) .doc-nav {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  tosi-doc-system:not(:defined) {
+    left: 200px;
+  }
+  tosi-doc-system:not(:defined) .doc-nav {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: var(--header-height);
+    bottom: 0;
+    width: 200px;
+    overflow: auto;
+    background: var(--nav-bg);
+    padding: 0;
+  }
+  tosi-doc-system:not(:defined) .doc-nav summary {
+    cursor: pointer;
+  }
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+input, button, select, textarea {
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  color: currentColor;
+  background: var(--input-bg);
+}
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+header {
+  background: var(--brand-color);
+  color: var(--brand-text-color);
+  --text-color: var(--brand-text-color);
+  --link-color: var(--brand-text-color);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacing);
+  line-height: calc(var(--line-height) * var(--h1-scale));
+  height: var(--header-height);
+  white-space: nowrap;
+}
+
+h1 {
+  color: var(--brand-color);
+  font-size: calc(var(--font-size) * var(--h1-scale));
+  line-height: calc(var(--line-height) * var(--h1-scale));
+  font-weight: 400;
+  border-bottom: 4px solid var(--bar-color);
+  margin: var(--spacing) 0 calc(var(--spacing) * 2);
+  padding: 0px;
+}
+
+header h2 {
+  color: var(--brand-text-color);
+  white-space: nowrap;
+}
+
+h2 {
+  color: var(--brand-color);
+  font-size: calc(var(--font-size) * var(--h2-scale));
+  line-height: calc(var(--line-height) * var(--h2-scale));
+  margin: calc(var(--spacing) * var(--h2-scale)) 0;
+}
+
+h3 {
+  font-size: calc(var(--font-size) * var(--h3-scale));
+  line-height: calc(var(--line-height) * var(--h3-scale));
+  margin: calc(var(--spacing) * var(--h3-scale)) 0;
+}
+
+input[type=search] {
+  border-radius: 99px;
+}
+
+blockquote {
+  position: relative;
+  background: var(--inset-bg);
+  margin: 0 48px 56px 0;
+  border-radius: var(--spacing);
+  padding: var(--spacing) calc(var(--spacing) * 2);
+  filter: drop-shadow(0px 1px 1px var(--shadow-color));
+}
+
+blockquote > :first-child {
+  margin-top: 0;
+}
+
+blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+blockquote::before {
+  content: " ";
+  display: block;
+  width: 1px;
+  height: 1px;
+  border: 10px solid transparent;
+  border-top-color: var(--inset-bg);
+  border-right-color: var(--inset-bg);
+  position: absolute;
+  bottom: -20px;
+  right: 24px;
+}
+
+blockquote::after {
+  content: " ";
+  width: 48px;
+  height: 48px;
+  display: block;
+  bottom: -48px;
+  right: -24px;
+  position: absolute;
+  background: url(data:image/svg+xml;charset=UTF-8,%3Csvg%20class%3D%22color%20tosi-icon%22%20viewBox%3D%220%200%2048%2048%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%3E%3Cpath%20d%3D%22M38.35%2C31.7%20C39.78%2C34.37%2C38.78%2C37.69%2C36.11%2C39.13%20C36.11%2C39.13%2C36.11%2C39.13%2C36.11%2C39.13%20C33.92%2C40.31%2C31.18%2C39.48%2C29.99%2C37.29%20C29.99%2C37.29%2C29.95%2C37.2%2C29.95%2C37.2%20C29.58%2C36.53%2C28.75%2C36.27%2C28.08%2C36.64%20C28.08%2C36.64%2C28.08%2C36.64%2C28.08%2C36.64%20C25.83%2C37.84%2C23.03%2C37%2C21.82%2C34.76%20C21.82%2C34.76%2C20.22%2C31.78%2C20.22%2C31.78%20C18.99%2C29.5%2C19.85%2C26.67%2C22.12%2C25.44%20C22.12%2C25.44%2C27.32%2C22.65%2C27.32%2C22.65%20C29.96%2C21.23%2C33.24%2C22.22%2C34.66%2C24.85%20C34.66%2C24.85%2C38.35%2C31.7%2C38.35%2C31.7%20z%22%20fill%3D%22%239e9e9e%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M10.65%2C31.7%20C9.22%2C34.37%2C10.22%2C37.69%2C12.89%2C39.13%20C12.89%2C39.13%2C12.89%2C39.13%2C12.89%2C39.13%20C15.08%2C40.31%2C17.82%2C39.48%2C19.01%2C37.29%20C19.01%2C37.29%2C19.05%2C37.2%2C19.05%2C37.2%20C19.42%2C36.53%2C20.25%2C36.27%2C20.92%2C36.64%20C20.92%2C36.64%2C20.92%2C36.64%2C20.92%2C36.64%20C23.17%2C37.84%2C25.97%2C37%2C27.18%2C34.76%20C27.18%2C34.76%2C28.78%2C31.78%2C28.78%2C31.78%20C30.01%2C29.5%2C29.15%2C26.67%2C26.88%2C25.44%20C26.88%2C25.44%2C21.68%2C22.65%2C21.68%2C22.65%20C19.04%2C21.23%2C15.76%2C22.22%2C14.34%2C24.85%20C14.34%2C24.85%2C10.65%2C31.7%2C10.65%2C31.7%20z%22%20fill%3D%22%239e9e9e%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M32.5%2C43%20C32.5%2C43%2C30.5%2C41%2C30.5%2C41%20C30.5%2C41%2C28.5%2C43%2C28.5%2C43%22%20fill%3D%22%2300000000%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M20.5%2C43%20C20.5%2C43%2C18.5%2C41%2C18.5%2C41%20C18.5%2C41%2C16.5%2C43%2C16.5%2C43%22%20fill%3D%22%2300000000%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M16.5%2C29%20C16.5%2C29%2C32.5%2C29%2C32.5%2C29%20C32.5%2C29%2C32.5%2C36%2C32.5%2C36%20C32.5%2C37.66%2C31.16%2C39%2C29.5%2C39%20C29.5%2C39%2C19.5%2C39%2C19.5%2C39%20C17.84%2C39%2C16.5%2C37.66%2C16.5%2C36%20C16.5%2C36%2C16.5%2C29%2C16.5%2C29%20z%22%20fill%3D%22%23e4e4e4%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cg%3E%3Cpath%20d%3D%22M9.5%2C10.18%20C9.5%2C7.87%2C11.29%2C6%2C13.5%2C6%20C13.5%2C6%2C35.5%2C6%2C35.5%2C6%20C37.71%2C6%2C39.5%2C7.87%2C39.5%2C10.18%20C39.5%2C10.18%2C39.5%2C24.82%2C39.5%2C24.82%20C39.5%2C27.13%2C37.71%2C29%2C35.5%2C29%20C35.5%2C29%2C13.5%2C29%2C13.5%2C29%20C11.29%2C29%2C9.5%2C27.13%2C9.5%2C24.82%20C9.5%2C24.82%2C9.5%2C10.18%2C9.5%2C10.18%20z%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cg%3E%3Cpath%20d%3D%22M24.5%2C11%20C24.5%2C11%2C24.5%2C23%2C24.5%2C23%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M28.5%2C15%20C28.5%2C15%2C28.5%2C17%2C28.5%2C17%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3Cpath%20d%3D%22M20.5%2C15%20C20.5%2C15%2C20.5%2C17%2C20.5%2C17%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E);
+}
+
+a {
+  text-decoration: none;
+  color: var(--link-color);
+  opacity: 0.9;
+  border-bottom: 1px solid var(--brand-color);
+}
+
+button, select, .clickable {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: ease-out 0.2s;
+  --text-color: var(--brand-color);
+  color: var(--text-color);
+  text-decoration: none;
+  background: var(--button-bg);
+  padding: 0 calc(var(--spacing) * 1.25);
+  border: none;
+  border-radius: calc(var(--spacing) * 0.5);
+}
+
+button, select, .clickable, input {
+  line-height: calc(var(--line-height) + var(--spacing));
+}
+
+input, textarea {
+  border: none;
+  outline: none;
+  border-radius: calc(var(--spacing) * 0.5);
+  box-shadow: var(--input-border-shadow);
+}
+
+input {
+  padding: 0 calc(var(--spacing) * 1.5);
+}
+
+::placeholder {
+  color: var(--placeholder-color);
+}
+
+img {
+  vertical-align: middle;
+}
+
+button:hover, .clickable:hover {
+  box-shadow: inset 0 0 0 2px var(--brand-color);
+}
+
+button:active, .clickable:active {
+  background: var(--brand-color);
+  color: var(--brand-text-color);
+}
+
+label {
+  display: inline-flex;
+  gap: calc(var(--spacing) * 0.5);
+  align-items: center;
+}
+
+.elastic {
+  flex: 1 1 auto;
+  overflow: hidden;
+  position: relative;
+}
+
+svg.tosi-icon, button svg {
+  fill: currentColor;
+  pointer-events: none;
+}
+
+[aria-selected] {
+  background: #08835820;
+}
+
+:disabled {
+  opacity: 0.5;
+  filter: saturate(0);
+  pointer-events: none;
+}
+
+pre {
+  background: var(--code-bg);
+  padding: var(--spacing);
+  border-radius: calc(var(--spacing) * 0.25);
+  overflow: auto;
+  font-size: var(--code-font-size);
+  line-height: calc(var(--font-size) * 1.2);
+}
+
+pre, code {
+  font-family: var(--code-font-family);
+  --text-color: var(--brand-color);
+}
+
+.transparent, .iconic {
+  background: none;
+}
+
+.iconic {
+  padding: 0;
+  font-size: 150%;
+  height: calc(var(--line-height) + var(--spacing));
+  line-height: calc(var(--line-height) + var(--spacing));
+  width: calc(var(--line-height) + var(--spacing));
+  text-align: center;
+}
+
+.transparent:hover, .iconic:hover {
+  background: #0002;
+  box-shadow: none;
+  color: var(--text-color);
+}
+
+.transparent:active, .iconic:active {
+  background: #0004;
+  box-shadow: none;
+  color: var(--text-color);
+}
+
+.current, summary:has(.current) {
+  background: var(--background);
+}
+
+.doc-link {
+  cursor: pointer;
+  border-bottom: none;
+  transition: 0.15s ease-out;
+  margin-left: 10px;
+  padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 1.5);
+}
+
+.doc-link:not(.current):hover {
+  background: var(--background);
+}
+
+.doc-link:not(.current) {
+  opacity: 0.8;
+  margin-left: 0px;
+}
+
+tosi-example {
+  margin: var(--spacing) 0;
+}
+
+tosi-example [part=editors] {
+  background: var(--inset-bg);
+}
+
+[class*='icon-'], tosi-icon {
+  color: currentcolor;
+  pointer-events: none;
+}
+
+[class*='icon-'] {
+  vertical-align: middle;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+thead {
+  background: var(--brand-color);
+  color: var(--brand-text-color);
+}
+
+tbody {
+  background: var(--background);
+}
+
+tr:nth-child(2n) {
+  background: var(--background-shaded);
+}
+
+th, td {
+  padding: calc(var(--spacing) * 0.5) var(--spacing);
+}
+
+.doc-nav ul, .doc-nav li {
+  list-style: none;
+  margin: 0px;
+  padding: 0px;
+}
+
+.doc-nav li {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-nav details > ul {
+  padding-left: var(--spacing);
+}
+
+.doc-nav details:not([open]) > ul {
+  display: none;
+}
+
+.doc-nav summary {
+  cursor: pointer;
+  padding-left: calc(var(--spacing) * 0.5);
+}
+
+.doc-nav summary::marker {
+  color: var(--brand-color);
+}
+
+.doc-nav summary > .doc-link {
+  display: inline-block;
+  padding-left: calc(var(--spacing) * 0.5);
+}
+
+.doc-navbar {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing);
+  margin: 0px;
+  padding: var(--spacing);
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
+       a 4s safety-net timeout), because an undefined custom element is
+       display:inline, so the pre-rendered page stacked as bare text and hydration
+       reflowed the whole thing. The cost was a blank screen for as long as the
+       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
+       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
+       out as though the chrome were there, so hydration only ADDS the chrome and
+       nothing moves. Paint immediately; don't hide readable content. -->
+  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
+       than hiding it, a dark-mode reader would otherwise get a flash of the light
+       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
+       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
+       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
+       light default, exactly as before. -->
+  <script>
+    try {
+      var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
+      var t = p.theme || 'system'
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('darkmode')
+      if (p.highContrast) document.documentElement.classList.add('high-contrast')
+    } catch (e) {}
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="../doc-system.css?v=0.2.0" data-tosi-doc-system />
+  <title>tosi-styled-editor — tosijs-styled-editor</title>
+  <meta name="description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="tosijs-styled-editor" />
+  <meta property="og:title" content="tosi-styled-editor — tosijs-styled-editor" />
+  <meta property="og:description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/" />
+  <meta name="twitter:card" content="summary" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosi-styled-editor","description":"\u003ctosi-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <link rel="icon" href="../favicon.svg" />
+</head>
+<body>
+  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
+  <article class="doc-content">
+<h1>tosi-styled-editor</h1>
+<p><code>&lt;tosi-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
+<code>contentEditable</code>, <code>execCommand</code>, or browser selection/range APIs.</p>
+<p>Instead, it manages selection and editing entirely through DOM manipulation,
+giving full control over editing behavior.</p>
+<h2>Usage</h2>
+<pre><code class="language-html">&lt;tosi-styled-editor widgets=&quot;default&quot;&gt;
+  &lt;p&gt;Edit this text!&lt;/p&gt;
+  &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
+&lt;/tosi-styled-editor&gt;
+</code></pre>
+<pre><code class="language-css">tosi-styled-editor {
+  background: white;
+  border: 1px solid #ccc;
+  min-height: 200px;
+}
+tosi-styled-editor [part=&quot;toolbar&quot;] {
+  background: #f8f8f8;
+  border-bottom: 1px solid #ccc;
+}
+</code></pre>
+<h2>How It Works</h2>
+<p>The editor uses three layers:</p>
+<ol>
+<li><strong>DOM utilities</strong> — leaf-node traversal (every operation works with text nodes)</li>
+<li><strong>Selection</strong> — custom selection via &quot;spanification&quot; (wrapping chars in spans)</li>
+<li><strong>Commands</strong> — extensible command system for formatting</li>
+</ol>
+<p>The caret is an actual <code>&lt;input&gt;</code> element, which means mobile browsers
+will show their keyboard automatically.</p>
+<h2>Commands</h2>
+<p>Commands are invoked via <code>doCommand(commandString)</code>:</p>
+<ul>
+<li><code>setText font-weight bold</code> — style selected characters</li>
+<li><code>setBlockType h1</code> — change block type</li>
+<li><code>setBlocks text-align center</code> — style selected blocks</li>
+<li><code>updateUndo undo</code> / <code>updateUndo redo</code> — undo/redo</li>
+</ul>
+<p>Multiple commands can be chained with semicolons:
+<code>setText font-weight bold; setText font-style italic</code></p>
+
+  </article>
+  <nav class="doc-nav" aria-label="Documentation">
+  <ul>
+    <li><a class="doc-link current" href="../tosi-editable/" aria-current="page">tosi-styled-editor</a></li>
+    <li><a class="doc-link" href="../">tosijs-styled-editor</a></li>
+  </ul>
+  </nav>
+
+  </tosi-doc-system>
+  <script type="module" src="../hydrate.js?v=0.2.0"></script>
+</body>
+</html>

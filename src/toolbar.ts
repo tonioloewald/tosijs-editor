@@ -7,7 +7,8 @@
  */
 
 import { elements } from 'tosijs'
-import { icons, tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui'
+import { icons } from 'tosijs-ui/icons'
+import { tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui/menu'
 import type { TosiEditable } from './tosi-editable'
 
 const { button, span } = elements

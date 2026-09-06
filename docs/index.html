@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
+       a 4s safety-net timeout), because an undefined custom element is
+       display:inline, so the pre-rendered page stacked as bare text and hydration
+       reflowed the whole thing. The cost was a blank screen for as long as the
+       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
+       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
+       out as though the chrome were there, so hydration only ADDS the chrome and
+       nothing moves. Paint immediately; don't hide readable content. -->
+  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
+       than hiding it, a dark-mode reader would otherwise get a flash of the light
+       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
+       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
+       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
+       light default, exactly as before. -->
+  <script>
+    try {
+      var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
+      var t = p.theme || 'system'
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('darkmode')
+      if (p.highContrast) document.documentElement.classList.add('high-contrast')
+    } catch (e) {}
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="doc-system.css?v=0.2.0" data-tosi-doc-system />
+  <title>tosijs-styled-editor</title>
+  <meta name="description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="tosijs-styled-editor" />
+  <meta property="og:title" content="tosijs-styled-editor" />
+  <meta property="og:description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/" />
+  <meta name="twitter:card" content="summary" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosijs-styled-editor","description":"Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand.","url":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <link rel="icon" href="favicon.svg" />
+</head>
+<body>
+  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
+  <article class="doc-content">
+<h1>tosijs-styled-editor</h1>
+<p>Rich text editor web component — <strong>no <code>contentEditable</code></strong>, <strong>no browser selection APIs</strong>, <strong>no <code>execCommand</code></strong>.</p>
+<p>All selection and editing is handled through direct DOM manipulation, giving full control
+over editing behavior with none of the compatibility and accessibility nightmares of
+<code>contentEditable</code>.</p>
+<p><a href="https://tonioloewald.github.io/editor2/">Live demo</a></p>
+<h2>Installation</h2>
+<pre><code class="language-bash">npm install tosijs-styled-editor
+</code></pre>
+<p>Peer dependencies: <code>tosijs</code>, <code>tosijs-ui</code></p>
+<h2>Usage</h2>
+<pre><code class="language-html">&lt;tosi-styled-editor&gt;
+  &lt;p&gt;Edit this text!&lt;/p&gt;
+  &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
+&lt;/tosi-styled-editor&gt;
+</code></pre>
+<pre><code class="language-css">tosi-styled-editor {
+  background: white;
+  border: 1px solid #ccc;
+  min-height: 200px;
+}
+tosi-styled-editor [part=&quot;toolbar&quot;] {
+  background: #f8f8f8;
+  border-bottom: 1px solid #ccc;
+}
+</code></pre>
+<h3>Setting up toolbars and menus</h3>
+<pre><code class="language-typescript">import { tosiEditable, type TosiEditable } from &#39;tosijs-styled-editor&#39;
+import { defaultToolbar, defaultMenubar } from &#39;tosijs-styled-editor&#39;
+
+const editor = tosiEditable() as TosiEditable
+editor.value = &#39;&lt;p&gt;Hello world&lt;/p&gt;&#39;
+document.body.appendChild(editor)
+
+// Add menus (slot=&quot;menubar&quot;)
+for (const menu of defaultMenubar(editor)) {
+  editor.appendChild(menu)
+}
+
+// Add toolbar buttons (slot=&quot;toolbar&quot;)
+for (const widget of defaultToolbar()) {
+  widget.setAttribute(&#39;slot&#39;, &#39;toolbar&#39;)
+  editor.appendChild(widget)
+}
+</code></pre>
+<h2>How It Works</h2>
+<p>The editor uses three layers:</p>
+<ol>
+<li><strong>DOM utilities</strong> (<code>dom-utils.ts</code>) — leaf-node traversal; nearly all operations work with leaf nodes</li>
+<li><strong>Selection</strong> (<code>selection.ts</code>) — custom selection via &quot;spanification&quot; (wrapping characters in <code>&lt;span&gt;</code> elements to determine exact positions without browser APIs)</li>
+<li><strong>Commands</strong> (<code>commands.ts</code>) — extensible command system for formatting and editing</li>
+</ol>
+<p>The caret is an <code>&lt;input&gt;</code> element, so mobile browsers show their keyboard automatically.</p>
+<h2>Keyboard Behavior</h2>
+<h3>General editing</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Typing</strong></td>
+<td>Inserts character at caret; replaces selection if any</td>
+</tr>
+<tr>
+<td><strong>Backspace</strong></td>
+<td>Deletes character before caret, or deletes selection</td>
+</tr>
+<tr>
+<td><strong>Delete</strong></td>
+<td>Deletes character after caret, or deletes selection</td>
+</tr>
+<tr>
+<td><strong>Enter</strong></td>
+<td>Splits the current block at the caret</td>
+</tr>
+<tr>
+<td><strong>ArrowLeft / ArrowRight</strong></td>
+<td>Moves caret one character</td>
+</tr>
+<tr>
+<td><strong>ArrowUp / ArrowDown</strong></td>
+<td>Moves caret one visual line, maintaining horizontal position</td>
+</tr>
+<tr>
+<td><strong>Alt+ArrowLeft / Alt+ArrowRight</strong></td>
+<td>Moves caret one word</td>
+</tr>
+<tr>
+<td><strong>Shift+Arrow</strong></td>
+<td>Extends selection</td>
+</tr>
+</tbody></table>
+<h3>Mouse selection</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Selects</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Click</strong></td>
+<td>Places caret at character position</td>
+</tr>
+<tr>
+<td><strong>Shift+Click</strong></td>
+<td>Extends selection to click position</td>
+</tr>
+<tr>
+<td><strong>Double-click</strong></td>
+<td>Selects word</td>
+</tr>
+<tr>
+<td><strong>Triple-click</strong></td>
+<td>Selects block</td>
+</tr>
+<tr>
+<td><strong>Click-drag</strong></td>
+<td>Selects character range</td>
+</tr>
+</tbody></table>
+<h3>Inside a table cell</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Tab</strong></td>
+<td>Move to next cell; at last cell, creates a new row</td>
+</tr>
+<tr>
+<td><strong>Shift+Tab</strong></td>
+<td>Move to previous cell</td>
+</tr>
+<tr>
+<td><strong>ArrowDown</strong></td>
+<td>Move to cell below; at last row, exit table downward</td>
+</tr>
+<tr>
+<td><strong>ArrowUp</strong></td>
+<td>Move to cell above; at first row, exit table upward</td>
+</tr>
+<tr>
+<td><strong>Shift+Enter</strong></td>
+<td>Move to cell below (same column); at last row, creates a new row</td>
+</tr>
+<tr>
+<td><strong>Shift+ArrowDown</strong></td>
+<td>Same as Shift+Enter</td>
+</tr>
+<tr>
+<td><strong>Enter</strong></td>
+<td>Insert line break (<code>&lt;br&gt;</code>) within the cell</td>
+</tr>
+<tr>
+<td><strong>Backspace / Delete</strong></td>
+<td>Delete within cell only (won&#39;t escape the cell)</td>
+</tr>
+</tbody></table>
+<h3>Inside a list item (<code>&lt;ul&gt;/&lt;ol&gt;</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Enter</strong></td>
+<td>Split into a new list item; if item is empty, exit the list as a <code>&lt;p&gt;</code></td>
+</tr>
+<tr>
+<td><strong>Backspace</strong></td>
+<td>Delete within item; at start, merge with previous item or exit list</td>
+</tr>
+<tr>
+<td><strong>Delete</strong></td>
+<td>Delete within item; at end, merge with next item</td>
+</tr>
+</tbody></table>
+<h3>Keyboard shortcuts</h3>
+<p>Shortcuts are defined by toolbar buttons via <code>data-shortcut</code> attributes. The default toolbar provides:</p>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ctrl/Cmd+B</strong></td>
+<td>Bold</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+I</strong></td>
+<td>Italic</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+U</strong></td>
+<td>Underline</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+Z</strong></td>
+<td>Undo</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+Y</strong></td>
+<td>Redo</td>
+</tr>
+</tbody></table>
+<h2>Commands</h2>
+<p>Commands are invoked via <code>editor.doCommand(commandString)</code>. Multiple commands
+can be chained with semicolons.</p>
+<h3>Character styling — <code>setText</code></h3>
+<p>Applies CSS to selected characters:</p>
+<pre><code>setText font-weight bold
+setText font-style italic
+setText text-decoration underline
+setText background-color rgba(255,255,64,0.5)
+setText font-family Helvetica
+setText font-size 18px
+</code></pre>
+<p>Use <code>+</code> for spaces in values: <code>setText font-family Times+New+Roman</code></p>
+<h3>Block type — <code>setBlockType</code></h3>
+<p>Changes the element type of selected blocks:</p>
+<pre><code>setBlockType h1
+setBlockType p
+setBlockType pre
+setBlockType blockquote
+</code></pre>
+<h3>Block styling — <code>setBlocks</code></h3>
+<p>Applies CSS to selected blocks:</p>
+<pre><code>setBlocks text-align center
+setBlocks margin-left 40px
+setBlocks line-height 2.5
+</code></pre>
+<h3>Table commands</h3>
+<pre><code>insertTable 3              # 3 columns, 2 rows (1 header)
+insertTable 4 5 1          # 4 columns, 5 rows, 1 header row
+insertTableRow after       # Insert row after current
+insertTableRow before      # Insert row before current
+insertTableCol after       # Insert column after current
+insertTableCol before      # Insert column before current
+deleteTableRow             # Delete current row
+deleteTableCol             # Delete current column
+toggleHeaderRow            # Toggle header styling on current row
+</code></pre>
+<p>Column widths can be resized by dragging cell borders.</p>
+<h3>Other commands</h3>
+<pre><code>updateUndo undo
+updateUndo redo
+setDebug                   # Toggle debug visualization
+annotate note              # Insert annotation at caret
+</code></pre>
+<h2>Tables</h2>
+<p>Tables use CSS Grid layout instead of <code>&lt;table&gt;</code> elements:</p>
+<pre><code class="language-html">&lt;ul class=&quot;editor-table&quot; style=&quot;grid-template-columns: 1fr 1fr 1fr&quot;&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Name&lt;/li&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Role&lt;/li&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Location&lt;/li&gt;
+  &lt;li&gt;Alice&lt;/li&gt;
+  &lt;li&gt;Engineer&lt;/li&gt;
+  &lt;li&gt;New York&lt;/li&gt;
+&lt;/ul&gt;
+</code></pre>
+<h2>Extending the editor</h2>
+<p>Add custom commands by extending <code>editor.commands</code>:</p>
+<pre><code class="language-typescript">editor.commands.myCommand = (ctx, ...args) =&gt; {
+  // ctx provides: root, selectable, commands, find(), findAll(),
+  //   selectedLeafNodes(), selectedBlocks(), insertionPoint(),
+  //   block(), normalize(), focus(), updateUndo()
+  const nodes = ctx.selectedLeafNodes()
+  // ... manipulate nodes ...
+  ctx.updateUndo(&#39;new&#39;)
+}
+
+editor.doCommand(&#39;myCommand arg1 arg2&#39;)
+</code></pre>
+<h2>Component API</h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>value</code></td>
+<td><code>string</code></td>
+<td>Get/set the editor content as HTML</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td><code>boolean</code></td>
+<td>Enable/disable editing</td>
+</tr>
+<tr>
+<td><code>pastemode</code></td>
+<td><code>&#39;merge&#39; | &#39;remove&#39; | &#39;preserve&#39; | &#39;paragraphs&#39;</code></td>
+<td>How pasted HTML is handled</td>
+</tr>
+<tr>
+<td><code>commands</code></td>
+<td><code>object</code></td>
+<td>Command registry (extend to add custom commands)</td>
+</tr>
+<tr>
+<td><code>widgets</code></td>
+<td><code>&#39;none&#39; | &#39;minimal&#39; | &#39;default&#39;</code></td>
+<td>Attribute — built-in toolbar preset</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>doCommand(str)</code></td>
+<td>Execute a command string</td>
+</tr>
+<tr>
+<td><code>focus()</code></td>
+<td>Focus the caret</td>
+</tr>
+</tbody></table>
+<h2>License</h2>
+<p>Apache-2.0</p>
+
+  </article>
+  <nav class="doc-nav" aria-label="Documentation">
+  <ul>
+    <li><a class="doc-link" href="tosi-editable/">tosi-styled-editor</a></li>
+    <li><a class="doc-link current" href="./" aria-current="page">tosijs-styled-editor</a></li>
+  </ul>
+  </nav>
+
+  </tosi-doc-system>
+  <script type="module" src="hydrate.js?v=0.2.0"></script>
+</body>
+</html>

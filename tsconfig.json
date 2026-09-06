@@ -17,6 +17,6 @@
       "bun-types"
     ]
   },
-  "include": ["src/**/*", "demo/**/*", "dev.ts"],
+  "include": ["src/**/*", "demo/**/*", "bin/**/*", "tosijs-editor-site.config.ts"],
   "exclude": ["node_modules", "src/**/*.test.ts"]
 }

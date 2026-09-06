@@ -39,7 +39,7 @@ tosi-styled-editor [part="toolbar"] {
 
 ### Setting up toolbars and menus
 
-```ts
+```typescript
 import { tosiEditable, type TosiEditable } from 'tosijs-styled-editor'
 import { defaultToolbar, defaultMenubar } from 'tosijs-styled-editor'
 
@@ -212,7 +212,7 @@ Tables use CSS Grid layout instead of `<table>` elements:
 
 Add custom commands by extending `editor.commands`:
 
-```ts
+```typescript
 editor.commands.myCommand = (ctx, ...args) => {
   // ctx provides: root, selectable, commands, find(), findAll(),
   //   selectedLeafNodes(), selectedBlocks(), insertionPoint(),

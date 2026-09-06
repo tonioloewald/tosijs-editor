@@ -1,5 +1,5 @@
 /*#
-# tosijs-styled-editor
+# tosi-styled-editor
 
 `<tosi-styled-editor>` is a rich text editor web component that **does not use**
 `contentEditable`, `execCommand`, or browser selection/range APIs.
@@ -56,9 +56,9 @@ import {
   ElementCreator,
   PartsMap,
   elements,
-  type XinStyleSheet,
+  type TosiStyleSheet,
 } from 'tosijs'
-import { icons } from 'tosijs-ui'
+import { icons } from 'tosijs-ui/icons'
 import { Selectable, spanify } from './selection'
 import {
   commands,
@@ -108,13 +108,15 @@ interface EditableParts extends PartsMap {
 export class TosiEditable extends WebComponent<EditableParts> {
   static formAssociated = true
 
+  static preferredTagName = 'tosi-styled-editor'
+
   static initAttributes = {
     widgets: 'none' as 'none' | 'minimal' | 'default',
     name: '',
     required: false,
   }
 
-  static styleSpec: XinStyleSheet = {
+  static shadowStyleSpec: TosiStyleSheet = {
     ':host': {
       display: 'flex',
       flexDirection: 'column',
@@ -2315,6 +2317,5 @@ export class TosiEditable extends WebComponent<EditableParts> {
 
 }
 
-export const tosiEditable = TosiEditable.elementCreator({
-  tag: 'tosi-styled-editor',
-}) as ElementCreator<TosiEditable>
+export const tosiEditable =
+  TosiEditable.elementCreator() as ElementCreator<TosiEditable>

@@ -1,0 +1,32 @@
+# tosijs-styled-editor v0.2.0
+
+Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs
+
+- Docs: https://tonioloewald.github.io/tosijs-editor
+- Source: https://github.com/tonioloewald/tosijs-editor
+- npm: https://www.npmjs.com/package/tosijs-styled-editor
+
+## Documentation
+
+Full documentation, with live code examples, is at the links below.
+
+Live examples run inline on the shared page by default (not sandboxed):
+each has its own `preview` element, but they share one tosijs module, so
+`tosi()` state singletons are shared across every example on a page. This is
+deliberate (it shows tosi isolation and lets you drive demos via the global
+singleton). Namespace example state with unique top-level keys so examples
+don't clobber each other; the `iframe` attribute isolates DOM/CSS, not state.
+
+Running this project locally (`bun start`), the dev server injects a
+localhost-gated dev channel, so an agent can DRIVE the live page with the `hj`
+CLI — `hj navigate`, `hj eval`, `hj tree` — instead of inferring behaviour from
+source. Injected at serve time only, never in the built output. Note that no
+requestAnimationFrame runs under `hj eval`, and tosijs renders are rAF-driven, so
+use it to inspect STATE; a painted-output check needs a real test lane.
+
+## Pages
+
+- https://tonioloewald.github.io/tosijs-editor/tosi-editable/ — tosi-styled-editor
+  `<tosi-styled-editor>` is a rich text editor web component that **does not use**
+- https://tonioloewald.github.io/tosijs-editor/ — tosijs-styled-editor
+  Rich text editor web component — **no `contentEditable`**, **no browser selection APIs**, **no `execCommand`**.

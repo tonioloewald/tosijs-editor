@@ -1,7 +1,7 @@
 {
   "name": "tosijs-styled-editor",
   "version": "0.2.0",
-  "description": "Rich text editor web component — no contentEditable, no browser selection APIs",
+  "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
   "source": "src/index.ts",
   "type": "module",
   "types": "dist/index.d.ts",
@@ -20,23 +20,26 @@
     "LICENSE"
   ],
   "scripts": {
-    "start": "bun --watch dev.ts",
-    "format": "bun eslint src demo --fix && bun prettier --write .",
+    "start": "bun bin/site.ts",
+    "make": "bun bin/site.ts --build",
     "test": "bun test",
-    "build": "bun dev.ts --build"
+    "format": "bun eslint src demo --fix && bun prettier --write ."
   },
   "author": "Tonio Loewald",
   "license": "Apache-2.0",
   "peerDependencies": {
-    "tosijs": "^1.4.0",
-    "tosijs-ui": "^1.4.0"
+    "tosijs": "^1.10.1",
+    "tosijs-ui": "^1.13.0"
   },
   "devDependencies": {
-    "tosijs": "^1.4.0",
-    "tosijs-ui": "^1.4.0",
     "bun-types": "^1.3.0",
     "chokidar": "^4.0.3",
-    "happy-dom": "^20.7.0",
+    "happy-dom": "^20.14.0",
+    "tosijs": "^1.10.1",
+    "tosijs-ui": "^1.13.0",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "ws": "^8.21.0"
   }
 }
