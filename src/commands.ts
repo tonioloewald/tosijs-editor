@@ -68,6 +68,52 @@ function applyCSS(element: HTMLElement, css: Record<string, string>): void {
   }
 }
 
+/** A real list, as opposed to a grid table (which is also a <ul>) */
+function isListElement(el: Element): boolean {
+  return (
+    (el.tagName === 'UL' || el.tagName === 'OL') &&
+    !el.classList.contains('editor-table')
+  )
+}
+
+/**
+ * Replace a list with one paragraph per item. Children are moved rather than
+ * copied so the caret markers inside them survive.
+ */
+function unwrapList(list: Element): void {
+  const parent = list.parentNode
+  if (!parent) return
+  for (const item of Array.from(list.children)) {
+    const paragraph = document.createElement('p')
+    while (item.firstChild) paragraph.appendChild(item.firstChild)
+    paragraph.classList.add('selected-block')
+    parent.insertBefore(paragraph, list)
+  }
+  list.remove()
+}
+
+/**
+ * Fold immediately-adjacent lists of the same type into one, so converting a
+ * paragraph under an existing list joins it instead of starting a second list
+ * (which would restart <ol> numbering). Returns the surviving list.
+ */
+function mergeAdjacentLists(list: Element): Element {
+  let survivor = list
+  const previous = survivor.previousElementSibling
+  if (previous && isListElement(previous) && previous.tagName === survivor.tagName) {
+    while (survivor.firstChild) previous.appendChild(survivor.firstChild)
+    previous.classList.add('selected-block')
+    survivor.remove()
+    survivor = previous
+  }
+  const next = survivor.nextElementSibling
+  if (next && isListElement(next) && next.tagName === survivor.tagName) {
+    while (next.firstChild) survivor.appendChild(next.firstChild)
+    next.remove()
+  }
+  return survivor
+}
+
 /** Command definitions — extensible by adding new methods */
 export const commands: Record<string, Command> = {
   /**
@@ -125,6 +171,62 @@ export const commands: Record<string, Command> = {
       }
       newBlock.classList.add('selected-block')
       block.parentNode?.replaceChild(newBlock, block)
+    }
+    ctx.updateUndo('new')
+  },
+
+  /**
+   * Turn the selected blocks into a bulleted or numbered list, or back into
+   * paragraphs. Asking for the type a selection already has toggles it off.
+   * Usage: setList ul | setList ol | setList none
+   */
+  setList(ctx: EditableContext, listType = 'ul') {
+    const wanted = listType.toLowerCase()
+    // A grid table is a <ul>; never rewrite one as a list
+    const blocks = ctx
+      .selectedBlocks()
+      .filter((block) => !block.classList.contains('editor-table'))
+    if (blocks.length === 0) return
+
+    const alreadyWanted =
+      blocks.every(isListElement) &&
+      blocks.every((block) => block.tagName.toLowerCase() === wanted)
+
+    if (wanted === 'none' || alreadyWanted) {
+      for (const block of blocks) {
+        if (isListElement(block)) unwrapList(block)
+      }
+      ctx.updateUndo('new')
+      return
+    }
+
+    // Group runs of adjacent blocks so a multi-block selection makes ONE list
+    const groups: Element[][] = []
+    for (const block of blocks) {
+      const run = groups[groups.length - 1]
+      if (run && run[run.length - 1].nextElementSibling === block) {
+        run.push(block)
+      } else {
+        groups.push([block])
+      }
+    }
+
+    for (const group of groups) {
+      const list = document.createElement(wanted)
+      list.classList.add('selected-block')
+      for (const block of group) {
+        if (isListElement(block)) {
+          // A list of the other type — carry its items across as-is
+          while (block.firstChild) list.appendChild(block.firstChild)
+        } else {
+          const item = document.createElement('li')
+          while (block.firstChild) item.appendChild(block.firstChild)
+          list.appendChild(item)
+        }
+      }
+      group[0].parentNode?.insertBefore(list, group[0])
+      for (const block of group) block.remove()
+      mergeAdjacentLists(list)
     }
     ctx.updateUndo('new')
   },

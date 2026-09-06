@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach } from 'bun:test'
+import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import { makeCSS, commands, executeCommand } from './commands'
 import { Selectable } from './selection'
 import type { EditableContext } from './commands'
@@ -218,5 +218,89 @@ describe('executeCommand', () => {
     console.error = origError
     expect(errors.length).toBe(1)
     expect(errors[0]).toContain('unrecognized command')
+  })
+})
+
+describe('setList', () => {
+  let root: HTMLElement
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.appendChild(root)
+  })
+
+  afterEach(() => {
+    root.remove()
+  })
+
+  function run(html: string, command: string): HTMLElement {
+    root.innerHTML = html
+    for (const block of Array.from(root.children)) {
+      block.classList.add('selected-block')
+    }
+    executeCommand(createContext(root), command)
+    return root
+  }
+
+  test('turns a paragraph into a bulleted list item', () => {
+    run('<p>alpha</p>', 'setList ul')
+    expect(root.children.length).toBe(1)
+    expect(root.children[0].tagName).toBe('UL')
+    expect(root.querySelectorAll('li').length).toBe(1)
+    expect(root.querySelector('li')!.textContent).toBe('alpha')
+  })
+
+  test('groups adjacent blocks into a single list', () => {
+    run('<p>alpha</p><p>beta</p><p>gamma</p>', 'setList ol')
+    expect(root.children.length).toBe(1)
+    expect(root.children[0].tagName).toBe('OL')
+    expect(root.querySelectorAll('li').length).toBe(3)
+  })
+
+  test('converts between list types without losing items', () => {
+    run('<ul><li>alpha</li><li>beta</li></ul>', 'setList ol')
+    expect(root.children.length).toBe(1)
+    expect(root.children[0].tagName).toBe('OL')
+    expect(root.querySelectorAll('li').length).toBe(2)
+  })
+
+  test('re-applying the current type toggles back to paragraphs', () => {
+    run('<ul><li>alpha</li><li>beta</li></ul>', 'setList ul')
+    expect(root.querySelectorAll('ul').length).toBe(0)
+    expect(root.querySelectorAll('p').length).toBe(2)
+    expect(root.children[0].textContent).toBe('alpha')
+  })
+
+  test('setList none unwraps a list', () => {
+    run('<ol><li>alpha</li></ol>', 'setList none')
+    expect(root.querySelectorAll('ol').length).toBe(0)
+    expect(root.querySelectorAll('p').length).toBe(1)
+  })
+
+  test('merges with an adjacent list of the same type', () => {
+    root.innerHTML = '<ul><li>alpha</li></ul><p>beta</p>'
+    // Only the paragraph is selected
+    root.children[1].classList.add('selected-block')
+    executeCommand(createContext(root), 'setList ul')
+    expect(root.children.length).toBe(1)
+    expect(root.querySelectorAll('li').length).toBe(2)
+    expect(root.querySelectorAll('li')[1].textContent).toBe('beta')
+  })
+
+  test('never rewrites a grid table', () => {
+    root.innerHTML = '<ul class="editor-table"><li>cell</li></ul>'
+    root.children[0].classList.add('selected-block')
+    executeCommand(createContext(root), 'setList ol')
+    expect(root.children[0].tagName).toBe('UL')
+    expect(root.children[0].classList.contains('editor-table')).toBe(true)
+  })
+
+  test('keeps the caret inside the converted block', () => {
+    root.innerHTML = '<p>alpha<input class="sel-end caret"></p>'
+    root.children[0].classList.add('selected-block')
+    executeCommand(createContext(root), 'setList ul')
+    const caret = root.querySelector('input.caret')
+    expect(caret).not.toBeNull()
+    expect(caret!.closest('li')).not.toBeNull()
   })
 })
