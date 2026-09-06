@@ -10,8 +10,8 @@ giving full control over editing behavior.
 ## Usage
 
 ```html
-<tosijs-styled-editor widgets="default">
-  <p>Edit this text!</p>
+<tosijs-styled-editor widgets="default" localized>
+  <p>Edit this text! Use the 🌐 menu to switch the interface to Suomi.</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
 </tosijs-styled-editor>
 ```
@@ -113,7 +113,12 @@ import {
   leafNodes,
   topSingleParentAncestor,
 } from './dom-utils'
-import { defaultToolbar, minimalToolbar, defaultMenubar } from './toolbar'
+import {
+  defaultToolbar,
+  minimalToolbar,
+  defaultMenubar,
+  localePickerWidget,
+} from './toolbar'
 import {
   cellOf,
   tableOf,
@@ -154,6 +159,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   static initAttributes = {
     widgets: 'none' as 'none' | 'minimal' | 'default',
+    localized: false,
     name: '',
     required: false,
   }
@@ -483,6 +489,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   selectable!: Selectable
   /** Set from `initAttributes` at runtime; `declare` so no field is emitted over it */
   declare widgets: 'none' | 'minimal' | 'default'
+  /** Show a language picker — the built-in widgets are always translatable */
+  declare localized: boolean
   active = true
   pastemode: 'merge' | 'remove' | 'preserve' | 'paragraphs' = 'merge'
 
@@ -718,6 +726,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (preset === 'default') {
       for (const menu of defaultMenubar(this)) {
         this.appendChild(menu)
+      }
+      if (this.localized) {
+        this.appendChild(localePickerWidget())
       }
     }
     for (const widget of preset === 'minimal'

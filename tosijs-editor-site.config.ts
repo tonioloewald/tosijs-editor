@@ -1,5 +1,6 @@
 import { defineSiteConfig } from 'tosijs-ui/site'
 import { $ } from 'bun'
+import { readFileSync } from 'fs'
 
 /**
  * The one build/dev entry's config. `bin/site.ts` wraps `buildSite`/`devServer`
@@ -13,6 +14,9 @@ export default defineSiteConfig({
   ogImage: '/tosijs-editor.svg',
   // Pen-ink blue; the doc system derives most of its palette from this
   theme: { accent: '#27488c' },
+  // The doc system serves this at /localized-strings.txt and inits localization,
+  // so the live examples can switch language. Adopters add a column.
+  localizedStrings: readFileSync('localized-strings.tsv', 'utf8'),
   description:
     'Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs',
   // baseUrl already carries the project-page path, so basePath stays '/' (the

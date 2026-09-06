@@ -1,10 +1,13 @@
+<!--{ "pin": "top" }-->
+
 # A Rich Text Editor Component
 
 ```html
-<tosijs-styled-editor widgets="default">
+<tosijs-styled-editor widgets="default" localized>
   <h2>Try it</h2>
   <p>This is a live editor. Click anywhere to place the cursor and start typing,
-  then use the menus and toolbar above to format what you write.</p>
+  then use the menus and toolbar above to format what you write. The 🇬🇧 menu
+  switches the interface to Suomi.</p>
   <p>Double-click selects a word, triple-click selects a block, and clicking past
   the end of a line puts the cursor at the end of that line.</p>
   <ul>
@@ -269,6 +272,49 @@ editor.commands.myCommand = (ctx, ...args) => {
 editor.doCommand('myCommand arg1 arg2')
 ```
 
+## Localization
+
+Add `localized` and the built-in widgets translate themselves, with a flag-only
+language picker in the menubar:
+
+```xml
+<tosijs-styled-editor widgets="default" localized></tosijs-styled-editor>
+```
+
+Strings live in one tab-separated table, `localized-strings.tsv`. **To add a
+language, add a column** — nothing else changes:
+
+```
+en	fi
+(row 1 is ignored — notes go here)
+English	Suomi
+🇬🇧	🇫🇮
+Bold	Lihavointi
+Italic	Kursivointi
+```
+
+Row 0 is the locale codes, row 2 the language names, row 3 the flag emoji, and
+every row after that is one string. **Column 0 is both the lookup key and the
+English text**, so a missing cell or a missing row falls back to English rather
+than showing a key — you can ship a half-translated column safely. A `"` cell
+means "same as English", which is what proper nouns and numerals use.
+
+Load it once at startup:
+
+```typescript
+import { initLocalization } from 'tosijs-ui'
+
+initLocalization(await (await fetch('/localized-strings.txt')).text())
+```
+
+A doc site built on `tosijs-ui/site` does this for you — pass the table as
+`localizedStrings` in the site config.
+
+Under the hood this is tosijs-ui's convention, not a private one: buttons carry
+`data-tosi-localized` (a JSON map of attribute to key, re-applied on locale
+change), menus set `localized`, and menu labels are `<tosi-localized>` elements.
+Custom widgets you add follow the same rules and get translated too.
+
 ## Component API
 
 | Property | Type | Description |
@@ -278,6 +324,7 @@ editor.doCommand('myCommand arg1 arg2')
 | `pastemode` | `'merge' \| 'remove' \| 'preserve' \| 'paragraphs'` | How pasted HTML is handled |
 | `commands` | `object` | Command registry (extend to add custom commands) |
 | `widgets` | `'none' \| 'minimal' \| 'default'` | Attribute — built-in toolbar preset |
+| `localized` | `boolean` | Attribute — translate the built-in widgets and show a language picker |
 
 | Method | Description |
 |---|---|

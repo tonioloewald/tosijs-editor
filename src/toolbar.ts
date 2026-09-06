@@ -9,6 +9,7 @@
 import { elements } from 'tosijs'
 import { icons } from 'tosijs-ui/icons'
 import { tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui/menu'
+import { tosiLocalePicker, tosiLocalized } from 'tosijs-ui/localize'
 import type { TosijsStyledEditor } from './tosijs-styled-editor'
 
 const { button, span } = elements
@@ -26,6 +27,10 @@ export function commandButton(
   const attrs: Record<string, any> = {
     title,
     value: command,
+    // tosijs-ui's convention: a JSON map of attribute -> translation key, applied
+    // automatically (and re-applied on locale change). `localize` returns its
+    // input when no row exists, so this is inert until a table is loaded.
+    dataTosiLocalized: JSON.stringify({ title }),
   }
   if (shortcut) {
     attrs.dataShortcut = shortcut
@@ -37,6 +42,19 @@ export function commandButton(
 export function toolbarSpacer(width = '8px'): HTMLElement {
   return span({
     style: { display: 'inline-block', width },
+  }) as unknown as HTMLElement
+}
+
+/** A menu label that re-renders itself when the locale changes */
+function menuLabel(caption: string): HTMLElement {
+  return tosiLocalized({ refString: caption }) as unknown as HTMLElement
+}
+
+/** A language picker for the menubar — flag only, no caption */
+export function localePickerWidget(): HTMLElement {
+  return tosiLocalePicker({
+    slot: 'menubar',
+    hideCaption: true,
   }) as unknown as HTMLElement
 }
 
@@ -59,6 +77,7 @@ export function paragraphStyleMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         editorMenuItem(editor, 'Title', 'setBlockType h1'),
         editorMenuItem(editor, 'Heading', 'setBlockType h2'),
@@ -75,7 +94,8 @@ export function paragraphStyleMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     icons.type(),
-    ' Style',
+    ' ',
+    menuLabel('Style'),
   ) as unknown as HTMLElement
 }
 
@@ -84,6 +104,7 @@ export function justificationMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         editorMenuItem(editor, 'Left', 'setBlocks text-align left'),
         editorMenuItem(editor, 'Center', 'setBlocks text-align center'),
@@ -92,7 +113,8 @@ export function justificationMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     icons.alignLeft(),
-    ' Align',
+    ' ',
+    menuLabel('Align'),
   ) as unknown as HTMLElement
 }
 
@@ -101,6 +123,7 @@ export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         editorMenuItem(
           editor,
@@ -117,7 +140,8 @@ export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     icons.type(),
-    ' Font',
+    ' ',
+    menuLabel('Font'),
   ) as unknown as HTMLElement
 }
 
@@ -126,6 +150,7 @@ export function fontSizeMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         editorMenuItem(editor, '10', 'setText font-size 10px'),
         editorMenuItem(editor, '12', 'setText font-size 12px'),
@@ -135,7 +160,8 @@ export function fontSizeMenu(editor: TosijsStyledEditor): HTMLElement {
         editorMenuItem(editor, '36', 'setText font-size 36px'),
       ],
     },
-    ' Size',
+    ' ',
+    menuLabel('Size'),
   ) as unknown as HTMLElement
 }
 
@@ -144,13 +170,15 @@ export function lineSpacingMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         editorMenuItem(editor, 'Single', 'setBlocks line-height unset'),
         editorMenuItem(editor, '1.5', 'setBlocks line-height 1.875'),
         editorMenuItem(editor, 'Double', 'setBlocks line-height 2.5'),
       ],
     },
-    ' Spacing',
+    ' ',
+    menuLabel('Spacing'),
   ) as unknown as HTMLElement
 }
 
@@ -243,6 +271,7 @@ export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
     {
       slot: 'menubar',
+      localized: true,
       menuItems: [
         {
           caption: 'Insert Table',
@@ -266,7 +295,8 @@ export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     icons.grid(),
-    ' Table',
+    ' ',
+    menuLabel('Table'),
   ) as unknown as HTMLElement
 }
 

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Localization**, following tosijs-ui's conventions rather than a private
+  scheme: `localized` on the element translates the built-in widgets and adds a
+  flag-only language picker. Toolbar buttons carry `data-tosi-localized` (a JSON
+  attribute-to-key map, re-applied on locale change), menus set `localized`, and
+  menu labels are `<tosi-localized>`, so custom widgets get the same treatment.
+- `localized-strings.tsv` — a sample table in English and Suomi covering all 51
+  UI strings. Adding a language is adding a column. Column 0 is both the lookup
+  key and the English text, so missing cells fall back to English and a
+  half-translated column is safe to ship.
+- README is pinned to the top of the doc-site nav.
+
 - `setList ul | ol | none` — bulleted and numbered list formatting, exposed as
   toolbar buttons and Style menu entries. Adjacent selected blocks become one
   list, a converted block merges into an adjacent list of the same type (so

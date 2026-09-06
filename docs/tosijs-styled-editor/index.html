@@ -45,7 +45,7 @@
 <script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}">
+  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
   <article class="doc-content">
 <h1><code>&lt;tosijs-styled-editor&gt;</code></h1>
 <p><code>&lt;tosijs-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
@@ -53,8 +53,8 @@
 <p>Instead, it manages selection and editing entirely through DOM manipulation,
 giving full control over editing behavior.</p>
 <h2>Usage</h2>
-<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
-  &lt;p&gt;Edit this text!&lt;/p&gt;
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;
+  &lt;p&gt;Edit this text! Use the 🌐 menu to switch the interface to Suomi.&lt;/p&gt;
   &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
 &lt;/tosijs-styled-editor&gt;
 </code></pre>
@@ -131,8 +131,8 @@ will show their keyboard automatically.</p>
   </article>
   <nav class="doc-nav" aria-label="Documentation">
   <ul>
-    <li><a class="doc-link current" href="../tosijs-styled-editor/" aria-current="page">&lt;tosijs-styled-editor&gt;</a></li>
     <li><a class="doc-link" href="../">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link current" href="../tosijs-styled-editor/" aria-current="page">&lt;tosijs-styled-editor&gt;</a></li>
   </ul>
   </nav>
 

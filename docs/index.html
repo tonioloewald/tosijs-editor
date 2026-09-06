@@ -45,13 +45,16 @@
 <script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}">
+  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
+<!--{ "pin": "top" }-->
+
 <h1>A Rich Text Editor Component</h1>
-<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;
   &lt;h2&gt;Try it&lt;/h2&gt;
   &lt;p&gt;This is a live editor. Click anywhere to place the cursor and start typing,
-  then use the menus and toolbar above to format what you write.&lt;/p&gt;
+  then use the menus and toolbar above to format what you write. The 🇬🇧 menu
+  switches the interface to Suomi.&lt;/p&gt;
   &lt;p&gt;Double-click selects a word, triple-click selects a block, and clicking past
   the end of a line puts the cursor at the end of that line.&lt;/p&gt;
   &lt;ul&gt;
@@ -368,6 +371,36 @@ annotate note              # Insert annotation at caret
 
 editor.doCommand(&#39;myCommand arg1 arg2&#39;)
 </code></pre>
+<h2>Localization</h2>
+<p>Add <code>localized</code> and the built-in widgets translate themselves, with a flag-only
+language picker in the menubar:</p>
+<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<p>Strings live in one tab-separated table, <code>localized-strings.tsv</code>. <strong>To add a
+language, add a column</strong> — nothing else changes:</p>
+<pre><code>en	fi
+(row 1 is ignored — notes go here)
+English	Suomi
+🇬🇧	🇫🇮
+Bold	Lihavointi
+Italic	Kursivointi
+</code></pre>
+<p>Row 0 is the locale codes, row 2 the language names, row 3 the flag emoji, and
+every row after that is one string. <strong>Column 0 is both the lookup key and the
+English text</strong>, so a missing cell or a missing row falls back to English rather
+than showing a key — you can ship a half-translated column safely. A <code>&quot;</code> cell
+means &quot;same as English&quot;, which is what proper nouns and numerals use.</p>
+<p>Load it once at startup:</p>
+<pre><code class="language-typescript">import { initLocalization } from &#39;tosijs-ui&#39;
+
+initLocalization(await (await fetch(&#39;/localized-strings.txt&#39;)).text())
+</code></pre>
+<p>A doc site built on <code>tosijs-ui/site</code> does this for you — pass the table as
+<code>localizedStrings</code> in the site config.</p>
+<p>Under the hood this is tosijs-ui&#39;s convention, not a private one: buttons carry
+<code>data-tosi-localized</code> (a JSON map of attribute to key, re-applied on locale
+change), menus set <code>localized</code>, and menu labels are <code>&lt;tosi-localized&gt;</code> elements.
+Custom widgets you add follow the same rules and get translated too.</p>
 <h2>Component API</h2>
 <table>
 <thead>
@@ -402,6 +435,11 @@ editor.doCommand(&#39;myCommand arg1 arg2&#39;)
 <td><code>&#39;none&#39; | &#39;minimal&#39; | &#39;default&#39;</code></td>
 <td>Attribute — built-in toolbar preset</td>
 </tr>
+<tr>
+<td><code>localized</code></td>
+<td><code>boolean</code></td>
+<td>Attribute — translate the built-in widgets and show a language picker</td>
+</tr>
 </tbody></table>
 <table>
 <thead>
@@ -425,8 +463,8 @@ editor.doCommand(&#39;myCommand arg1 arg2&#39;)
   </article>
   <nav class="doc-nav" aria-label="Documentation">
   <ul>
-    <li><a class="doc-link" href="tosijs-styled-editor/">&lt;tosijs-styled-editor&gt;</a></li>
     <li><a class="doc-link current" href="./" aria-current="page">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link" href="tosijs-styled-editor/">&lt;tosijs-styled-editor&gt;</a></li>
   </ul>
   </nav>
 
