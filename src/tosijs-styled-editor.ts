@@ -1,5 +1,5 @@
 /*#
-# Editor Component
+# `<tosijs-styled-editor>`
 
 `<tosijs-styled-editor>` is a rich text editor web component that **does not use**
 `contentEditable`, `execCommand`, or browser selection/range APIs.
@@ -175,6 +175,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         'color-mix(in oklab, var(--editor-ink) 6%, var(--editor-surface))',
       '--editor-edge':
         'color-mix(in oklab, var(--editor-ink) 25%, transparent)',
+      '--editor-chrome-text':
+        'color-mix(in oklab, var(--editor-ink) 80%, CanvasText)',
       background: 'var(--editor-surface)',
       color: 'CanvasText',
     },
@@ -191,7 +193,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       background: 'var(--editor-menubar-bg)',
       borderBottom: '1px solid var(--editor-edge)',
     },
-    ':host [part="menubar"]:empty': {
+    ':host(:not([has-menubar])) [part="menubar"]': {
       display: 'none',
     },
     ':host [part="toolbar"]': {
@@ -204,33 +206,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       background: 'var(--editor-toolbar-bg)',
       borderBottom: '1px solid var(--editor-edge)',
     },
-    ':host [part="toolbar"]:empty': {
+    ':host(:not([has-toolbar])) [part="toolbar"]': {
       display: 'none',
-    },
-    // Compact toolbar buttons. They are slotted light DOM, so they are styled
-    // from here rather than left to every consumer to re-invent.
-    ':host ::slotted(button[slot="toolbar"])': {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '26px',
-      height: '26px',
-      padding: '0',
-      border: '0',
-      borderRadius: '4px',
-      background: 'transparent',
-      color: 'inherit',
-      cursor: 'pointer',
-    },
-    ':host ::slotted(button[slot="toolbar"]:hover)': {
-      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
-    },
-    ':host ::slotted(button[slot="toolbar"]:active)': {
-      background: 'color-mix(in oklab, var(--editor-ink) 32%, transparent)',
-    },
-    ':host ::slotted(button[slot="toolbar"][disabled])': {
-      opacity: '0.35',
-      cursor: 'default',
     },
     ':host [part="doc"]': {
       flex: '1 1 auto',
@@ -449,6 +426,60 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
   }
 
+  /**
+   * Toolbar buttons and menus are LIGHT DOM (slotted), and `::slotted()` rules
+   * lose the cascade to the host page's own `button` styles — which is how the
+   * buttons ended up as white chips on the tinted bars. A light stylesheet is
+   * scoped by tag name at document level, so it competes on equal terms.
+   */
+  static lightStyleSpec: TosiStyleSheet = {
+    'tosijs-styled-editor button[slot="toolbar"]': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '26px',
+      height: '26px',
+      padding: '0',
+      border: '0',
+      borderRadius: '4px',
+      background: 'transparent',
+      boxShadow: 'none',
+      color: 'var(--editor-chrome-text)',
+      cursor: 'pointer',
+    },
+    'tosijs-styled-editor button[slot="toolbar"]:hover:not([disabled])': {
+      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
+    },
+    'tosijs-styled-editor button[slot="toolbar"]:active:not([disabled])': {
+      background: 'color-mix(in oklab, var(--editor-ink) 32%, transparent)',
+    },
+    'tosijs-styled-editor button[slot="toolbar"][disabled]': {
+      opacity: '0.35',
+      cursor: 'default',
+      background: 'transparent',
+    },
+    'tosijs-styled-editor button[slot="toolbar"] svg': {
+      width: '18px',
+      height: '18px',
+    },
+    'tosijs-styled-editor [slot="menubar"] button': {
+      background: 'transparent',
+      border: '0',
+      boxShadow: 'none',
+      borderRadius: '4px',
+      padding: '4px 10px',
+      color: 'var(--editor-chrome-text)',
+      cursor: 'pointer',
+    },
+    'tosijs-styled-editor [slot="menubar"] button:hover': {
+      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
+    },
+    'tosijs-styled-editor [slot="menubar"] button svg': {
+      width: '16px',
+      height: '16px',
+    },
+  }
+
   selectable!: Selectable
   /** Set from `initAttributes` at runtime; `declare` so no field is emitted over it */
   declare widgets: 'none' | 'minimal' | 'default'
@@ -654,9 +685,25 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     this.applyWidgets()
 
+    // A <slot> is always :empty in CSS terms, so whether a bar has content has
+    // to be reflected onto the host from assignedNodes().
+    this.trackBar(this.parts.menubar as HTMLSlotElement, 'has-menubar')
+    this.trackBar(this.parts.toolbar as HTMLSlotElement, 'has-toolbar')
+
     // Initialize undo
     this.updateUndo('init')
     this.focus()
+  }
+
+  /** Reflect whether a slot has assigned content onto the host, and keep it current */
+  private trackBar(slot: HTMLSlotElement, attribute: string): void {
+    const sync = () =>
+      this.toggleAttribute(
+        attribute,
+        slot.assignedNodes({ flatten: true }).length > 0,
+      )
+    slot.addEventListener('slotchange', sync)
+    sync()
   }
 
   /**

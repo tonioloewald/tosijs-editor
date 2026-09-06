@@ -30,17 +30,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="doc-system.css?v=0.2.0" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
-  <meta name="description" content="- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs" />
+  <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
   <meta property="og:title" content="A Rich Text Editor Component — tosijs-styled-editor" />
-  <meta property="og:description" content="- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs" />
+  <meta property="og:description" content="A pure web-component. What it does not use" />
   <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/" />
   <meta property="og:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"A Rich Text Editor Component","description":"- Pure web-component - No document.execCommand - No contentEditable - No browser selection or Range APIs","url":"https://tonioloewald.github.io/tosijs-editor/","inLanguage":"en","image":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"A Rich Text Editor Component","description":"A pure web-component. What it does not use","url":"https://tonioloewald.github.io/tosijs-editor/","inLanguage":"en","image":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
   <link rel="icon" href="tosijs-editor.svg" />
 <script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
@@ -48,16 +48,40 @@
   <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}">
   <article class="doc-content">
 <h1>A Rich Text Editor Component</h1>
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
+  &lt;h2&gt;Try it&lt;/h2&gt;
+  &lt;p&gt;This is a live editor. Click anywhere to place the cursor and start typing,
+  then use the menus and toolbar above to format what you write.&lt;/p&gt;
+  &lt;p&gt;Double-click selects a word, triple-click selects a block, and clicking past
+  the end of a line puts the cursor at the end of that line.&lt;/p&gt;
+  &lt;ul&gt;
+    &lt;li&gt;Select these two items&lt;/li&gt;
+    &lt;li&gt;Press the numbered-list button to renumber them&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<pre><code class="language-css">tosijs-styled-editor {
+  --editor-ink: #27488c;
+  --editor-surface: var(--tosi-bg, Canvas);
+  border: 1px solid var(--editor-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 260px;
+}
+</code></pre>
+<p>A pure web-component. What it does <strong>not</strong> use:</p>
 <ul>
-<li>Pure web-component</li>
 <li>No <code>document.execCommand</code></li>
 <li>No <code>contentEditable</code></li>
-<li>No browser selection or Range APIs</li>
+<li>No horrible browser selection and Range APIs</li>
 </ul>
-<p>All selection and editing is handled through direct DOM manipulation, giving full control
-over editing behavior with none of the compatibility and accessibility nightmares of
-<code>contentEditable</code>.</p>
-<p><a href="https://tonioloewald.github.io/tosijs-editor/">Live demo &amp; docs</a></p>
+<p>What you get instead:</p>
+<ul>
+<li>Fully styleable selections</li>
+<li>Exact control over editing behavior</li>
+<li>Exact control over cursor behavior</li>
+<li>Touch-friendly selection</li>
+</ul>
 <h2>Development</h2>
 <pre><code class="language-bash">bun install
 bun run tls     # once — locally-trusted dev certs (needs mkcert)
@@ -72,19 +96,19 @@ is configured in <code>tosijs-editor-site.config.ts</code>.</p>
 </code></pre>
 <p>Peer dependencies: <code>tosijs</code>, <code>tosijs-ui</code></p>
 <h2>Usage</h2>
-<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
+<p>Drop it in and it is editable. <code>widgets</code> picks a built-in toolbar preset —
+<code>none</code> (the default), <code>minimal</code>, or <code>default</code> (toolbar + menus), as in the
+example above.</p>
+<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
   &lt;p&gt;Edit this text!&lt;/p&gt;
   &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
 &lt;/tosijs-styled-editor&gt;
 </code></pre>
-<pre><code class="language-css">tosijs-styled-editor {
-  --editor-ink: #27488c;
-  --editor-surface: var(--tosi-bg, Canvas);
-  border: 1px solid var(--editor-edge);
-  border-radius: 6px;
-  overflow: hidden;
-  min-height: 240px;
-}
+<p>The whole chrome is mixed from one custom property, so re-theming is a single
+value:</p>
+<pre><code class="language-xml">&lt;style&gt;
+  tosijs-styled-editor { --editor-ink: #27488c; }
+&lt;/style&gt;
 </code></pre>
 <h3>Setting up toolbars and menus</h3>
 <pre><code class="language-typescript">import { tosijsStyledEditor, type TosijsStyledEditor } from &#39;tosijs-styled-editor&#39;
@@ -401,8 +425,8 @@ editor.doCommand(&#39;myCommand arg1 arg2&#39;)
   </article>
   <nav class="doc-nav" aria-label="Documentation">
   <ul>
+    <li><a class="doc-link" href="tosijs-styled-editor/">&lt;tosijs-styled-editor&gt;</a></li>
     <li><a class="doc-link current" href="./" aria-current="page">A Rich Text Editor Component</a></li>
-    <li><a class="doc-link" href="tosijs-styled-editor/">Editor Component</a></li>
   </ul>
   </nav>
 

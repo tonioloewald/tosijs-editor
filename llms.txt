@@ -26,7 +26,7 @@ use it to inspect STATE; a painted-output check needs a real test lane.
 
 ## Pages
 
-- https://tonioloewald.github.io/tosijs-editor/ — A Rich Text Editor Component
-  All selection and editing is handled through direct DOM manipulation, giving full control
-- https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/ — Editor Component
+- https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/ — <tosijs-styled-editor>
   `<tosijs-styled-editor>` is a rich text editor web component that **does not use**
+- https://tonioloewald.github.io/tosijs-editor/ — A Rich Text Editor Component
+  A pure web-component. What it does **not** use:

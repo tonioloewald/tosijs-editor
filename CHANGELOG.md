@@ -47,7 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   three distinct surfaces, mixed from a single `--editor-ink` custom property so
   a consumer can re-theme the whole thing by setting one value. Toolbar buttons
   are compact 26px squares, styled by the component rather than left to each
-  consumer to re-invent.
+  consumer to re-invent. Those styles ship as `lightStyleSpec`, not
+  `::slotted()`: slotted content is light DOM, so the host page's own `button`
+  rules win the cascade — which had left the buttons as white chips on the
+  tinted bars.
 
 - **Build**: replaced the bespoke `dev.ts` with `bin/site.ts`, a thin wrapper
   over tosijs-ui's doc system (`buildSite`/`devServer`). The full build is

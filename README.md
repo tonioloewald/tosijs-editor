@@ -1,15 +1,42 @@
 # A Rich Text Editor Component
 
-- Pure web-component
+```html
+<tosijs-styled-editor widgets="default">
+  <h2>Try it</h2>
+  <p>This is a live editor. Click anywhere to place the cursor and start typing,
+  then use the menus and toolbar above to format what you write.</p>
+  <p>Double-click selects a word, triple-click selects a block, and clicking past
+  the end of a line puts the cursor at the end of that line.</p>
+  <ul>
+    <li>Select these two items</li>
+    <li>Press the numbered-list button to renumber them</li>
+  </ul>
+</tosijs-styled-editor>
+```
+
+```css
+tosijs-styled-editor {
+  --editor-ink: #27488c;
+  --editor-surface: var(--tosi-bg, Canvas);
+  border: 1px solid var(--editor-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 260px;
+}
+```
+
+A pure web-component. What it does **not** use:
+
 - No `document.execCommand`
 - No `contentEditable`
-- No browser selection or Range APIs
+- No horrible browser selection and Range APIs
 
-All selection and editing is handled through direct DOM manipulation, giving full control
-over editing behavior with none of the compatibility and accessibility nightmares of
-`contentEditable`.
+What you get instead:
 
-[Live demo & docs](https://tonioloewald.github.io/tosijs-editor/)
+- Fully styleable selections
+- Exact control over editing behavior
+- Exact control over cursor behavior
+- Touch-friendly selection
 
 ## Development
 
@@ -34,22 +61,24 @@ Peer dependencies: `tosijs`, `tosijs-ui`
 
 ## Usage
 
-```html
+Drop it in and it is editable. `widgets` picks a built-in toolbar preset —
+`none` (the default), `minimal`, or `default` (toolbar + menus), as in the
+example above.
+
+```xml
 <tosijs-styled-editor widgets="default">
   <p>Edit this text!</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
 </tosijs-styled-editor>
 ```
 
-```css
-tosijs-styled-editor {
-  --editor-ink: #27488c;
-  --editor-surface: var(--tosi-bg, Canvas);
-  border: 1px solid var(--editor-edge);
-  border-radius: 6px;
-  overflow: hidden;
-  min-height: 240px;
-}
+The whole chrome is mixed from one custom property, so re-theming is a single
+value:
+
+```xml
+<style>
+  tosijs-styled-editor { --editor-ink: #27488c; }
+</style>
 ```
 
 ### Setting up toolbars and menus
