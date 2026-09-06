@@ -36,36 +36,27 @@ async function build() {
   await $`mv dist/src/index.d.ts dist/index.d.ts || true`.quiet()
   await $`rm -rf dist/src dist/demo dist/dev.d.ts || true`.quiet()
 
+  // NOTE: bundling runs in a CHILD PROCESS, never via Bun.build() in-process.
+  // Bun's bundler never returns its native arena, so a watch-mode server that
+  // calls Bun.build() grows monotonically (~26-59MB per rebuild, no plateau) —
+  // a long watch session can reach tens of GB. A child process gives the memory
+  // back to the OS on exit. See oven-sh/bun#34053.
+
   // ESM build — externalize peer deps
-  let result = await Bun.build({
-    entrypoints: ['./src/index.ts'],
-    outdir: DIST,
-    target: 'browser',
-    format: 'esm',
-    naming: 'module.js',
-    external: ['tosijs', 'tosijs-ui'],
-  })
-  if (!result.success) {
+  try {
+    await $`bun build ./src/index.ts --outfile ${DIST}/module.js --target browser --format esm --external tosijs --external tosijs-ui`.quiet()
+  } catch (err) {
     console.error('ESM build failed')
-    for (const message of result.logs) {
-      console.error(message)
-    }
+    console.error(err)
     return
   }
 
   // IIFE build — bundle everything
-  result = await Bun.build({
-    entrypoints: ['./src/index.ts'],
-    outdir: DIST,
-    target: 'browser',
-    format: 'iife',
-    naming: 'index.js',
-  })
-  if (!result.success) {
+  try {
+    await $`bun build ./src/index.ts --outfile ${DIST}/index.js --target browser --format iife`.quiet()
+  } catch (err) {
     console.error('IIFE build failed')
-    for (const message of result.logs) {
-      console.error(message)
-    }
+    console.error(err)
     return
   }
 
@@ -94,13 +85,7 @@ async function build() {
         .exists()
         .catch(() => false)
     ) {
-      await Bun.build({
-        entrypoints: ['./demo/index.ts'],
-        outdir: PUBLIC,
-        target: 'browser',
-        format: 'esm',
-        naming: 'index.js',
-      })
+      await $`bun build ./demo/index.ts --outfile ${PUBLIC}/index.js --target browser --format esm`.quiet()
     }
   }
 
