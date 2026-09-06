@@ -38,6 +38,73 @@ The editor uses three layers:
 The caret is an actual `<input>` element, which means mobile browsers
 will show their keyboard automatically.
 
+## Live behaviour tests
+
+These run in a real browser against real layout. That matters more here than in
+most components: click positioning is resolved by measuring character spans with
+`getBoundingClientRect`, and happy-dom has no layout at all — every rect is zero,
+so a unit test can only assert against stubbed geometry. Both bugs these pin
+shipped past a green unit suite.
+
+```test
+const host = document.createElement('div')
+host.style.cssText = 'width: 480px; font: 16px/1.4 sans-serif'
+document.body.appendChild(host)
+
+const editor = tosiEditable()
+editor.value = '<p>hello world</p>'
+host.appendChild(editor)
+await new Promise((resolve) => requestAnimationFrame(resolve))
+
+const doc = editor.parts.doc
+const paragraph = doc.querySelector('p')
+
+function clickAt(target, x, y, detail = 1) {
+  for (const type of ['mousemove', 'mousedown', 'mouseup']) {
+    target.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
+    )
+  }
+}
+
+// Text between the caret and the end of the paragraph
+function textAfterCaret() {
+  const caret = doc.querySelector('input.caret')
+  if (!caret) return null
+  const range = document.createRange()
+  range.setStartAfter(caret)
+  range.setEnd(paragraph, paragraph.childNodes.length)
+  return range.toString().replace(/\s+/g, '')
+}
+
+test('a click in the dead space right of a line puts the caret at the end of it', async () => {
+  const box = paragraph.getBoundingClientRect()
+  // Well beyond the text, still on the paragraph's only line
+  clickAt(paragraph, box.right + 200, box.top + box.height / 2)
+
+  expect(doc.querySelector('input.caret')).not.toBe(null)
+  // Nothing may remain after the caret — it is at the end of the line
+  expect(textAfterCaret()).toBe('')
+})
+
+test('double-click selects a word and leaves the caret at the end of it', async () => {
+  const box = paragraph.getBoundingClientRect()
+  // Land inside "hello", then double-click there
+  clickAt(paragraph, box.left + 12, box.top + box.height / 2)
+  clickAt(paragraph, box.left + 12, box.top + box.height / 2, 2)
+
+  const selected = doc.querySelectorAll('.selected')
+  expect(selected.length).toBeGreaterThan(1)
+
+  // The caret must not sit inside the selection with selected text after it
+  const caret = doc.querySelector('input.caret')
+  const strandedAfterCaret = [...selected].filter(
+    (el) => caret.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+  )
+  expect(strandedAfterCaret.length).toBe(0)
+})
+```
+
 ## Commands
 
 Commands are invoked via `doCommand(commandString)`:

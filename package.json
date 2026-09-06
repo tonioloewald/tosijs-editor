@@ -23,6 +23,8 @@
     "start": "bun bin/site.ts",
     "make": "bun bin/site.ts --build",
     "test": "bun test",
+    "haltija": "haltija --name tosijs-editor --port 8702 --server",
+    "tls": "bunx tosijs-dev-certs",
     "format": "bun eslint src demo --fix && bun prettier --write ."
   },
   "author": "Tonio Loewald",
@@ -34,6 +36,7 @@
   "devDependencies": {
     "bun-types": "^1.3.0",
     "chokidar": "^4.0.3",
+    "haltija": "1.12.9",
     "happy-dom": "^20.14.0",
     "tosijs": "^1.10.1",
     "tosijs-ui": "^1.13.0",

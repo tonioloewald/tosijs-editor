@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.log
 *.tsbuildinfo
+
+# Dev TLS certs — NEVER commit the private key (allowlist, not a bare ignore)
+tls/*
+!tls/.gitkeep

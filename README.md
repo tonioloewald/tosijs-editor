@@ -6,7 +6,20 @@ All selection and editing is handled through direct DOM manipulation, giving ful
 over editing behavior with none of the compatibility and accessibility nightmares of
 `contentEditable`.
 
-[Live demo](https://tonioloewald.github.io/editor2/)
+[Live demo & docs](https://tonioloewald.github.io/tosijs-editor/)
+
+## Development
+
+```bash
+bun install
+bun run tls     # once — locally-trusted dev certs (needs mkcert)
+bun start       # dev server + doc site on https://localhost:8789
+bun test        # unit tests
+bun run make    # full build (NOT `bun run build` — `bun build` is a Bun builtin)
+```
+
+`bin/site.ts` is the only build/dev entry; it wraps tosijs-ui's doc system and
+is configured in `tosijs-editor-site.config.ts`.
 
 ## Installation
 
