@@ -7,3 +7,7 @@ dist/
 # Dev TLS certs — NEVER commit the private key (allowlist, not a bare ignore)
 tls/*
 !tls/.gitkeep
+
+# Generated sourcemaps: multi-MB per build, never fetched except in devtools,
+# and they embed dependency source (which has tripped GitHub push protection).
+docs/*.map

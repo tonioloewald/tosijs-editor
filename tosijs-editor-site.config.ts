@@ -9,8 +9,13 @@ export default defineSiteConfig({
   name: 'tosijs-styled-editor',
   description:
     'Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs',
+  // baseUrl already carries the project-page path, so basePath stays '/' (the
+  // default). Setting BOTH doubles it: canonical/og/sitemap are built as
+  // `baseUrl + withBase(basePath, path)`, which produced
+  // https://tonioloewald.github.io/tosijs-editor/tosijs-editor/. Note that
+  // llms.txt is built as `baseUrl + path` with no basePath at all, so this is
+  // the only combination that makes both correct — see tosijs-ui issue.
   baseUrl: 'https://tonioloewald.github.io/tosijs-editor',
-  basePath: '/tosijs-editor/',
   host: 'github-pages',
   // A project page on github.io, NOT a custom domain. Without this the build
   // derives `domain` from baseUrl's hostname and writes a CNAME claiming

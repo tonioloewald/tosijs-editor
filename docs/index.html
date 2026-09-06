@@ -31,15 +31,16 @@
   <link rel="stylesheet" href="doc-system.css?v=0.2.0" data-tosi-doc-system />
   <title>tosijs-styled-editor</title>
   <meta name="description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
-  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/" />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
   <meta property="og:title" content="tosijs-styled-editor" />
   <meta property="og:description" content="Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand." />
-  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/" />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/" />
   <meta name="twitter:card" content="summary" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosijs-styled-editor","description":"Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand.","url":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosijs-styled-editor","description":"Rich text editor web component — no contentEditable, no browser selection APIs, no execCommand.","url":"https://tonioloewald.github.io/tosijs-editor/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
   <link rel="icon" href="favicon.svg" />
+<script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
   <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
@@ -70,13 +71,14 @@ is configured in <code>tosijs-editor-site.config.ts</code>.</p>
 &lt;/tosi-styled-editor&gt;
 </code></pre>
 <pre><code class="language-css">tosi-styled-editor {
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--tosi-bg, Canvas);
+  color: var(--tosi-text, CanvasText);
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
 tosi-styled-editor [part=&quot;toolbar&quot;] {
-  background: #f8f8f8;
-  border-bottom: 1px solid #ccc;
+  background: var(--tosi-bg-inset, Canvas);
+  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
 </code></pre>
 <h3>Setting up toolbars and menus</h3>
@@ -315,7 +317,7 @@ annotate note              # Insert annotation at caret
 </code></pre>
 <h2>Tables</h2>
 <p>Tables use CSS Grid layout instead of <code>&lt;table&gt;</code> elements:</p>
-<pre><code class="language-html">&lt;ul class=&quot;editor-table&quot; style=&quot;grid-template-columns: 1fr 1fr 1fr&quot;&gt;
+<pre><code class="language-xml">&lt;ul class=&quot;editor-table&quot; style=&quot;grid-template-columns: 1fr 1fr 1fr&quot;&gt;
   &lt;li class=&quot;table-header&quot;&gt;Name&lt;/li&gt;
   &lt;li class=&quot;table-header&quot;&gt;Role&lt;/li&gt;
   &lt;li class=&quot;table-header&quot;&gt;Location&lt;/li&gt;

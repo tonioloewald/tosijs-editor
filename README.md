@@ -40,13 +40,14 @@ Peer dependencies: `tosijs`, `tosijs-ui`
 
 ```css
 tosi-styled-editor {
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--tosi-bg, Canvas);
+  color: var(--tosi-text, CanvasText);
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
 tosi-styled-editor [part="toolbar"] {
-  background: #f8f8f8;
-  border-bottom: 1px solid #ccc;
+  background: var(--tosi-bg-inset, Canvas);
+  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
 ```
 
@@ -210,7 +211,7 @@ annotate note              # Insert annotation at caret
 
 Tables use CSS Grid layout instead of `<table>` elements:
 
-```html
+```xml
 <ul class="editor-table" style="grid-template-columns: 1fr 1fr 1fr">
   <li class="table-header">Name</li>
   <li class="table-header">Role</li>

@@ -31,15 +31,16 @@
   <link rel="stylesheet" href="../doc-system.css?v=0.2.0" data-tosi-doc-system />
   <title>tosi-styled-editor — tosijs-styled-editor</title>
   <meta name="description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
-  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/" />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/tosi-editable/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
   <meta property="og:title" content="tosi-styled-editor — tosijs-styled-editor" />
   <meta property="og:description" content="&lt;tosi-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
-  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/" />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/tosi-editable/" />
   <meta name="twitter:card" content="summary" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosi-styled-editor","description":"\u003ctosi-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor/tosi-editable/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"tosi-styled-editor","description":"\u003ctosi-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://tonioloewald.github.io/tosijs-editor/tosi-editable/","inLanguage":"en","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
   <link rel="icon" href="../favicon.svg" />
+<script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
   <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;}}">
@@ -56,14 +57,56 @@ giving full control over editing behavior.</p>
 &lt;/tosi-styled-editor&gt;
 </code></pre>
 <pre><code class="language-css">tosi-styled-editor {
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--tosi-bg, Canvas);
+  color: var(--tosi-text, CanvasText);
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
 tosi-styled-editor [part=&quot;toolbar&quot;] {
-  background: #f8f8f8;
-  border-bottom: 1px solid #ccc;
+  background: var(--tosi-bg-inset, Canvas);
+  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
+</code></pre>
+<pre><code class="language-test">// Runs in a real browser against the example above. That matters here: click
+// position is resolved by measuring character spans with getBoundingClientRect,
+// and happy-dom has no layout — every rect is zero — so a unit test can only
+// assert against stubbed geometry. Both bugs below shipped past a green suite.
+const editor = await waitFor(&#39;tosi-styled-editor&#39;)
+const doc = editor.parts.doc
+const paragraph = doc.querySelector(&#39;p&#39;)
+
+function clickAt(x, y, detail = 1) {
+  for (const type of [&#39;mousemove&#39;, &#39;mousedown&#39;, &#39;mouseup&#39;]) {
+    paragraph.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
+    )
+  }
+}
+
+test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
+  // One test: both steps drive the same editor, and test() bodies run concurrently.
+  const box = paragraph.getBoundingClientRect()
+
+  // Clicking the dead space right of a line puts the caret at the END of it.
+  clickAt(box.right + 200, box.top + box.height / 2)
+  const caret = doc.querySelector(&#39;input.caret&#39;)
+  expect(caret).not.toBe(null)
+  const rest = document.createRange()
+  rest.setStartAfter(caret)
+  rest.setEnd(paragraph, paragraph.childNodes.length)
+  expect(rest.toString().replace(/\s+/g, &#39;&#39;)).toBe(&#39;&#39;)
+
+  // Double-click selects a word and leaves the caret at the end of it.
+  clickAt(box.left + 12, box.top + box.height / 2)
+  clickAt(box.left + 12, box.top + box.height / 2, 2)
+  const selected = [...doc.querySelectorAll(&#39;.selected&#39;)]
+  expect(selected.length).toBeGreaterThan(1)
+  const held = doc.querySelector(&#39;input.caret&#39;)
+  const stranded = selected.filter(
+    (el) =&gt; held.compareDocumentPosition(el) &amp; Node.DOCUMENT_POSITION_FOLLOWING
+  )
+  expect(stranded.length).toBe(0)
+})
 </code></pre>
 <h2>How It Works</h2>
 <p>The editor uses three layers:</p>
@@ -74,69 +117,6 @@ tosi-styled-editor [part=&quot;toolbar&quot;] {
 </ol>
 <p>The caret is an actual <code>&lt;input&gt;</code> element, which means mobile browsers
 will show their keyboard automatically.</p>
-<h2>Live behaviour tests</h2>
-<p>These run in a real browser against real layout. That matters more here than in
-most components: click positioning is resolved by measuring character spans with
-<code>getBoundingClientRect</code>, and happy-dom has no layout at all — every rect is zero,
-so a unit test can only assert against stubbed geometry. Both bugs these pin
-shipped past a green unit suite.</p>
-<pre><code class="language-test">const host = document.createElement(&#39;div&#39;)
-host.style.cssText = &#39;width: 480px; font: 16px/1.4 sans-serif&#39;
-document.body.appendChild(host)
-
-const editor = tosiEditable()
-editor.value = &#39;&lt;p&gt;hello world&lt;/p&gt;&#39;
-host.appendChild(editor)
-await new Promise((resolve) =&gt; requestAnimationFrame(resolve))
-
-const doc = editor.parts.doc
-const paragraph = doc.querySelector(&#39;p&#39;)
-
-function clickAt(target, x, y, detail = 1) {
-  for (const type of [&#39;mousemove&#39;, &#39;mousedown&#39;, &#39;mouseup&#39;]) {
-    target.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
-    )
-  }
-}
-
-// Text between the caret and the end of the paragraph
-function textAfterCaret() {
-  const caret = doc.querySelector(&#39;input.caret&#39;)
-  if (!caret) return null
-  const range = document.createRange()
-  range.setStartAfter(caret)
-  range.setEnd(paragraph, paragraph.childNodes.length)
-  return range.toString().replace(/\s+/g, &#39;&#39;)
-}
-
-test(&#39;a click in the dead space right of a line puts the caret at the end of it&#39;, async () =&gt; {
-  const box = paragraph.getBoundingClientRect()
-  // Well beyond the text, still on the paragraph&#39;s only line
-  clickAt(paragraph, box.right + 200, box.top + box.height / 2)
-
-  expect(doc.querySelector(&#39;input.caret&#39;)).not.toBe(null)
-  // Nothing may remain after the caret — it is at the end of the line
-  expect(textAfterCaret()).toBe(&#39;&#39;)
-})
-
-test(&#39;double-click selects a word and leaves the caret at the end of it&#39;, async () =&gt; {
-  const box = paragraph.getBoundingClientRect()
-  // Land inside &quot;hello&quot;, then double-click there
-  clickAt(paragraph, box.left + 12, box.top + box.height / 2)
-  clickAt(paragraph, box.left + 12, box.top + box.height / 2, 2)
-
-  const selected = doc.querySelectorAll(&#39;.selected&#39;)
-  expect(selected.length).toBeGreaterThan(1)
-
-  // The caret must not sit inside the selection with selected text after it
-  const caret = doc.querySelector(&#39;input.caret&#39;)
-  const strandedAfterCaret = [...selected].filter(
-    (el) =&gt; caret.compareDocumentPosition(el) &amp; Node.DOCUMENT_POSITION_FOLLOWING
-  )
-  expect(strandedAfterCaret.length).toBe(0)
-})
-</code></pre>
 <h2>Commands</h2>
 <p>Commands are invoked via <code>doCommand(commandString)</code>:</p>
 <ul>

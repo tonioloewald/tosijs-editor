@@ -1,7 +1,7 @@
 {
   "name": "tosijs-styled-editor",
   "version": "0.2.0",
-  "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
+  "description": "Rich text editor web component — no contentEditable, no browser selection APIs",
   "source": "src/index.ts",
   "type": "module",
   "types": "dist/index.d.ts",
@@ -38,6 +38,7 @@
     "chokidar": "^4.0.3",
     "haltija": "1.12.9",
     "happy-dom": "^20.14.0",
+    "tjs-lang": "^0.13.1",
     "tosijs": "^1.10.1",
     "tosijs-ui": "^1.13.0",
     "typescript": "^5.9.3"

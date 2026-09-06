@@ -17,14 +17,57 @@ giving full control over editing behavior.
 ```
 ```css
 tosi-styled-editor {
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--tosi-bg, Canvas);
+  color: var(--tosi-text, CanvasText);
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
   min-height: 200px;
 }
 tosi-styled-editor [part="toolbar"] {
-  background: #f8f8f8;
-  border-bottom: 1px solid #ccc;
+  background: var(--tosi-bg-inset, Canvas);
+  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
 }
+```
+```test
+// Runs in a real browser against the example above. That matters here: click
+// position is resolved by measuring character spans with getBoundingClientRect,
+// and happy-dom has no layout — every rect is zero — so a unit test can only
+// assert against stubbed geometry. Both bugs below shipped past a green suite.
+const editor = await waitFor('tosi-styled-editor')
+const doc = editor.parts.doc
+const paragraph = doc.querySelector('p')
+
+function clickAt(x, y, detail = 1) {
+  for (const type of ['mousemove', 'mousedown', 'mouseup']) {
+    paragraph.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
+    )
+  }
+}
+
+test('click position is resolved from real layout', async () => {
+  // One test: both steps drive the same editor, and test() bodies run concurrently.
+  const box = paragraph.getBoundingClientRect()
+
+  // Clicking the dead space right of a line puts the caret at the END of it.
+  clickAt(box.right + 200, box.top + box.height / 2)
+  const caret = doc.querySelector('input.caret')
+  expect(caret).not.toBe(null)
+  const rest = document.createRange()
+  rest.setStartAfter(caret)
+  rest.setEnd(paragraph, paragraph.childNodes.length)
+  expect(rest.toString().replace(/\s+/g, '')).toBe('')
+
+  // Double-click selects a word and leaves the caret at the end of it.
+  clickAt(box.left + 12, box.top + box.height / 2)
+  clickAt(box.left + 12, box.top + box.height / 2, 2)
+  const selected = [...doc.querySelectorAll('.selected')]
+  expect(selected.length).toBeGreaterThan(1)
+  const held = doc.querySelector('input.caret')
+  const stranded = selected.filter(
+    (el) => held.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+  )
+  expect(stranded.length).toBe(0)
+})
 ```
 
 ## How It Works
@@ -37,73 +80,6 @@ The editor uses three layers:
 
 The caret is an actual `<input>` element, which means mobile browsers
 will show their keyboard automatically.
-
-## Live behaviour tests
-
-These run in a real browser against real layout. That matters more here than in
-most components: click positioning is resolved by measuring character spans with
-`getBoundingClientRect`, and happy-dom has no layout at all — every rect is zero,
-so a unit test can only assert against stubbed geometry. Both bugs these pin
-shipped past a green unit suite.
-
-```test
-const host = document.createElement('div')
-host.style.cssText = 'width: 480px; font: 16px/1.4 sans-serif'
-document.body.appendChild(host)
-
-const editor = tosiEditable()
-editor.value = '<p>hello world</p>'
-host.appendChild(editor)
-await new Promise((resolve) => requestAnimationFrame(resolve))
-
-const doc = editor.parts.doc
-const paragraph = doc.querySelector('p')
-
-function clickAt(target, x, y, detail = 1) {
-  for (const type of ['mousemove', 'mousedown', 'mouseup']) {
-    target.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
-    )
-  }
-}
-
-// Text between the caret and the end of the paragraph
-function textAfterCaret() {
-  const caret = doc.querySelector('input.caret')
-  if (!caret) return null
-  const range = document.createRange()
-  range.setStartAfter(caret)
-  range.setEnd(paragraph, paragraph.childNodes.length)
-  return range.toString().replace(/\s+/g, '')
-}
-
-test('a click in the dead space right of a line puts the caret at the end of it', async () => {
-  const box = paragraph.getBoundingClientRect()
-  // Well beyond the text, still on the paragraph's only line
-  clickAt(paragraph, box.right + 200, box.top + box.height / 2)
-
-  expect(doc.querySelector('input.caret')).not.toBe(null)
-  // Nothing may remain after the caret — it is at the end of the line
-  expect(textAfterCaret()).toBe('')
-})
-
-test('double-click selects a word and leaves the caret at the end of it', async () => {
-  const box = paragraph.getBoundingClientRect()
-  // Land inside "hello", then double-click there
-  clickAt(paragraph, box.left + 12, box.top + box.height / 2)
-  clickAt(paragraph, box.left + 12, box.top + box.height / 2, 2)
-
-  const selected = doc.querySelectorAll('.selected')
-  expect(selected.length).toBeGreaterThan(1)
-
-  // The caret must not sit inside the selection with selected text after it
-  const caret = doc.querySelector('input.caret')
-  const strandedAfterCaret = [...selected].filter(
-    (el) => caret.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
-  )
-  expect(strandedAfterCaret.length).toBe(0)
-})
-```
 
 ## Commands
 
@@ -139,6 +115,7 @@ import {
   leafNodes,
   topSingleParentAncestor,
 } from './dom-utils'
+import { defaultToolbar, minimalToolbar, defaultMenubar } from './toolbar'
 import {
   cellOf,
   tableOf,
@@ -425,6 +402,8 @@ export class TosiEditable extends WebComponent<EditableParts> {
   }
 
   selectable!: Selectable
+  /** Set from `initAttributes` at runtime; `declare` so no field is emitted over it */
+  declare widgets: 'none' | 'minimal' | 'default'
   active = true
   pastemode: 'merge' | 'remove' | 'preserve' | 'paragraphs' = 'merge'
 
@@ -625,9 +604,33 @@ export class TosiEditable extends WebComponent<EditableParts> {
     this.addEventListener('click', this.handleToolbarClick)
     this.addEventListener('change', this.handleToolbarChange)
 
+    this.applyWidgets()
+
     // Initialize undo
     this.updateUndo('init')
     this.focus()
+  }
+
+  /**
+   * Populate the built-in toolbar/menubar named by the `widgets` attribute.
+   * Anything the author slotted themselves wins — this only fills an empty bar.
+   */
+  private applyWidgets(): void {
+    const preset = this.widgets
+    if (preset !== 'default' && preset !== 'minimal') return
+    if (this.querySelector('[slot="toolbar"], [slot="menubar"]')) return
+
+    if (preset === 'default') {
+      for (const menu of defaultMenubar(this)) {
+        this.appendChild(menu)
+      }
+    }
+    for (const widget of preset === 'minimal'
+      ? minimalToolbar()
+      : defaultToolbar()) {
+      widget.setAttribute('slot', 'toolbar')
+      this.appendChild(widget)
+    }
   }
 
   disconnectedCallback(): void {
