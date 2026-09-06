@@ -11,6 +11,8 @@ export default defineSiteConfig({
   favicon: '/tosijs-editor.svg',
   logo: '/tosijs-editor.svg',
   ogImage: '/tosijs-editor.svg',
+  // Pen-ink blue; the doc system derives most of its palette from this
+  theme: { accent: '#27488c' },
   description:
     'Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs',
   // baseUrl already carries the project-page path, so basePath stays '/' (the

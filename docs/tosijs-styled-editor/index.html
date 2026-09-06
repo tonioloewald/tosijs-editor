@@ -59,14 +59,12 @@ giving full control over editing behavior.</p>
 &lt;/tosijs-styled-editor&gt;
 </code></pre>
 <pre><code class="language-css">tosijs-styled-editor {
-  background: var(--tosi-bg, Canvas);
-  color: var(--tosi-text, CanvasText);
-  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
-  min-height: 200px;
-}
-tosijs-styled-editor [part=&quot;toolbar&quot;] {
-  background: var(--tosi-bg-inset, Canvas);
-  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
+  --editor-ink: #27488c;
+  --editor-surface: var(--tosi-bg, Canvas);
+  border: 1px solid var(--editor-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 240px;
 }
 </code></pre>
 <pre><code class="language-test">// Runs in a real browser against the example above. That matters here: click

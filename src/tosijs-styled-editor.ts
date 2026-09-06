@@ -17,14 +17,12 @@ giving full control over editing behavior.
 ```
 ```css
 tosijs-styled-editor {
-  background: var(--tosi-bg, Canvas);
-  color: var(--tosi-text, CanvasText);
-  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
-  min-height: 200px;
-}
-tosijs-styled-editor [part="toolbar"] {
-  background: var(--tosi-bg-inset, Canvas);
-  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
+  --editor-ink: #27488c;
+  --editor-surface: var(--tosi-bg, Canvas);
+  border: 1px solid var(--editor-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 240px;
 }
 ```
 ```test
@@ -165,28 +163,78 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
+      // Pen-ink blue. Everything else is mixed from it, so a consumer can
+      // re-theme the whole chrome by setting this one property.
+      '--editor-ink': '#27488c',
+      '--editor-surface': 'Canvas',
+      // Two chrome tints so the menubar, the toolbar and the page read as
+      // three distinct surfaces rather than one slab.
+      '--editor-menubar-bg':
+        'color-mix(in oklab, var(--editor-ink) 14%, var(--editor-surface))',
+      '--editor-toolbar-bg':
+        'color-mix(in oklab, var(--editor-ink) 6%, var(--editor-surface))',
+      '--editor-edge':
+        'color-mix(in oklab, var(--editor-ink) 25%, transparent)',
+      background: 'var(--editor-surface)',
+      color: 'CanvasText',
     },
     ':host ::slotted(*)': {
       flex: '0 0 auto',
     },
     ':host [part="menubar"]': {
-      padding: '0',
+      padding: '0 2px',
       display: 'flex',
       gap: '0',
       flex: '0 0 auto',
       flexWrap: 'wrap',
       alignItems: 'center',
+      background: 'var(--editor-menubar-bg)',
+      borderBottom: '1px solid var(--editor-edge)',
+    },
+    ':host [part="menubar"]:empty': {
+      display: 'none',
     },
     ':host [part="toolbar"]': {
-      padding: '2px 4px',
+      padding: '1px 3px',
       display: 'flex',
-      gap: '2px',
+      gap: '1px',
       flex: '0 0 auto',
       flexWrap: 'wrap',
       alignItems: 'center',
+      background: 'var(--editor-toolbar-bg)',
+      borderBottom: '1px solid var(--editor-edge)',
+    },
+    ':host [part="toolbar"]:empty': {
+      display: 'none',
+    },
+    // Compact toolbar buttons. They are slotted light DOM, so they are styled
+    // from here rather than left to every consumer to re-invent.
+    ':host ::slotted(button[slot="toolbar"])': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '26px',
+      height: '26px',
+      padding: '0',
+      border: '0',
+      borderRadius: '4px',
+      background: 'transparent',
+      color: 'inherit',
+      cursor: 'pointer',
+    },
+    ':host ::slotted(button[slot="toolbar"]:hover)': {
+      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
+    },
+    ':host ::slotted(button[slot="toolbar"]:active)': {
+      background: 'color-mix(in oklab, var(--editor-ink) 32%, transparent)',
+    },
+    ':host ::slotted(button[slot="toolbar"][disabled])': {
+      opacity: '0.35',
+      cursor: 'default',
     },
     ':host [part="doc"]': {
       flex: '1 1 auto',
+      background: 'var(--editor-surface)',
       padding: '8px',
       cursor: 'text',
       overflowY: 'auto',

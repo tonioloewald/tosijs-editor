@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Doc pages have distinct titles — "A Rich Text Editor Component" (README) and
   "Editor Component" — so the site nav no longer shows two near-identical entries.
 - Site icon, header mark and social image now use `static/tosijs-editor.svg`.
+- Chrome restyled around a pen-ink-blue accent (`#27488c`), shared by the
+  component and the doc site. The menubar, toolbar and document now read as
+  three distinct surfaces, mixed from a single `--editor-ink` custom property so
+  a consumer can re-theme the whole thing by setting one value. Toolbar buttons
+  are compact 26px squares, styled by the component rather than left to each
+  consumer to re-invent.
 
 - **Build**: replaced the bespoke `dev.ts` with `bin/site.ts`, a thin wrapper
   over tosijs-ui's doc system (`buildSite`/`devServer`). The full build is

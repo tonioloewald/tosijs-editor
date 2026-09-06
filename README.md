@@ -43,14 +43,12 @@ Peer dependencies: `tosijs`, `tosijs-ui`
 
 ```css
 tosijs-styled-editor {
-  background: var(--tosi-bg, Canvas);
-  color: var(--tosi-text, CanvasText);
-  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
-  min-height: 200px;
-}
-tosijs-styled-editor [part="toolbar"] {
-  background: var(--tosi-bg-inset, Canvas);
-  border-bottom: 1px solid color-mix(in oklab, currentColor 25%, transparent);
+  --editor-ink: #27488c;
+  --editor-surface: var(--tosi-bg, Canvas);
+  border: 1px solid var(--editor-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 240px;
 }
 ```
 

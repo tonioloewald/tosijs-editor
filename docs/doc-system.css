@@ -6,19 +6,19 @@
   --font-size: 16px;
   --code-font-size: 14px;
   --text-color: #222;
-  --brand-color: #d92270;
+  --brand-color: #27488c;
   --background: #fafafa;
   --button-bg: #fdfdfd;
   --input-bg: #fdfdfd;
   --background-shaded: #f5f5f5;
-  --nav-bg: #f7eeed;
-  --bar-color: #d6257066;
-  --focus-color: #d62570b3;
-  --placeholder-color: #d6257066;
+  --nav-bg: #edecf1;
+  --bar-color: #3e507566;
+  --focus-color: #3e5075b3;
+  --placeholder-color: #3e507566;
   --brand-text-color: #ffffff;
-  --inset-bg: #f7dfd3;
+  --inset-bg: #dcd4e8;
   --code-bg: #fdfdfd;
-  --link-color: #6b1265;
+  --link-color: #1f363a;
   --shadow-color: #0004;
   --menu-bg: #fafafa;
   --menu-item-active-color: #000;
@@ -66,30 +66,30 @@ tosi-doc-system[data-layout="full-screen"] > .doc-nav.doc-nav, tosi-doc-system[d
 
 .darkmode {
   --text-color: #dddddd;
-  --brand-color: #e04a8a;
+  --brand-color: #536b9c;
   --background: #050505;
   --button-bg: #020202;
   --input-bg: #020202;
   --background-shaded: #0a0a0a;
-  --nav-bg: #120908;
-  --bar-color: #da297466;
-  --focus-color: #da2974b3;
-  --placeholder-color: #da297466;
+  --nav-bg: #0f0e13;
+  --bar-color: #8a9cc166;
+  --focus-color: #8a9cc1b3;
+  --placeholder-color: #8a9cc166;
   --brand-text-color: #000000;
-  --inset-bg: #2c1308;
+  --inset-bg: #20172b;
   --code-bg: #020202;
-  --link-color: #ed94e6;
-  --shadow-color: #d6257080;
+  --link-color: #c5dbe0;
+  --shadow-color: #3e507580;
   --menu-bg: #050505;
   --menu-item-active-color: #ffffff;
   --menu-item-icon-active-color: #ffffff;
   --menu-item-active-bg: #555555;
   --menu-item-hover-bg: #111111;
   --menu-item-color: #dddddd;
-  --menu-separator-color: #d6257080;
+  --menu-separator-color: #3e507580;
   --scroll-thumb-color: #ffffff66;
   --scroll-bar-color: #ffffff11;
-  --menu-shadow: 0 0 0 2px #d62570bf;
+  --menu-shadow: 0 0 0 2px #3e5075bf;
 }
 
 .high-contrast {
