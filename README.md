@@ -1,4 +1,4 @@
-# tosi-editable
+# tosijs-styled-editor
 
 Rich text editor web component — **no `contentEditable`**, **no browser selection APIs**, **no `execCommand`**.
 
@@ -19,19 +19,19 @@ Peer dependencies: `tosijs`, `tosijs-ui`
 ## Usage
 
 ```html
-<tosi-editable>
+<tosi-styled-editor>
   <p>Edit this text!</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
-</tosi-editable>
+</tosi-styled-editor>
 ```
 
 ```css
-tosi-editable {
+tosi-styled-editor {
   background: white;
   border: 1px solid #ccc;
   min-height: 200px;
 }
-tosi-editable [part="toolbar"] {
+tosi-styled-editor [part="toolbar"] {
   background: #f8f8f8;
   border-bottom: 1px solid #ccc;
 }
@@ -214,7 +214,7 @@ Add custom commands by extending `editor.commands`:
 
 ```ts
 editor.commands.myCommand = (ctx, ...args) => {
-  // ctx provides: root, selectable, find(), findAll(),
+  // ctx provides: root, selectable, commands, find(), findAll(),
   //   selectedLeafNodes(), selectedBlocks(), insertionPoint(),
   //   block(), normalize(), focus(), updateUndo()
   const nodes = ctx.selectedLeafNodes()

@@ -174,6 +174,40 @@ describe('executeCommand', () => {
     executeCommand(ctx, '  ;  ; ')
   })
 
+  test('resolves against ctx.commands when provided', () => {
+    const root = document.createElement('div')
+    document.body.appendChild(root)
+    const ctx = createContext(root)
+    const calls: string[][] = []
+    ctx.commands = {
+      ...commands,
+      custom: (_ctx, ...args) => {
+        calls.push(args)
+      },
+    }
+    executeCommand(ctx, 'custom alpha beta')
+    expect(calls).toEqual([['alpha', 'beta']])
+    root.remove()
+  })
+
+  test('custom commands can override built-ins', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<p class="selected-block">Hello</p>'
+    document.body.appendChild(root)
+    const ctx = createContext(root)
+    let called = false
+    ctx.commands = {
+      ...commands,
+      setBlockType: () => {
+        called = true
+      },
+    }
+    executeCommand(ctx, 'setBlockType h2')
+    expect(called).toBe(true)
+    expect(root.querySelector('h2')).toBeNull()
+    root.remove()
+  })
+
   test('logs error for unknown command', () => {
     const root = document.createElement('div')
     const ctx = createContext(root)

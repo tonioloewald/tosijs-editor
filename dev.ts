@@ -4,8 +4,6 @@ import { gzipSync } from 'zlib'
 import { watch } from 'chokidar'
 import { $ } from 'bun'
 
-declare const Bun: any
-
 const PORT = 8789
 const PROJECT_ROOT = import.meta.dir
 const PUBLIC = path.resolve(PROJECT_ROOT, 'docs')

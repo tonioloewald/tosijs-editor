@@ -6,11 +6,7 @@
  * the editable context and arguments parsed from the command string.
  */
 
-import {
-  leafNodes,
-  topSingleParentAncestor,
-  closestSingleParentAncestor,
-} from './dom-utils'
+import { closestSingleParentAncestor } from './dom-utils'
 import type { Selectable } from './selection'
 import { spanify } from './selection'
 import {
@@ -19,7 +15,6 @@ import {
   getColumnCount,
   getColumnWidths,
   setColumnWidths,
-  cellIndex,
   rowOfCell,
   colOfCell,
   getCellsInRow,
@@ -30,10 +25,18 @@ import {
   isHeaderCell,
 } from './table-utils'
 
+/** A command implementation */
+export type Command = (ctx: EditableContext, ...args: string[]) => void
+
 /** Context passed to every command */
 export interface EditableContext {
   root: HTMLElement
   selectable: Selectable
+  /**
+   * The command registry `executeCommand` resolves names against.
+   * Omitted contexts fall back to the built-in `commands`.
+   */
+  commands?: Record<string, Command>
   find(selector: string): Element | null
   findAll(selector: string): Element[]
   selectedLeafNodes(): Node[]
@@ -66,10 +69,7 @@ function applyCSS(element: HTMLElement, css: Record<string, string>): void {
 }
 
 /** Command definitions — extensible by adding new methods */
-export const commands: Record<
-  string,
-  (ctx: EditableContext, ...args: string[]) => void
-> = {
+export const commands: Record<string, Command> = {
   /**
    * Style selected characters with CSS properties.
    * Usage: setText font-weight bold font-style italic
@@ -388,13 +388,14 @@ export function executeCommand(
   ctx: EditableContext,
   commandString: string,
 ): void {
+  const registry = ctx.commands ?? commands
   const commandList = commandString.split(/;\s*/)
   for (const cmd of commandList) {
     const pieces = cmd.trim().split(/\s+/)
     const name = pieces.shift()
     if (!name) continue
 
-    const fn = commands[name]
+    const fn = registry[name]
     if (fn) {
       fn(ctx, ...pieces)
     } else {

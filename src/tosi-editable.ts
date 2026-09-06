@@ -1,7 +1,7 @@
 /*#
-# tosi-editable
+# tosijs-styled-editor
 
-`<tosi-editable>` is a rich text editor web component that **does not use**
+`<tosi-styled-editor>` is a rich text editor web component that **does not use**
 `contentEditable`, `execCommand`, or browser selection/range APIs.
 
 Instead, it manages selection and editing entirely through DOM manipulation,
@@ -10,18 +10,18 @@ giving full control over editing behavior.
 ## Usage
 
 ```html
-<tosi-editable widgets="default">
+<tosi-styled-editor widgets="default">
   <p>Edit this text!</p>
   <p>It supports <b>bold</b>, <i>italic</i>, and more.</p>
-</tosi-editable>
+</tosi-styled-editor>
 ```
 ```css
-tosi-editable {
+tosi-styled-editor {
   background: white;
   border: 1px solid #ccc;
   min-height: 200px;
 }
-tosi-editable [part="toolbar"] {
+tosi-styled-editor [part="toolbar"] {
   background: #f8f8f8;
   border-bottom: 1px solid #ccc;
 }
@@ -60,9 +60,13 @@ import {
 } from 'tosijs'
 import { icons } from 'tosijs-ui'
 import { Selectable, spanify } from './selection'
-import { commands, executeCommand, type EditableContext } from './commands'
 import {
-  firstLeafNode,
+  commands,
+  executeCommand,
+  type Command,
+  type EditableContext,
+} from './commands'
+import {
   nextLeafNode,
   previousLeafNode,
   leafNodes,
@@ -76,19 +80,14 @@ import {
   cellBelow,
   cellAbove,
   getColumnCount,
-  getColumnWidths,
   setColumnWidths,
   getCellsInRow,
-  getRowCount,
   rowOfCell,
   colOfCell,
   createCell,
-  isHeaderCell,
 } from './table-utils'
 
 const { slot, div } = elements
-
-const BLOCK_SELECTOR = 'h1,h2,h3,h4,h5,h6,pre,blockquote,p,div,ul,ol,th,td'
 
 function deletableFilter(node: Node): boolean {
   if (node instanceof Element) {
@@ -99,7 +98,6 @@ function deletableFilter(node: Node): boolean {
   }
   return node.nodeType !== 3 || node.textContent !== ''
 }
-
 
 interface EditableParts extends PartsMap {
   menubar: HTMLElement
@@ -193,7 +191,7 @@ export class TosiEditable extends WebComponent<EditableParts> {
       },
     },
     // Selected text
-    ':host .selected, :host .selected-unwrap': {
+    ':host .selected': {
       background: 'rgba(0,0,255,0.3)',
     },
     // Selected blocks
@@ -424,7 +422,7 @@ export class TosiEditable extends WebComponent<EditableParts> {
   }
 
   /** The editable commands — extend this object to add custom commands */
-  commands = { ...commands }
+  commands: Record<string, Command> = { ...commands }
 
   content = [
     slot({
@@ -573,6 +571,7 @@ export class TosiEditable extends WebComponent<EditableParts> {
     return {
       root: this.parts.doc,
       selectable: this.selectable,
+      commands: this.commands,
       find: (sel) => this.parts.doc.querySelector(sel),
       findAll: (sel) => Array.from(this.parts.doc.querySelectorAll(sel)),
       selectedLeafNodes: () => this.selectedLeafNodes(),
@@ -2314,9 +2313,6 @@ export class TosiEditable extends WebComponent<EditableParts> {
     }
   }
 
-  render(): void {
-    super.render()
-  }
 }
 
 export const tosiEditable = TosiEditable.elementCreator({

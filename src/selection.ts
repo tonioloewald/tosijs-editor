@@ -184,6 +184,46 @@ export class Selectable {
     evt.stopPropagation()
   }
 
+  /**
+   * Resolve a point to the nearest character span inside `container`.
+   *
+   * A click in the dead space right of a line (or in a block's padding) hits the
+   * block, not a character, so exact hit-testing finds nothing. Prefer spans on
+   * the clicked line, then the horizontally closest one; callers decide which
+   * side of the span the point falls on.
+   */
+  private nearestChar(container: Element, x: number, y: number): Element | null {
+    const spans = Array.from(container.querySelectorAll('.spanified'))
+    if (spans.length === 0) return null
+
+    const verticalDistance = (el: Element): number => {
+      const r = el.getBoundingClientRect()
+      if (y < r.top) return r.top - y
+      if (y > r.bottom) return y - r.bottom
+      return 0
+    }
+
+    // Restrict to the closest line — 0 when the click is level with a line
+    let nearestLine = Infinity
+    for (const span of spans) {
+      nearestLine = Math.min(nearestLine, verticalDistance(span))
+    }
+    const line = spans.filter((span) => verticalDistance(span) === nearestLine)
+
+    let closest: Element | null = null
+    let closestDistance = Infinity
+    for (const span of line) {
+      const r = span.getBoundingClientRect()
+      if (x >= r.left && x <= r.right) return span
+      const distance = x < r.left ? r.left - x : x - r.right
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closest = span
+      }
+    }
+    return closest
+  }
+
   private handleMouseDown = (evt: MouseEvent): void => {
     this.touchMode = false
     let target = evt.target as Element
@@ -199,18 +239,10 @@ export class Selectable {
     // Spanify if not already (e.g. fast click before mousemove fires)
     if (!target.classList.contains('spanified') && target instanceof Element) {
       spanify(target, true, true)
-      // target was a container — find the spanified char at click position
-      for (const span of Array.from(target.querySelectorAll('.spanified'))) {
-        const r = span.getBoundingClientRect()
-        if (
-          evt.clientX >= r.left &&
-          evt.clientX <= r.right &&
-          evt.clientY >= r.top &&
-          evt.clientY <= r.bottom
-        ) {
-          target = span
-          break
-        }
+      // target was a container — resolve the click to a character within it
+      if (target !== this.root) {
+        const span = this.nearestChar(target, evt.clientX, evt.clientY)
+        if (span) target = span
       }
     }
 
@@ -265,7 +297,13 @@ export class Selectable {
     }
 
     if (this.selecting) {
+      const mode = this.selecting
       this.extendSelection()
+      // Word/block gestures grow the selection past the clicked character, but
+      // the bounds markers stay where the click landed — which leaves the caret
+      // blinking mid-word. Re-derive them from the marked range.
+      // Character selection already ends with .sel-end under the pointer.
+      if (mode !== 1) this.resetBounds()
       this.selecting = false
     }
     // Despanify non-selected blocks to clean up hover spanification

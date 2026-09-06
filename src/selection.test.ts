@@ -1,5 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import { spanify, Selectable } from './selection'
+import { isBefore } from './dom-utils'
 
 describe('spanify', () => {
   let container: HTMLElement
@@ -239,5 +240,97 @@ describe('Selectable', () => {
       sel.resetBounds()
       expect(sel.find('.sel-start')).toBeNull()
     })
+  })
+})
+
+describe('click position resolution', () => {
+  let root: HTMLElement
+  let sel: Selectable
+
+  // happy-dom does no layout, so lay the characters out by hand:
+  // one line, each character 10px wide starting at x=0, spanning y 0..10.
+  function layoutOneLine(el: HTMLElement): Element[] {
+    const chars = Array.from(el.querySelectorAll('.spanified'))
+    chars.forEach((span, i) => {
+      ;(span as any).getBoundingClientRect = () => ({
+        left: i * 10,
+        right: i * 10 + 10,
+        top: 0,
+        bottom: 10,
+        width: 10,
+        height: 10,
+      })
+    })
+    return chars
+  }
+
+  function mouse(type: string, target: Element, x: number, y: number, detail: number) {
+    target.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail }),
+    )
+  }
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.appendChild(root)
+    sel = new Selectable(root)
+  })
+
+  afterEach(() => {
+    sel.destroy()
+    root.remove()
+  })
+
+  test('click right of a line puts the caret at the end of that line', () => {
+    root.innerHTML = '<p>hello world</p>'
+    const p = root.querySelector('p') as HTMLElement
+    spanify(p, true, true)
+    const chars = layoutOneLine(p)
+
+    // Click in the dead space well beyond the last character
+    mouse('mousedown', p, 500, 5, 1)
+
+    const selEnd = root.querySelector('.sel-end')
+    expect(selEnd).not.toBeNull()
+    // No character may follow the caret
+    const after = chars.filter((c) => isBefore(selEnd as Element, c))
+    expect(after).toEqual([])
+  })
+
+  test('click left of a line puts the caret at the start of that line', () => {
+    root.innerHTML = '<p>hello world</p>'
+    const p = root.querySelector('p') as HTMLElement
+    spanify(p, true, true)
+    const chars = layoutOneLine(p)
+
+    mouse('mousedown', p, -50, 5, 1)
+
+    const selStart = root.querySelector('.sel-start')
+    expect(selStart).not.toBeNull()
+    // No character may precede the caret
+    const before = chars.filter((c) => isBefore(c, selStart as Element))
+    expect(before).toEqual([])
+  })
+
+  test('double-click leaves the caret at the end of the selected word', () => {
+    root.innerHTML = '<p>hello world</p>'
+    const p = root.querySelector('p') as HTMLElement
+    spanify(p, true, true)
+    layoutOneLine(p)
+
+    // Click mid-word ("hello" occupies x 0..50), then double-click there
+    const midWord = p.querySelectorAll('.spanified')[2]
+    mouse('mousedown', midWord, 25, 5, 1)
+    mouse('mousedown', midWord, 25, 5, 2)
+    mouse('mouseup', midWord, 25, 5, 2)
+
+    const selected = Array.from(root.querySelectorAll('.selected'))
+    expect(selected.length).toBeGreaterThan(1)
+
+    const selEnd = root.querySelector('.sel-end') as Element
+    expect(selEnd).not.toBeNull()
+    // The caret must not sit inside the selection with selected text after it
+    const selectedAfterCaret = selected.filter((el) => isBefore(selEnd, el))
+    expect(selectedAfterCaret).toEqual([])
   })
 })

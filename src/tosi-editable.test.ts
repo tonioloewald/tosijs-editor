@@ -57,6 +57,17 @@ describe('TosiEditable', () => {
     expect(typeof el.commands.setDebug).toBe('function')
   })
 
+  test('doCommand dispatches to custom commands added to editor.commands', () => {
+    const el = tosiEditable() as TosiEditable
+    container.appendChild(el)
+    const calls: string[][] = []
+    el.commands.custom = (_ctx, ...args) => {
+      calls.push(args)
+    }
+    el.doCommand('custom alpha beta')
+    expect(calls).toEqual([['alpha', 'beta']])
+  })
+
   test('has selectable after connection', () => {
     const el = tosiEditable({}, '<p>Test</p>') as TosiEditable
     container.appendChild(el)

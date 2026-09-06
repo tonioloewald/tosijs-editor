@@ -1,7 +1,6 @@
 /**
  * DOM traversal utilities for the tosi-editable component.
  *
- * These pure functions replace the jQuery plugins from edx-shared.js.
  * All operations work in terms of "leaf nodes" — nodes with no children
  * (text nodes, <img>, <hr>, <input>, etc.).
  */
