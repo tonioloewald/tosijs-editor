@@ -2,7 +2,7 @@
 
 Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs
 
-- Docs: https://tonioloewald.github.io/tosijs-editor
+- Docs: https://editor.tosijs.net
 - Source: https://github.com/tonioloewald/tosijs-editor
 - npm: https://www.npmjs.com/package/tosijs-styled-editor
 
@@ -26,9 +26,9 @@ use it to inspect STATE; a painted-output check needs a real test lane.
 
 ## Pages
 
-- https://tonioloewald.github.io/tosijs-editor/tosijs-styled-editor/ — <tosijs-styled-editor>
+- https://editor.tosijs.net/tosijs-styled-editor/ — <tosijs-styled-editor>
   `<tosijs-styled-editor>` is a rich text editor web component that **does not use**
-- https://tonioloewald.github.io/tosijs-editor/ — A Rich Text Editor Component
+- https://editor.tosijs.net/ — A Rich Text Editor Component
   A pure web-component. What it does **not** use:
-- https://tonioloewald.github.io/tosijs-editor/right-to-left/ — Right-to-Left Text
+- https://editor.tosijs.net/right-to-left/ — Right-to-Left Text
   Bidirectional text is where an editor that fakes its own selection either works or

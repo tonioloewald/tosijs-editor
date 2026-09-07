@@ -59,6 +59,8 @@ bun run make    # full build (NOT `bun run build` — `bun build` is a Bun built
 `bin/site.ts` is the only build/dev entry; it wraps tosijs-ui's doc system and
 is configured in `tosijs-editor-site.config.ts`.
 
+Live site and docs: <https://editor.tosijs.net>
+
 ## Installation
 
 ```bash

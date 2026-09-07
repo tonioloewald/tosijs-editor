@@ -19,18 +19,12 @@ export default defineSiteConfig({
   localizedStrings: readFileSync('localized-strings.tsv', 'utf8'),
   description:
     'Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs',
-  // baseUrl already carries the project-page path, so basePath stays '/' (the
-  // default). Setting BOTH doubles it: canonical/og/sitemap are built as
-  // `baseUrl + withBase(basePath, path)`, which produced
-  // https://tonioloewald.github.io/tosijs-editor/tosijs-editor/. Note that
-  // llms.txt is built as `baseUrl + path` with no basePath at all, so this is
-  // the only combination that makes both correct — see tosijs-ui issue.
-  baseUrl: 'https://tonioloewald.github.io/tosijs-editor',
+  baseUrl: 'https://editor.tosijs.net',
   host: 'github-pages',
-  // A project page on github.io, NOT a custom domain. Without this the build
-  // derives `domain` from baseUrl's hostname and writes a CNAME claiming
-  // `tonioloewald.github.io`, which breaks Pages routing.
-  domain: '',
+  // Custom domain: the build writes docs/CNAME, and Pages serves from the root
+  // (so basePath stays '/'). Metadata URLs are baseUrl + path, and every
+  // functional URL is emitted relative to its page, so nothing else changes.
+  domain: 'editor.tosijs.net',
 
   // Docs are extracted from /*# … */ comments in src, plus the README
   docPaths: ['src', 'README.md'],
