@@ -141,6 +141,15 @@ them render correctly. An explicit <code>dir</code> on the element opts out.</p>
 selection to lean on — so this page is the honest test of how far the DOM-only
 approach gets. Anything broken here is a real bug worth filing rather than a
 known limitation of the approach.</p>
+<h2>Typing across a direction boundary</h2>
+<p>Type Latin into one of the Arabic paragraphs. The run and the caret are wrapped
+in a <code>&lt;span dir=&quot;ltr&quot;&gt;</code> isolate as you type, and consecutive characters extend
+that one isolate rather than making a new one each keystroke.</p>
+<p>That is not cosmetic. The caret is an ELEMENT, and bidi treats an empty inline
+as a neutral — so without the isolate it resolves against the <em>block&#39;s</em> base
+direction rather than the run being typed, and jumps to the far side of the
+line while your text appears somewhere else. Isolating the run fixes the caret
+and renders the run correctly, which is the same fix <code>&lt;code&gt;</code> needs.</p>
 <h2>Setting direction</h2>
 <p><code>dir</code> is ordinary markup and is preserved through editing, so a document can mix
 directions per block:</p>

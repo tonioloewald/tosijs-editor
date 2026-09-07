@@ -140,6 +140,18 @@ import {
 
 const { slot, div } = elements
 
+/** Characters with strong RTL directionality (Hebrew, Arabic, Syriac, Thaana, NKo…) */
+const RTL_STRONG = /[\u0591-\u07FF\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/
+/** Characters with strong LTR directionality (Latin, Greek, Cyrillic…) */
+const LTR_STRONG = /[A-Za-z\u00C0-\u024F\u0370-\u04FF]/
+
+/** The bidi direction a character forces, or null when it is neutral */
+function strongDirection(text: string): 'ltr' | 'rtl' | null {
+  if (RTL_STRONG.test(text)) return 'rtl'
+  if (LTR_STRONG.test(text)) return 'ltr'
+  return null
+}
+
 function deletableFilter(node: Node): boolean {
   if (node instanceof Element) {
     return (
@@ -1372,12 +1384,53 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** Insert a character at the caret */
   private contentKey(key: string): void {
+    if (!this.insertionPoint()) return
+    this.isolateForTyping(key)
+    // The caret may have moved into a fresh isolate, so re-read it
     const ip = this.insertionPoint()
     if (ip) {
       ip.before(document.createTextNode(key))
       this.normalize()
       this.updateUndo()
     }
+  }
+
+  /**
+   * Typing left-to-right into a right-to-left block (or the reverse) put the
+   * caret on the wrong side of the line. The caret is an element, and bidi
+   * treats an empty inline as a NEUTRAL — so it resolves to the BLOCK's base
+   * direction rather than to the run being typed, and lands at the far end.
+   *
+   * We own the caret, so we do not have to guess: when the typed character
+   * disagrees with the block, put the run AND the caret inside a directional
+   * isolate. The caret is then a neutral among characters of its own run and
+   * resolves with them, and the run itself renders correctly too — the same
+   * bug class as an un-isolated URL inside an RTL paragraph.
+   *
+   * Returns the isolate in force, or null when none is needed.
+   */
+  private isolateForTyping(key: string): HTMLElement | null {
+    const ip = this.insertionPoint()
+    const keyDirection = strongDirection(key)
+    // Neutral characters (space, punctuation, digits) take the run they land in
+    if (!ip || !keyDirection) return null
+
+    const block = this.block(ip)
+    if (!block) return null
+    const blockDirection =
+      block.getAttribute('dir') ?? (getComputedStyle(block).direction || 'ltr')
+    if (keyDirection === blockDirection) return null
+
+    // Extend the isolate we are already in rather than making one per keystroke
+    const parent = ip.parentElement
+    if (parent?.dataset.bidiRun === keyDirection) return parent
+
+    const isolate = document.createElement('span')
+    isolate.dataset.bidiRun = keyDirection
+    isolate.setAttribute('dir', keyDirection)
+    ip.parentNode?.insertBefore(isolate, ip)
+    isolate.appendChild(ip)
+    return isolate
   }
 
   /** Delete the character before the caret */

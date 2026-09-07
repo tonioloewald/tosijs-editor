@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The caret sat on the wrong side of the line when typing LTR into an RTL
+  block** (and vice versa). The caret is an element, and bidi treats an empty
+  inline as a NEUTRAL, so it resolved against the block's base direction instead
+  of the run being typed. Typing across a direction boundary now wraps the run
+  and the caret in a `<span dir>` isolate, extending one isolate rather than
+  creating one per keystroke. Neutral characters take whichever run they land in.
+
 - **Typing over a selection deleted it and inserted nothing.** A regression from
   the double-click fix: `resetBounds()` derives bounds from `.selected`, which
   lands the caret INSIDE the last selected character, and `deleteSelection()`

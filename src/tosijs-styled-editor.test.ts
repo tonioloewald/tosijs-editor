@@ -89,6 +89,61 @@ describe('TosijsStyledEditor', () => {
     expect(doc.textContent).not.toContain('Edi')
   })
 
+  describe('typing across a direction boundary', () => {
+    function editorWith(html: string) {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = html
+      return el
+    }
+    // contentKey is private; typing goes through the keypress handler
+    function type(el: TosijsStyledEditor, key: string) {
+      const caret = el.parts.doc.querySelector('input.caret')!
+      caret.dispatchEvent(
+        new KeyboardEvent('keypress', { bubbles: true, cancelable: true, key })
+      )
+    }
+
+    test('an LTR run typed into an RTL block gets its own isolate', () => {
+      const el = editorWith('<p dir="rtl">x<input class="sel-end caret"></p>')
+      type(el, 'a')
+      const isolate = el.parts.doc.querySelector('span[dir="ltr"]')
+      expect(isolate).not.toBeNull()
+      // Both the text AND the caret must be inside it, or the caret still
+      // resolves against the block and lands on the wrong side.
+      expect(isolate!.textContent).toContain('a')
+      expect(isolate!.querySelector('input.caret')).not.toBeNull()
+    })
+
+    test('consecutive characters extend one isolate, not one each', () => {
+      const el = editorWith('<p dir="rtl">x<input class="sel-end caret"></p>')
+      for (const key of ['a', 'b', 'c']) type(el, key)
+      expect(el.parts.doc.querySelectorAll('span[dir="ltr"]').length).toBe(1)
+      expect(
+        el.parts.doc.querySelector('span[dir="ltr"]')!.textContent
+      ).toContain('abc')
+    })
+
+    test('text agreeing with its block is left alone', () => {
+      const el = editorWith('<p>x<input class="sel-end caret"></p>')
+      type(el, 'a')
+      expect(el.parts.doc.querySelector('span[dir]')).toBeNull()
+    })
+
+    test('RTL typed into an RTL block needs no isolate', () => {
+      const el = editorWith('<p dir="rtl">x<input class="sel-end caret"></p>')
+      type(el, '\u0627')
+      expect(el.parts.doc.querySelector('span[dir]')).toBeNull()
+    })
+
+    test('neutral characters take the run they land in', () => {
+      const el = editorWith('<p dir="rtl">x<input class="sel-end caret"></p>')
+      type(el, '1')
+      type(el, ' ')
+      expect(el.parts.doc.querySelector('span[dir]')).toBeNull()
+    })
+  })
+
   test('has selectable after connection', () => {
     const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)

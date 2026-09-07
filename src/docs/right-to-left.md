@@ -77,6 +77,18 @@ selection to lean on — so this page is the honest test of how far the DOM-only
 approach gets. Anything broken here is a real bug worth filing rather than a
 known limitation of the approach.
 
+## Typing across a direction boundary
+
+Type Latin into one of the Arabic paragraphs. The run and the caret are wrapped
+in a `<span dir="ltr">` isolate as you type, and consecutive characters extend
+that one isolate rather than making a new one each keystroke.
+
+That is not cosmetic. The caret is an ELEMENT, and bidi treats an empty inline
+as a neutral — so without the isolate it resolves against the *block's* base
+direction rather than the run being typed, and jumps to the far side of the
+line while your text appears somewhere else. Isolating the run fixes the caret
+and renders the run correctly, which is the same fix `<code>` needs.
+
 ## Setting direction
 
 `dir` is ordinary markup and is preserved through editing, so a document can mix
