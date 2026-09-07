@@ -439,6 +439,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * scoped by tag name at document level, so it competes on equal terms.
    */
   static lightStyleSpec: TosiStyleSheet = {
+    // Scoped to OUR popups via the marker in toolbar.ts — these are tosijs-ui's
+    // global menu variables, and setting them at :root would recompact every
+    // menu on the page, including the doc system's own.
+    '.tosijs-styled-editor-menu': {
+      // 48px is a phone touch target; these are dense text command lists
+      '--menu-item-height': '30px',
+      // …but the text wants real horizontal breathing room
+      '--menu-item-padding': '0 16px',
+      '--menu-separator-margin': '4px 0',
+      '--menu-inset': '4px',
+    },
     'tosijs-styled-editor button[slot="toolbar"]': {
       display: 'inline-flex',
       alignItems: 'center',

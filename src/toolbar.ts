@@ -15,6 +15,34 @@ import type { TosijsStyledEditor } from './tosijs-styled-editor'
 const { button, span } = elements
 
 /**
+ * The class we tag our own menu popups with, so menu styling can be scoped to
+ * this editor instead of every `tosi-menu` on the page.
+ */
+export const MENU_CLASS = 'tosijs-styled-editor-menu'
+
+/**
+ * A `MenuElement` item — a function returning an element — is the one hook that
+ * runs INSIDE the popup. tosi-menu mounts the popup in a body-level
+ * <tosi-float>, so it inherits nothing from the editor and carries no reference
+ * back to its trigger; this marker is how we get a handle on it. It renders
+ * nothing and is skipped by the icon-column detection (which ignores function
+ * items). See tosijs-ui#148 for the upstream request that would retire it.
+ */
+function menuScopeMarker(): MenuItem {
+  return (() => {
+    const marker = span({
+      style: { display: 'none' },
+    }) as unknown as HTMLElement
+    // The popup is assembled synchronously, so by the microtask the marker is
+    // already inside it. Not rAF: that never fires in a backgrounded tab.
+    queueMicrotask(() => {
+      marker.closest('.tosi-menu')?.classList.add(MENU_CLASS)
+    })
+    return marker
+  }) as unknown as MenuItem
+}
+
+/**
  * Create a toolbar command button with an icon.
  * The button's `value` attribute holds the command string.
  */
@@ -79,6 +107,7 @@ export function paragraphStyleMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         editorMenuItem(editor, 'Title', 'setBlockType h1'),
         editorMenuItem(editor, 'Heading', 'setBlockType h2'),
         editorMenuItem(editor, 'Subheading', 'setBlockType h3'),
@@ -106,6 +135,7 @@ export function justificationMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         editorMenuItem(editor, 'Left', 'setBlocks text-align left'),
         editorMenuItem(editor, 'Center', 'setBlocks text-align center'),
         editorMenuItem(editor, 'Right', 'setBlocks text-align right'),
@@ -125,6 +155,7 @@ export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         editorMenuItem(
           editor,
           'Times New Roman',
@@ -152,6 +183,7 @@ export function fontSizeMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         editorMenuItem(editor, '10', 'setText font-size 10px'),
         editorMenuItem(editor, '12', 'setText font-size 12px'),
         editorMenuItem(editor, '14', 'setText font-size 14px'),
@@ -172,6 +204,7 @@ export function lineSpacingMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         editorMenuItem(editor, 'Single', 'setBlocks line-height unset'),
         editorMenuItem(editor, '1.5', 'setBlocks line-height 1.875'),
         editorMenuItem(editor, 'Double', 'setBlocks line-height 2.5'),
@@ -273,6 +306,7 @@ export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
       slot: 'menubar',
       localized: true,
       menuItems: [
+        menuScopeMarker(),
         {
           caption: 'Insert Table',
           menuItems: [

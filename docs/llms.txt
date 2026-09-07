@@ -30,3 +30,5 @@ use it to inspect STATE; a painted-output check needs a real test lane.
   `<tosijs-styled-editor>` is a rich text editor web component that **does not use**
 - https://tonioloewald.github.io/tosijs-editor/ — A Rich Text Editor Component
   A pure web-component. What it does **not** use:
+- https://tonioloewald.github.io/tosijs-editor/right-to-left/ — Right-to-Left Text
+  Bidirectional text is where an editor that fakes its own selection either works or

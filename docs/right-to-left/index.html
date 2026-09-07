@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
+       a 4s safety-net timeout), because an undefined custom element is
+       display:inline, so the pre-rendered page stacked as bare text and hydration
+       reflowed the whole thing. The cost was a blank screen for as long as the
+       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
+       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
+       out as though the chrome were there, so hydration only ADDS the chrome and
+       nothing moves. Paint immediately; don't hide readable content. -->
+  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
+       than hiding it, a dark-mode reader would otherwise get a flash of the light
+       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
+       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
+       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
+       light default, exactly as before. -->
+  <script>
+    try {
+      var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
+      var t = p.theme || 'system'
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('darkmode')
+      if (p.highContrast) document.documentElement.classList.add('high-contrast')
+    } catch (e) {}
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="../doc-system.css?v=0.2.0" data-tosi-doc-system />
+  <title>Right-to-Left Text — tosijs-styled-editor</title>
+  <meta name="description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…" />
+  <link rel="canonical" href="https://tonioloewald.github.io/tosijs-editor/right-to-left/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="tosijs-styled-editor" />
+  <meta property="og:title" content="Right-to-Left Text — tosijs-styled-editor" />
+  <meta property="og:description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…" />
+  <meta property="og:url" content="https://tonioloewald.github.io/tosijs-editor/right-to-left/" />
+  <meta property="og:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Right-to-Left Text","description":"Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…","url":"https://tonioloewald.github.io/tosijs-editor/right-to-left/","inLanguage":"en","image":"https://tonioloewald.github.io/tosijs-editor/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://tonioloewald.github.io/tosijs-editor"}}</script>
+  <link rel="icon" href="../tosijs-editor.svg" />
+<script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
+</head>
+<body>
+  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
+  <article class="doc-content">
+<h1>Right-to-Left Text</h1>
+<p>Bidirectional text is where an editor that fakes its own selection either works or
+falls over. Selection here is resolved by measuring character spans, so the
+interesting question is not &quot;does Arabic render&quot; — the browser does that — but
+whether <strong>selection, the caret and arrow keys follow the visual order</strong> when the
+visual order disagrees with the logical order.</p>
+<p>Try it. Click into the Arabic paragraph, walk the caret with the arrow keys, and
+double-click a word in each of the mixed lines.</p>
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
+  &lt;h2&gt;عربي — a right-to-left block&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    هذا النص مكتوب من اليمين إلى اليسار. حاول تحديد كلمة بالنقر المزدوج،
+    ثم حرّك المؤشر بمفاتيح الأسهم.
+  &lt;/p&gt;
+
+  &lt;h2&gt;עברית — another right-to-left block&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    זהו טקסט מימין לשמאל. נסו לבחור מילה בלחיצה כפולה ולהזיז את הסמן.
+  &lt;/p&gt;
+
+  &lt;h2&gt;Mixed, in a left-to-right paragraph&lt;/h2&gt;
+  &lt;p&gt;
+    An English sentence containing العربية in the middle, then back to English.
+    Numbers embed too: the price is ١٢٣٤ dinars, or 1234 if you prefer.
+  &lt;/p&gt;
+
+  &lt;h2&gt;Right-to-left block with embedded left-to-right&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    جملة عربية تحتوي على English words في المنتصف، ثم تعود إلى العربية.
+  &lt;/p&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    الأمر هو &lt;code&gt;bun run make&lt;/code&gt; وعنوان الموقع
+    &lt;code&gt;https://tosijs.net&lt;/code&gt; — كلاهما يُعرض من اليسار إلى اليمين
+    داخل فقرة من اليمين إلى اليسار.
+  &lt;/p&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    الإصدار 1.13.0 صدر في 2026، والسعر 1,234.56 — الأرقام والترقيم
+    هي الحالة الأصعب لأن اتجاهها يتغير داخل الجملة.
+  &lt;/p&gt;
+  &lt;ul dir=&quot;rtl&quot;&gt;
+    &lt;li&gt;عنصر عربي عادي&lt;/li&gt;
+    &lt;li&gt;عنصر يحتوي على &lt;code&gt;setBlockType h1&lt;/code&gt; في وسطه&lt;/li&gt;
+  &lt;/ul&gt;
+
+  &lt;h2&gt;A list mixing both&lt;/h2&gt;
+  &lt;ul&gt;
+    &lt;li&gt;Left-to-right item&lt;/li&gt;
+    &lt;li dir=&quot;rtl&quot;&gt;عنصر من اليمين إلى اليسار&lt;/li&gt;
+    &lt;li&gt;Another English item with עברית inside it&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<h2>What to look for</h2>
+<table>
+<thead>
+<tr>
+<th>Behaviour</th>
+<th>Why it is hard</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Double-click a word</strong> in an RTL run</td>
+<td>Word boundaries are found by walking spanified characters, which are in <em>logical</em> order while the rendering is <em>visual</em></td>
+</tr>
+<tr>
+<td><strong>Arrow keys</strong> across a direction boundary</td>
+<td>One logical step can move the caret to the other end of a run</td>
+</tr>
+<tr>
+<td><strong>Caret position</strong> at the seam between scripts</td>
+<td>The seam has two valid positions — the end of the LTR run and the start of the RTL run — that paint at the same place</td>
+</tr>
+<tr>
+<td><strong>Selecting across a boundary</strong></td>
+<td>A logically contiguous range is visually discontiguous, so a single highlight rectangle is wrong</td>
+</tr>
+<tr>
+<td><strong>An LTR run inside an RTL line</strong></td>
+<td>Code, URLs and version numbers stay left-to-right inside a right-to-left sentence, so one line can change direction twice</td>
+</tr>
+<tr>
+<td><strong>Numbers and punctuation</strong></td>
+<td>Digits are left-to-right even in RTL text, and trailing punctuation resolves against the surrounding run, not the number</td>
+</tr>
+</tbody></table>
+<p>None of this is faked with <code>contentEditable</code>&#39;s help — there is no browser
+selection to lean on — so this page is the honest test of how far the DOM-only
+approach gets. Anything broken here is a real bug worth filing rather than a
+known limitation of the approach.</p>
+<h2>Setting direction</h2>
+<p><code>dir</code> is ordinary markup and is preserved through editing, so a document can mix
+directions per block:</p>
+<pre><code class="language-xml">&lt;p dir=&quot;rtl&quot;&gt;…&lt;/p&gt;
+</code></pre>
+<p>There is no toolbar command for it yet. <code>setBlocks</code> only writes CSS properties,
+and <code>direction</code> set in CSS does not survive serialization the way the attribute
+does.</p>
+
+  </article>
+  <nav class="doc-nav" aria-label="Documentation">
+  <ul>
+    <li><a class="doc-link" href="../">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link" href="../tosijs-styled-editor/">&lt;tosijs-styled-editor&gt;</a></li>
+    <li><a class="doc-link current" href="../right-to-left/" aria-current="page">Right-to-Left Text</a></li>
+  </ul>
+  </nav>
+
+  </tosi-doc-system>
+  <script type="module" src="../hydrate.js?v=0.2.0"></script>
+</body>
+</html>

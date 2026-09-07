@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key and the English text, so missing cells fall back to English and a
   half-translated column is safe to ship.
 - README is pinned to the top of the doc-site nav.
+- A Right-to-Left doc page with live examples: RTL blocks in Arabic and Hebrew,
+  LTR-with-embedded-RTL, and RTL blocks with embedded LTR runs (inline code,
+  URLs, version numbers) — the cases where visual and logical order disagree and
+  a DOM-only selection has to earn its keep.
+- Menu dropdowns are compacted (30px rows, 16px horizontal padding) and scoped
+  to this editor's own menus.
 
 - `setList ul | ol | none` — bulleted and numbered list formatting, exposed as
   toolbar buttons and Style menu entries. Adjacent selected blocks become one
