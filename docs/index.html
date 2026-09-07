@@ -90,6 +90,8 @@
 bun run tls     # once — locally-trusted dev certs (needs mkcert)
 bun start       # dev server + doc site on https://localhost:8789
 bun test        # unit tests
+bun run lint    # typecheck, including unused locals/params
+bun run format  # Prettier
 bun run make    # full build (NOT `bun run build` — `bun build` is a Bun builtin)
 </code></pre>
 <p><code>bin/site.ts</code> is the only build/dev entry; it wraps tosijs-ui&#39;s doc system and

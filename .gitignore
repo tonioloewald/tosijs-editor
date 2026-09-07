@@ -10,7 +10,11 @@ tls/*
 
 # Generated sourcemaps: multi-MB per build, never fetched except in devtools,
 # and they embed dependency source (which has tripped GitHub push protection).
-docs/*.map
+docs/**/*.map
 
 # Browser test RESULTS, rewritten on every dev-server run (tosijs-ui ignores it too)
 .browser-tests.json
+
+# The dev server's rollback copy of docs/ — it swaps this in mid-rebuild,
+# and `git add -A` during a build will otherwise commit it INSTEAD of the site.
+docs.last-good/
