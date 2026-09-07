@@ -233,6 +233,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ':host [part="doc"] > blockquote': {
       padding: '4px 40px',
     },
+    // An LTR run inside an RTL paragraph inherits the paragraph's base
+    // direction, so leading/trailing neutrals — a URL's slashes, a trailing
+    // period, a leading bracket — resolve to the WRONG side even though the
+    // letters themselves render left-to-right. Code, keys and sample output are
+    // left-to-right by nature, so give them their own isolate. `:not([dir])`
+    // leaves an explicit direction on the element alone.
+    ':host [part="doc"] code:not([dir]), :host [part="doc"] kbd:not([dir]), :host [part="doc"] samp:not([dir])':
+      {
+        direction: 'ltr',
+        unicodeBidi: 'isolate',
+      },
     // Selection bounds — inline-block with negative margins to avoid displacing text
     ':host .caret, :host .sel-start, :host .sel-end': {
       display: 'inline-block',

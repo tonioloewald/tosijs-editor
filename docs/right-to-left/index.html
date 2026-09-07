@@ -132,6 +132,11 @@ double-click a word in each of the mixed lines.</p>
 <td>Digits are left-to-right even in RTL text, and trailing punctuation resolves against the surrounding run, not the number</td>
 </tr>
 </tbody></table>
+<p><code>&lt;code&gt;</code>, <code>&lt;kbd&gt;</code> and <code>&lt;samp&gt;</code> are given <code>direction: ltr; unicode-bidi: isolate</code>
+inside the document, because they are left-to-right by nature: without the
+isolate, a URL&#39;s slashes or a trailing period resolve against the paragraph&#39;s
+RTL base direction and jump to the wrong end, even though the letters between
+them render correctly. An explicit <code>dir</code> on the element opts out.</p>
 <p>None of this is faked with <code>contentEditable</code>&#39;s help — there is no browser
 selection to lean on — so this page is the honest test of how far the DOM-only
 approach gets. Anything broken here is a real bug worth filing rather than a

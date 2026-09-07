@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Left-to-right runs inside right-to-left paragraphs — `<code>`, `<kbd>`,
+  `<samp>` — inherited the paragraph's base direction, so a URL's slashes or a
+  trailing period resolved to the wrong end. They now get their own
+  `direction: ltr; unicode-bidi: isolate`, which the new RTL page surfaced.
+
 - Double-clicking left the caret blinking where the click landed instead of at
   the end of the selected word: word and block gestures expanded the marked
   range without moving the `.sel-start`/`.sel-end` elements.

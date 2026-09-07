@@ -66,6 +66,12 @@ double-click a word in each of the mixed lines.
 | **An LTR run inside an RTL line** | Code, URLs and version numbers stay left-to-right inside a right-to-left sentence, so one line can change direction twice |
 | **Numbers and punctuation** | Digits are left-to-right even in RTL text, and trailing punctuation resolves against the surrounding run, not the number |
 
+`<code>`, `<kbd>` and `<samp>` are given `direction: ltr; unicode-bidi: isolate`
+inside the document, because they are left-to-right by nature: without the
+isolate, a URL's slashes or a trailing period resolve against the paragraph's
+RTL base direction and jump to the wrong end, even though the letters between
+them render correctly. An explicit `dir` on the element opts out.
+
 None of this is faked with `contentEditable`'s help — there is no browser
 selection to lean on — so this page is the honest test of how far the DOM-only
 approach gets. Anything broken here is a real bug worth filing rather than a
