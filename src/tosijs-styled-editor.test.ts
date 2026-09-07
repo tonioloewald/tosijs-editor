@@ -120,7 +120,9 @@ describe('TosijsStyledEditor', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       // Without touch interaction, affordances should not be displayed as 'block'
-      const affordances = el.parts.doc.querySelector('.touch-affordances') as HTMLElement
+      const affordances = el.parts.doc.querySelector(
+        '.touch-affordances'
+      ) as HTMLElement
       expect(affordances.style.display).not.toBe('block')
     })
 

@@ -26,7 +26,7 @@ describe('toolbar', () => {
         'Bold',
         'setText font-weight bold',
         svg,
-        'ctrl+b',
+        'ctrl+b'
       )
       expect(btn.dataset.shortcut).toBe('ctrl+b')
     })

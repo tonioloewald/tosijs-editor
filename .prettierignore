@@ -1,0 +1,8 @@
+# Generated: the doc site web root and the published package
+docs/
+dist/
+demo/docs.json
+src/version.ts
+
+# Tab-separated data — Prettier has no business here
+*.tsv

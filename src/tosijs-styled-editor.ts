@@ -612,7 +612,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       } else {
         // Gather non-slotted light DOM children (those without a slot attribute)
         const lightChildren = Array.from(this.childNodes).filter(
-          (n) => !(n instanceof Element && n.hasAttribute('slot')),
+          (n) => !(n instanceof Element && n.hasAttribute('slot'))
         )
         if (lightChildren.length > 0) {
           const frag = document.createDocumentFragment()
@@ -684,7 +684,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.touchAffordances.append(
       this.touchHandleStart,
       this.touchContextMenu,
-      this.touchHandleEnd,
+      this.touchHandleEnd
     )
     doc.appendChild(this.touchAffordances)
 
@@ -696,7 +696,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
     this.touchContextMenu.addEventListener(
       'pointerdown',
-      this.handleTouchContextMenu,
+      this.handleTouchContextMenu
     )
 
     // Selection change updates undo and touch affordances
@@ -730,7 +730,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const sync = () =>
       this.toggleAttribute(
         attribute,
-        slot.assignedNodes({ flatten: true }).length > 0,
+        slot.assignedNodes({ flatten: true }).length > 0
       )
     slot.addEventListener('slotchange', sync)
     sync()
@@ -838,7 +838,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         current instanceof Element &&
         current.tagName === 'LI' &&
         current.parentElement &&
-        (current.parentElement.tagName === 'UL' || current.parentElement.tagName === 'OL') &&
+        (current.parentElement.tagName === 'UL' ||
+          current.parentElement.tagName === 'OL') &&
         !current.parentElement.classList.contains('editor-table')
       ) {
         return current as HTMLElement
@@ -1159,7 +1160,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     span: Element,
     targetX: number,
     extendSelection: boolean,
-    blockToDespanify: Element,
+    blockToDespanify: Element
   ): void {
     // Place bounds while spans still exist in the DOM
     const rect = span.getBoundingClientRect()
@@ -1182,7 +1183,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   }
 
   /** Move caret up or down by visual line */
-  private moveVertical(direction: 'up' | 'down', extendSelection: boolean): void {
+  private moveVertical(
+    direction: 'up' | 'down',
+    extendSelection: boolean
+  ): void {
     const ip = this.insertionPoint()
     if (!ip) return
 
@@ -1223,7 +1227,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         }
       }
 
-      const targetLineIdx = direction === 'up' ? currentLineIdx - 1 : currentLineIdx + 1
+      const targetLineIdx =
+        direction === 'up' ? currentLineIdx - 1 : currentLineIdx + 1
 
       if (targetLineIdx >= 0 && targetLineIdx < lines.length) {
         // Target line is within this container
@@ -1238,14 +1243,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     if (li) {
       // Inside a list: move to adjacent <li> sibling, or exit the list
-      const siblingLi = direction === 'up'
-        ? li.previousElementSibling
-        : li.nextElementSibling
+      const siblingLi =
+        direction === 'up' ? li.previousElementSibling : li.nextElementSibling
 
       if (siblingLi && siblingLi.tagName === 'LI') {
         // Move to adjacent list item
         spanify(siblingLi, true)
-        const siblingSpans = Array.from(siblingLi.querySelectorAll('.spanified'))
+        const siblingSpans = Array.from(
+          siblingLi.querySelectorAll('.spanified')
+        )
 
         if (siblingSpans.length === 0) {
           spanify(siblingLi, false)
@@ -1254,18 +1260,20 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         }
 
         const siblingLines = this.groupByLine(siblingSpans)
-        const targetLine = direction === 'up'
-          ? siblingLines[siblingLines.length - 1]
-          : siblingLines[0]
+        const targetLine =
+          direction === 'up'
+            ? siblingLines[siblingLines.length - 1]
+            : siblingLines[0]
         const targetChar = this.closestCharOnLine(targetLine, targetX)
         this.positionAtSpanChar(targetChar, targetX, extendSelection, siblingLi)
         return
       }
 
       // No sibling <li> — exit the list to adjacent block
-      const sibling = direction === 'up'
-        ? currentBlock.previousElementSibling
-        : currentBlock.nextElementSibling
+      const sibling =
+        direction === 'up'
+          ? currentBlock.previousElementSibling
+          : currentBlock.nextElementSibling
 
       if (!sibling) return
       this.moveVerticalToBlock(sibling, direction, targetX, extendSelection)
@@ -1273,9 +1281,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
 
     // Not in a list: move to adjacent block
-    const sibling = direction === 'up'
-      ? currentBlock.previousElementSibling
-      : currentBlock.nextElementSibling
+    const sibling =
+      direction === 'up'
+        ? currentBlock.previousElementSibling
+        : currentBlock.nextElementSibling
 
     if (!sibling) return
     this.moveVerticalToBlock(sibling, direction, targetX, extendSelection)
@@ -1285,7 +1294,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private moveCaretToEmptyContainer(
     container: Element,
     direction: 'up' | 'down',
-    extendSelection: boolean,
+    extendSelection: boolean
   ): void {
     const start = this.selectable.find('.sel-start')
     const end = this.selectable.find('.sel-end')
@@ -1308,33 +1317,46 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     sibling: Element,
     direction: 'up' | 'down',
     targetX: number,
-    extendSelection: boolean,
+    extendSelection: boolean
   ): void {
     // If sibling is a list, enter its first/last <li>
-    const isList = (sibling.tagName === 'UL' || sibling.tagName === 'OL') &&
+    const isList =
+      (sibling.tagName === 'UL' || sibling.tagName === 'OL') &&
       !sibling.classList.contains('editor-table')
     const targetContainer = isList
       ? (direction === 'up'
-        ? sibling.querySelector(':scope > li:last-child')
-        : sibling.querySelector(':scope > li:first-child')) || sibling
+          ? sibling.querySelector(':scope > li:last-child')
+          : sibling.querySelector(':scope > li:first-child')) || sibling
       : sibling
 
     spanify(targetContainer, true)
-    const siblingSpans = Array.from(targetContainer.querySelectorAll('.spanified'))
+    const siblingSpans = Array.from(
+      targetContainer.querySelectorAll('.spanified')
+    )
 
     if (siblingSpans.length === 0) {
       spanify(targetContainer, false)
-      this.moveCaretToEmptyContainer(targetContainer, direction, extendSelection)
+      this.moveCaretToEmptyContainer(
+        targetContainer,
+        direction,
+        extendSelection
+      )
       return
     }
 
     const siblingLines = this.groupByLine(siblingSpans)
-    const targetLine = direction === 'up'
-      ? siblingLines[siblingLines.length - 1]
-      : siblingLines[0]
+    const targetLine =
+      direction === 'up'
+        ? siblingLines[siblingLines.length - 1]
+        : siblingLines[0]
 
     const targetChar = this.closestCharOnLine(targetLine, targetX)
-    this.positionAtSpanChar(targetChar, targetX, extendSelection, targetContainer)
+    this.positionAtSpanChar(
+      targetChar,
+      targetX,
+      extendSelection,
+      targetContainer
+    )
   }
 
   /** Insert a character at the caret */
@@ -1673,7 +1695,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     if (target.nodeType === 3 && (target.textContent || '').length > 1) {
       // splitText returns the second half — insert before it (the last char)
-      const lastChar = (target as Text).splitText((target.textContent || '').length - 1)
+      const lastChar = (target as Text).splitText(
+        (target.textContent || '').length - 1
+      )
       lastChar.parentNode?.insertBefore(start, lastChar)
     } else {
       target.parentNode?.insertBefore(start, target)
@@ -1762,10 +1786,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private updateUndoButtons(): void {
     const toolbar = this.parts.toolbar
     const undoBtn = toolbar.querySelector(
-      '[value="updateUndo undo"]',
+      '[value="updateUndo undo"]'
     ) as HTMLButtonElement | null
     const redoBtn = toolbar.querySelector(
-      '[value="updateUndo redo"]',
+      '[value="updateUndo redo"]'
     ) as HTMLButtonElement | null
     if (undoBtn) undoBtn.disabled = this.undoDepth >= this.undo.length - 1
     if (redoBtn) redoBtn.disabled = this.undoDepth === 0
@@ -1778,7 +1802,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const shortcutStr = `${evt.ctrlKey || evt.metaKey ? 'ctrl+' : ''}${key}`
 
     const btn = this.parts.toolbar.querySelector(
-      `[data-shortcut="${shortcutStr}"]`,
+      `[data-shortcut="${shortcutStr}"]`
     ) as HTMLElement | null
     if (btn) {
       const value = btn.getAttribute('value')
@@ -2079,9 +2103,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (this.touchDrags.size === 0) {
       // Subtract existing padding to check where selection would be without it
       const existingTopPad = parseFloat(this.parts.doc.style.paddingTop) || 0
-      const existingBottomPad = parseFloat(this.parts.doc.style.paddingBottom) || 0
+      const existingBottomPad =
+        parseFloat(this.parts.doc.style.paddingBottom) || 0
       const selTop = Math.min(startRect.top, endRect.top) - 48 - existingTopPad
-      const selBottom = Math.max(startRect.bottom, endRect.bottom) + 48 + existingBottomPad
+      const selBottom =
+        Math.max(startRect.bottom, endRect.bottom) + 48 + existingBottomPad
       const wantTop = selTop < docRect.top ? '52px' : ''
       const wantBottom = selBottom > docRect.bottom ? '52px' : ''
       const hadTop = this.parts.doc.style.paddingTop
@@ -2117,14 +2143,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const startRect = selStart.getBoundingClientRect()
     const endRect = selEnd.getBoundingClientRect()
 
-    const startX =
-      startRect.left - docRect.left + this.parts.doc.scrollLeft
-    const startY =
-      startRect.top - docRect.top + this.parts.doc.scrollTop
-    const endX =
-      endRect.right - docRect.left + this.parts.doc.scrollLeft
-    const endY =
-      endRect.bottom - docRect.top + this.parts.doc.scrollTop
+    const startX = startRect.left - docRect.left + this.parts.doc.scrollLeft
+    const startY = startRect.top - docRect.top + this.parts.doc.scrollTop
+    const endX = endRect.right - docRect.left + this.parts.doc.scrollLeft
+    const endY = endRect.bottom - docRect.top + this.parts.doc.scrollTop
 
     const isCollapsed = selStart.nextElementSibling === selEnd
 
@@ -2200,10 +2222,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const affordanceEl = evt.currentTarget as HTMLElement
     affordanceEl.style.pointerEvents = 'none'
     this.touchAffordances!.style.pointerEvents = 'none'
-    const elementAtPoint = this.shadowRoot!.elementFromPoint(
-      cursorX,
-      cursorY,
-    )
+    const elementAtPoint = this.shadowRoot!.elementFromPoint(cursorX, cursorY)
     affordanceEl.style.pointerEvents = 'auto'
     this.touchAffordances!.style.pointerEvents = ''
 
@@ -2230,7 +2249,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     } else {
       let bestDist = Infinity
       for (const span of Array.from(
-        elementAtPoint.querySelectorAll('.spanified'),
+        elementAtPoint.querySelectorAll('.spanified')
       )) {
         const r = span.getBoundingClientRect()
         const cx = (r.left + r.right) / 2
@@ -2246,8 +2265,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!target) return
 
     const rect = target.getBoundingClientRect()
-    const markerSelector =
-      drag.target === 'start' ? '.sel-start' : '.sel-end'
+    const markerSelector = drag.target === 'start' ? '.sel-start' : '.sel-end'
     const marker = this.parts.doc.querySelector(markerSelector)
 
     if (marker) {
@@ -2353,7 +2371,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         label: 'Plain',
         action: () =>
           this.doCommand(
-            'setText font-weight normal; setText font-style normal; setText text-decoration none',
+            'setText font-weight normal; setText font-style normal; setText text-decoration none'
           ),
       },
     ]
@@ -2386,10 +2404,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const bRect = this.touchContextMenu!.getBoundingClientRect()
     const docRect = this.parts.doc.getBoundingClientRect()
     const menuWidth = (actions.length + 1) * 70
-    let menuLeft = bRect.left - docRect.left + this.parts.doc.scrollLeft + 22 - menuWidth / 2
+    let menuLeft =
+      bRect.left - docRect.left + this.parts.doc.scrollLeft + 22 - menuWidth / 2
     // Clamp horizontally
     if (menuLeft < 0) menuLeft = 4
-    if (menuLeft + menuWidth > docRect.width) menuLeft = docRect.width - menuWidth - 4
+    if (menuLeft + menuWidth > docRect.width)
+      menuLeft = docRect.width - menuWidth - 4
     menu.style.left = `${menuLeft}px`
     let menuTop = bRect.top - docRect.top + this.parts.doc.scrollTop - 44
     // If menu would clip above doc, position below the context menu button instead
@@ -2438,7 +2458,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Get current pixel widths from the table's actual rendered columns
     const firstRowCells = getCellsInRow(table, 0, getColumnCount(table))
     this.resizeStartWidths = firstRowCells.map(
-      (c) => c.getBoundingClientRect().width,
+      (c) => c.getBoundingClientRect().width
     )
 
     evt.preventDefault()
@@ -2460,12 +2480,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     newWidths[this.resizeCol] = Math.max(30, newWidths[this.resizeCol] + dx)
     newWidths[this.resizeCol + 1] = Math.max(
       30,
-      newWidths[this.resizeCol + 1] - dx,
+      newWidths[this.resizeCol + 1] - dx
     )
 
     setColumnWidths(
       this.resizeTable,
-      newWidths.map((w) => `${w}px`),
+      newWidths.map((w) => `${w}px`)
     )
   }
 
@@ -2512,7 +2532,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       this.doCommand(value)
     }
   }
-
 }
 
 export const tosijsStyledEditor =

@@ -108,7 +108,7 @@ describe('Selectable', () => {
       const children = Array.from(fragment.childNodes)
       expect(children.length).toBe(2)
       expect((children[0] as Element).classList.contains('sel-start')).toBe(
-        true,
+        true
       )
       expect((children[1] as Element).classList.contains('sel-end')).toBe(true)
       expect((children[1] as Element).classList.contains('caret')).toBe(true)
@@ -134,13 +134,13 @@ describe('Selectable', () => {
       sel.markRange(spanA, spanC)
       // All three spans should get selected class (text nodes are only children)
       expect(root.querySelector('.a')!.classList.contains('selected')).toBe(
-        true,
+        true
       )
       expect(root.querySelector('.b')!.classList.contains('selected')).toBe(
-        true,
+        true
       )
       expect(root.querySelector('.c')!.classList.contains('selected')).toBe(
-        true,
+        true
       )
     })
 
@@ -264,9 +264,21 @@ describe('click position resolution', () => {
     return chars
   }
 
-  function mouse(type: string, target: Element, x: number, y: number, detail: number) {
+  function mouse(
+    type: string,
+    target: Element,
+    x: number,
+    y: number,
+    detail: number
+  ) {
     target.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail }),
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+        detail,
+      })
     )
   }
 

@@ -100,7 +100,11 @@ function unwrapList(list: Element): void {
 function mergeAdjacentLists(list: Element): Element {
   let survivor = list
   const previous = survivor.previousElementSibling
-  if (previous && isListElement(previous) && previous.tagName === survivor.tagName) {
+  if (
+    previous &&
+    isListElement(previous) &&
+    previous.tagName === survivor.tagName
+  ) {
     while (survivor.firstChild) previous.appendChild(survivor.firstChild)
     previous.classList.add('selected-block')
     survivor.remove()
@@ -488,7 +492,7 @@ export const commands: Record<string, Command> = {
  */
 export function executeCommand(
   ctx: EditableContext,
-  commandString: string,
+  commandString: string
 ): void {
   const registry = ctx.commands ?? commands
   const commandList = commandString.split(/;\s*/)

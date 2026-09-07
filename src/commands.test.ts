@@ -43,8 +43,7 @@ function createContext(root: HTMLElement): EditableContext {
       }
       return nodes
     },
-    selectedBlocks: () =>
-      Array.from(root.querySelectorAll('.selected-block')),
+    selectedBlocks: () => Array.from(root.querySelectorAll('.selected-block')),
     insertionPoint() {
       return root.querySelector('input.caret') as HTMLInputElement | null
     },

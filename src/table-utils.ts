@@ -139,7 +139,7 @@ export function createCell(isHeader = false): HTMLElement {
 export function getCellsInRow(
   table: HTMLElement,
   row: number,
-  colCount: number,
+  colCount: number
 ): HTMLElement[] {
   const cells = Array.from(table.querySelectorAll(':scope > li'))
   const start = row * colCount
@@ -150,10 +150,10 @@ export function getCellsInRow(
 export function getCellsInCol(
   table: HTMLElement,
   col: number,
-  colCount: number,
+  colCount: number
 ): HTMLElement[] {
   const cells = Array.from(
-    table.querySelectorAll(':scope > li'),
+    table.querySelectorAll(':scope > li')
   ) as HTMLElement[]
   const result: HTMLElement[] = []
   for (let i = col; i < cells.length; i += colCount) {
@@ -178,7 +178,7 @@ export function getRowCount(table: HTMLElement): number {
 export function createTable(
   cols: number,
   rows = 2,
-  headerRows = 1,
+  headerRows = 1
 ): HTMLElement {
   const ul = document.createElement('ul')
   ul.className = TABLE_CLASS

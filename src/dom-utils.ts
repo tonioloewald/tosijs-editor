@@ -142,10 +142,7 @@ export function leafNodes(node: Node, filter?: NodeFilter): Node[] {
  * Returns the topmost single-parent ancestor, or the node itself
  * if its parent has multiple children.
  */
-export function topSingleParentAncestor(
-  node: Node,
-  filter?: NodeFilter
-): Node {
+export function topSingleParentAncestor(node: Node, filter?: NodeFilter): Node {
   const fn = makeFilter(filter)
   while (
     node.parentNode &&

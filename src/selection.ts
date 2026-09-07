@@ -192,7 +192,11 @@ export class Selectable {
    * the clicked line, then the horizontally closest one; callers decide which
    * side of the span the point falls on.
    */
-  private nearestChar(container: Element, x: number, y: number): Element | null {
+  private nearestChar(
+    container: Element,
+    x: number,
+    y: number
+  ): Element | null {
     const spans = Array.from(container.querySelectorAll('.spanified'))
     if (spans.length === 0) return null
 
@@ -389,9 +393,10 @@ export class Selectable {
     if (!this.selecting || evt.touches.length !== 1) return
     const touch = evt.touches[0]
     const rootNode = this.root.getRootNode() as Document | ShadowRoot
-    let target = (rootNode.elementFromPoint
-      ? rootNode.elementFromPoint(touch.clientX, touch.clientY)
-      : document.elementFromPoint(touch.clientX, touch.clientY)
+    let target = (
+      rootNode.elementFromPoint
+        ? rootNode.elementFromPoint(touch.clientX, touch.clientY)
+        : document.elementFromPoint(touch.clientX, touch.clientY)
     ) as Element | null
     if (
       !target ||
@@ -454,7 +459,7 @@ export class Selectable {
   selectionChanged(): void {
     this.focus()
     this.root.dispatchEvent(
-      new CustomEvent('selectionchanged', { bubbles: true }),
+      new CustomEvent('selectionchanged', { bubbles: true })
     )
   }
 

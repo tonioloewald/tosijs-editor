@@ -13,10 +13,13 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "types": [
-      "bun-types"
-    ]
+    "types": ["bun-types"]
   },
-  "include": ["src/**/*", "demo/**/*", "bin/**/*", "tosijs-editor-site.config.ts"],
+  "include": [
+    "src/**/*",
+    "demo/**/*",
+    "bin/**/*",
+    "tosijs-editor-site.config.ts"
+  ],
   "exclude": ["node_modules", "src/**/*.test.ts"]
 }

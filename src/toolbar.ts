@@ -50,7 +50,7 @@ export function commandButton(
   title: string,
   command: string,
   icon: SVGElement,
-  shortcut?: string,
+  shortcut?: string
 ): HTMLButtonElement {
   const attrs: Record<string, any> = {
     title,
@@ -90,7 +90,7 @@ export function localePickerWidget(): HTMLElement {
 function editorMenuItem(
   editor: TosijsStyledEditor,
   caption: string,
-  command: string,
+  command: string
 ): MenuItem {
   return {
     caption,
@@ -124,7 +124,7 @@ export function paragraphStyleMenu(editor: TosijsStyledEditor): HTMLElement {
     },
     icons.type(),
     ' ',
-    menuLabel('Style'),
+    menuLabel('Style')
   ) as unknown as HTMLElement
 }
 
@@ -144,7 +144,7 @@ export function justificationMenu(editor: TosijsStyledEditor): HTMLElement {
     },
     icons.alignLeft(),
     ' ',
-    menuLabel('Align'),
+    menuLabel('Align')
   ) as unknown as HTMLElement
 }
 
@@ -159,7 +159,7 @@ export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
         editorMenuItem(
           editor,
           'Times New Roman',
-          'setText font-family Times+New+Roman',
+          'setText font-family Times+New+Roman'
         ),
         editorMenuItem(editor, 'Georgia', 'setText font-family Georgia'),
         editorMenuItem(editor, 'Helvetica', 'setText font-family Helvetica'),
@@ -172,7 +172,7 @@ export function fontFamilyMenu(editor: TosijsStyledEditor): HTMLElement {
     },
     icons.type(),
     ' ',
-    menuLabel('Font'),
+    menuLabel('Font')
   ) as unknown as HTMLElement
 }
 
@@ -193,7 +193,7 @@ export function fontSizeMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     ' ',
-    menuLabel('Size'),
+    menuLabel('Size')
   ) as unknown as HTMLElement
 }
 
@@ -211,7 +211,7 @@ export function lineSpacingMenu(editor: TosijsStyledEditor): HTMLElement {
       ],
     },
     ' ',
-    menuLabel('Spacing'),
+    menuLabel('Spacing')
   ) as unknown as HTMLElement
 }
 
@@ -222,24 +222,24 @@ export function characterStyleWidgets(): HTMLElement[] {
       'Bold',
       'setText font-weight bold',
       icons.fontBold(),
-      'ctrl+b',
+      'ctrl+b'
     ),
     commandButton(
       'Italic',
       'setText font-style italic',
       icons.fontItalic(),
-      'ctrl+i',
+      'ctrl+i'
     ),
     commandButton(
       'Underline',
       'setText text-decoration underline',
       icons.underline(),
-      'ctrl+u',
+      'ctrl+u'
     ),
     commandButton(
       'Highlight',
       'setText background-color rgba(255,255,64,0.5)',
-      icons.penTool(),
+      icons.penTool()
     ),
   ]
 }
@@ -252,12 +252,12 @@ export function paragraphStyleWidgets(): HTMLElement[] {
     commandButton(
       'Align Right',
       'setBlocks text-align right',
-      icons.alignRight(),
+      icons.alignRight()
     ),
     commandButton(
       'Justify',
       'setBlocks text-align justify',
-      icons.alignJustify(),
+      icons.alignJustify()
     ),
     toolbarSpacer(),
     commandButton('Bulleted List', 'setList ul', icons.listBullet()),
@@ -330,7 +330,7 @@ export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
     },
     icons.grid(),
     ' ',
-    menuLabel('Table'),
+    menuLabel('Table')
   ) as unknown as HTMLElement
 }
 

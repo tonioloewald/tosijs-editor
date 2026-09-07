@@ -11,3 +11,6 @@ tls/*
 # Generated sourcemaps: multi-MB per build, never fetched except in devtools,
 # and they embed dependency source (which has tripped GitHub push protection).
 docs/*.map
+
+# Browser test RESULTS, rewritten on every dev-server run (tosijs-ui ignores it too)
+.browser-tests.json

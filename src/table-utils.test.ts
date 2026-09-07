@@ -117,27 +117,21 @@ describe('table-utils', () => {
 
   describe('cellIndex / rowOfCell / colOfCell', () => {
     test('cellIndex returns correct indices', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(cellIndex(cells[0])).toBe(0)
       expect(cellIndex(cells[4])).toBe(4)
       expect(cellIndex(cells[8])).toBe(8)
     })
 
     test('rowOfCell returns correct row', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(rowOfCell(cells[0], 3)).toBe(0)
       expect(rowOfCell(cells[3], 3)).toBe(1)
       expect(rowOfCell(cells[8], 3)).toBe(2)
     })
 
     test('colOfCell returns correct column', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(colOfCell(cells[0], 3)).toBe(0)
       expect(colOfCell(cells[1], 3)).toBe(1)
       expect(colOfCell(cells[5], 3)).toBe(2)
@@ -146,64 +140,48 @@ describe('table-utils', () => {
 
   describe('nextCell / prevCell', () => {
     test('nextCell returns next sibling', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(nextCell(cells[0])).toBe(cells[1])
     })
 
     test('nextCell returns null at end', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(nextCell(cells[8])).toBeNull()
     })
 
     test('prevCell returns previous sibling', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(prevCell(cells[1])).toBe(cells[0])
     })
 
     test('prevCell returns null at start', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(prevCell(cells[0])).toBeNull()
     })
   })
 
   describe('isHeaderCell', () => {
     test('first row cells are headers', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(isHeaderCell(cells[0])).toBe(true)
       expect(isHeaderCell(cells[2])).toBe(true)
     })
 
     test('other row cells are not headers', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       expect(isHeaderCell(cells[3])).toBe(false)
     })
   })
 
   describe('getCellsInRow / getCellsInCol / getRowCount', () => {
     test('getCellsInRow returns correct cells', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       const row1 = getCellsInRow(table, 1, 3)
       expect(row1).toEqual([cells[3], cells[4], cells[5]])
     })
 
     test('getCellsInCol returns correct cells', () => {
-      const cells = Array.from(
-        table.querySelectorAll('li')
-      ) as HTMLLIElement[]
+      const cells = Array.from(table.querySelectorAll('li')) as HTMLLIElement[]
       const col1 = getCellsInCol(table, 1, 3)
       expect(col1).toEqual([cells[1], cells[4], cells[7]])
     })

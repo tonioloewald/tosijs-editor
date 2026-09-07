@@ -48,6 +48,8 @@ bun install
 bun run tls     # once — locally-trusted dev certs (needs mkcert)
 bun start       # dev server + doc site on https://localhost:8789
 bun test        # unit tests
+bun run lint    # typecheck, including unused locals/params
+bun run format  # Prettier
 bun run make    # full build (NOT `bun run build` — `bun build` is a Bun builtin)
 ```
 
@@ -120,59 +122,59 @@ The caret is an `<input>` element, so mobile browsers show their keyboard automa
 
 ### General editing
 
-| Key | Action |
-|---|---|
-| **Typing** | Inserts character at caret; replaces selection if any |
-| **Backspace** | Deletes character before caret, or deletes selection |
-| **Delete** | Deletes character after caret, or deletes selection |
-| **Enter** | Splits the current block at the caret |
-| **ArrowLeft / ArrowRight** | Moves caret one character |
-| **ArrowUp / ArrowDown** | Moves caret one visual line, maintaining horizontal position |
-| **Alt+ArrowLeft / Alt+ArrowRight** | Moves caret one word |
-| **Shift+Arrow** | Extends selection |
+| Key                                | Action                                                       |
+| ---------------------------------- | ------------------------------------------------------------ |
+| **Typing**                         | Inserts character at caret; replaces selection if any        |
+| **Backspace**                      | Deletes character before caret, or deletes selection         |
+| **Delete**                         | Deletes character after caret, or deletes selection          |
+| **Enter**                          | Splits the current block at the caret                        |
+| **ArrowLeft / ArrowRight**         | Moves caret one character                                    |
+| **ArrowUp / ArrowDown**            | Moves caret one visual line, maintaining horizontal position |
+| **Alt+ArrowLeft / Alt+ArrowRight** | Moves caret one word                                         |
+| **Shift+Arrow**                    | Extends selection                                            |
 
 ### Mouse selection
 
-| Action | Selects |
-|---|---|
-| **Click** | Places caret at character position |
-| **Shift+Click** | Extends selection to click position |
-| **Double-click** | Selects word |
-| **Triple-click** | Selects block |
-| **Click-drag** | Selects character range |
+| Action           | Selects                             |
+| ---------------- | ----------------------------------- |
+| **Click**        | Places caret at character position  |
+| **Shift+Click**  | Extends selection to click position |
+| **Double-click** | Selects word                        |
+| **Triple-click** | Selects block                       |
+| **Click-drag**   | Selects character range             |
 
 ### Inside a table cell
 
-| Key | Action |
-|---|---|
-| **Tab** | Move to next cell; at last cell, creates a new row |
-| **Shift+Tab** | Move to previous cell |
-| **ArrowDown** | Move to cell below; at last row, exit table downward |
-| **ArrowUp** | Move to cell above; at first row, exit table upward |
-| **Shift+Enter** | Move to cell below (same column); at last row, creates a new row |
-| **Shift+ArrowDown** | Same as Shift+Enter |
-| **Enter** | Insert line break (`<br>`) within the cell |
-| **Backspace / Delete** | Delete within cell only (won't escape the cell) |
+| Key                    | Action                                                           |
+| ---------------------- | ---------------------------------------------------------------- |
+| **Tab**                | Move to next cell; at last cell, creates a new row               |
+| **Shift+Tab**          | Move to previous cell                                            |
+| **ArrowDown**          | Move to cell below; at last row, exit table downward             |
+| **ArrowUp**            | Move to cell above; at first row, exit table upward              |
+| **Shift+Enter**        | Move to cell below (same column); at last row, creates a new row |
+| **Shift+ArrowDown**    | Same as Shift+Enter                                              |
+| **Enter**              | Insert line break (`<br>`) within the cell                       |
+| **Backspace / Delete** | Delete within cell only (won't escape the cell)                  |
 
 ### Inside a list item (`<ul>/<ol>`)
 
-| Key | Action |
-|---|---|
-| **Enter** | Split into a new list item; if item is empty, exit the list as a `<p>` |
-| **Backspace** | Delete within item; at start, merge with previous item or exit list |
-| **Delete** | Delete within item; at end, merge with next item |
+| Key           | Action                                                                 |
+| ------------- | ---------------------------------------------------------------------- |
+| **Enter**     | Split into a new list item; if item is empty, exit the list as a `<p>` |
+| **Backspace** | Delete within item; at start, merge with previous item or exit list    |
+| **Delete**    | Delete within item; at end, merge with next item                       |
 
 ### Keyboard shortcuts
 
 Shortcuts are defined by toolbar buttons via `data-shortcut` attributes. The default toolbar provides:
 
-| Shortcut | Action |
-|---|---|
-| **Ctrl/Cmd+B** | Bold |
-| **Ctrl/Cmd+I** | Italic |
+| Shortcut       | Action    |
+| -------------- | --------- |
+| **Ctrl/Cmd+B** | Bold      |
+| **Ctrl/Cmd+I** | Italic    |
 | **Ctrl/Cmd+U** | Underline |
-| **Ctrl/Cmd+Z** | Undo |
-| **Ctrl/Cmd+Y** | Redo |
+| **Ctrl/Cmd+Z** | Undo      |
+| **Ctrl/Cmd+Y** | Redo      |
 
 ## Commands
 
@@ -317,19 +319,19 @@ Custom widgets you add follow the same rules and get translated too.
 
 ## Component API
 
-| Property | Type | Description |
-|---|---|---|
-| `value` | `string` | Get/set the editor content as HTML |
-| `active` | `boolean` | Enable/disable editing |
-| `pastemode` | `'merge' \| 'remove' \| 'preserve' \| 'paragraphs'` | How pasted HTML is handled |
-| `commands` | `object` | Command registry (extend to add custom commands) |
-| `widgets` | `'none' \| 'minimal' \| 'default'` | Attribute — built-in toolbar preset |
-| `localized` | `boolean` | Attribute — translate the built-in widgets and show a language picker |
+| Property    | Type                                                | Description                                                           |
+| ----------- | --------------------------------------------------- | --------------------------------------------------------------------- |
+| `value`     | `string`                                            | Get/set the editor content as HTML                                    |
+| `active`    | `boolean`                                           | Enable/disable editing                                                |
+| `pastemode` | `'merge' \| 'remove' \| 'preserve' \| 'paragraphs'` | How pasted HTML is handled                                            |
+| `commands`  | `object`                                            | Command registry (extend to add custom commands)                      |
+| `widgets`   | `'none' \| 'minimal' \| 'default'`                  | Attribute — built-in toolbar preset                                   |
+| `localized` | `boolean`                                           | Attribute — translate the built-in widgets and show a language picker |
 
-| Method | Description |
-|---|---|
+| Method           | Description              |
+| ---------------- | ------------------------ |
 | `doCommand(str)` | Execute a command string |
-| `focus()` | Focus the caret |
+| `focus()`        | Focus the caret          |
 
 ## License
 

@@ -23,9 +23,10 @@
     "start": "bun bin/site.ts",
     "make": "bun bin/site.ts --build",
     "test": "bun test",
+    "lint": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "format": "bun prettier --write .",
     "haltija": "haltija --name tosijs-editor --port 8702 --server",
-    "tls": "bunx tosijs-dev-certs",
-    "format": "bun eslint src demo --fix && bun prettier --write ."
+    "tls": "bunx tosijs-dev-certs"
   },
   "author": "Tonio Loewald",
   "license": "Apache-2.0",
@@ -38,6 +39,7 @@
     "chokidar": "^4.0.3",
     "haltija": "1.12.9",
     "happy-dom": "^20.14.0",
+    "prettier": "^2",
     "tjs-lang": "^0.13.1",
     "tosijs": "^1.10.1",
     "tosijs-ui": "^1.13.0",

@@ -11,13 +11,13 @@ tosijs/tosijs-ui ecosystem.
 **One name, everywhere: `tosijs-styled-editor`.** The repo directory is the only
 exception, and it is deliberate:
 
-| Thing | Value |
-|---|---|
-| repo directory | `tosijs-editor` |
-| npm package | `tosijs-styled-editor` |
-| custom element | `<tosijs-styled-editor>` (`static preferredTagName`) |
-| class / creator | `TosijsStyledEditor` / `tosijsStyledEditor()` |
-| main source file | `src/tosijs-styled-editor.ts` |
+| Thing            | Value                                                |
+| ---------------- | ---------------------------------------------------- |
+| repo directory   | `tosijs-editor`                                      |
+| npm package      | `tosijs-styled-editor`                               |
+| custom element   | `<tosijs-styled-editor>` (`static preferredTagName`) |
+| class / creator  | `TosijsStyledEditor` / `tosijsStyledEditor()`        |
+| main source file | `src/tosijs-styled-editor.ts`                        |
 
 Note the element does NOT use the ecosystem's `tosi-` prefix (`tosi-menu`,
 `tosi-doc-system`) — those are tosijs-ui's; this package is named for itself.
@@ -85,6 +85,7 @@ There is no bundler config and no `dev.ts`.
 Four layers, each depending only on the ones above it.
 
 ### `src/dom-utils.ts` — leaf-node traversal
+
 Pure, dependency-free functions: `firstLeafNode`, `lastLeafNode`, `nextLeafNode`,
 `previousLeafNode`, `leafNodes`, `siblingOrder`, `isBefore`, `topSingleParentAncestor`,
 `closestSingleParentAncestor`, `allowSelection`.
@@ -97,6 +98,7 @@ matter for two things: deleting a character deletes the whole empty chain around
 `setText` reuses an existing `.setText` span found in the chain instead of nesting a new one.
 
 ### `src/selection.ts` — the selection replacement
+
 `spanify(element, make, byWord?)` temporarily wraps every character in
 `<span class="spanified">` (or `.spanified-word` wrapping chars) so that character
 positions can be hit-tested with `getBoundingClientRect` — this is how the editor
@@ -106,17 +108,17 @@ and normalizes.
 `Selectable` owns the mouse/touch listeners on the doc element and maintains selection as
 DOM state:
 
-| Class | Meaning |
-|---|---|
-| `.sel-start` | `<input>` marking selection start |
-| `.sel-end .caret` | `<input>` marking selection end / the caret. It's an `<input>` so mobile keyboards appear |
-| `.selected` | every selected leaf-level element |
-| `.selected-block` | every block intersecting the selection |
-| `.first-block` / `.last-block` | ends of a multi-block selection |
-| `.spanified` / `.spanified-word` | transient char/word wrappers |
-| `.do-not-spanify` | subtree spanify skips |
-| `.not-selectable` | subtree selection skips (UI chrome, annotations) |
-| `.not-editable` | keydown handling bails out inside this |
+| Class                            | Meaning                                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `.sel-start`                     | `<input>` marking selection start                                                         |
+| `.sel-end .caret`                | `<input>` marking selection end / the caret. It's an `<input>` so mobile keyboards appear |
+| `.selected`                      | every selected leaf-level element                                                         |
+| `.selected-block`                | every block intersecting the selection                                                    |
+| `.first-block` / `.last-block`   | ends of a multi-block selection                                                           |
+| `.spanified` / `.spanified-word` | transient char/word wrappers                                                              |
+| `.do-not-spanify`                | subtree spanify skips                                                                     |
+| `.not-selectable`                | subtree selection skips (UI chrome, annotations)                                          |
+| `.not-editable`                  | keydown handling bails out inside this                                                    |
 
 `markBounds()` (bounds → `.selected`), `resetBounds()` (`.selected` → bounds), and
 `removeBounds()` convert between the two representations. Commands that restructure the
@@ -124,6 +126,7 @@ DOM must move between them explicitly — the bounds markers are real elements a
 break single-parent chains if left in place during a mutation.
 
 ### `src/commands.ts` — command definitions and dispatch
+
 Every editing operation goes through a command string. `executeCommand(ctx, str)` splits
 on `;`, then splits each command on whitespace into name + args, and calls
 `commands[name](ctx, ...args)`. Values containing spaces use `+`
@@ -155,6 +158,7 @@ passes its per-instance `this.commands`, so assigning `editor.commands.myCommand
 (or overriding a built-in) takes effect on the next `doCommand()`.
 
 ### `src/tosijs-styled-editor.ts` — the web component (~2400 lines)
+
 `TosijsStyledEditor extends Component` (tosijs), `formAssociated`, shadow parts
 `menubar` / `toolbar` / `doc`. Everything event-driven lives here: keydown/keypress,
 copy/cut/paste, table-cell navigation, list-item Enter/Backspace/Delete, vertical arrow
@@ -179,12 +183,14 @@ and looks up `[data-shortcut="..."]` in the toolbar, then runs that element's `v
 attribute as a command. Adding a shortcut means adding a toolbar button, not a keymap entry.
 
 ### `src/table-utils.ts` — grid tables
+
 Tables are `<ul class="editor-table">` with `grid-template-columns`; cells are `<li>`,
 header cells are `.table-header`. There are no row elements — row/column position is
 derived arithmetically from `cellIndex` and `getColumnCount`, so any change to column
 count must go through `setColumnWidths` to stay consistent.
 
 ### `src/toolbar.ts` — widget factories
+
 `defaultToolbar()` / `minimalToolbar()` / `defaultMenubar(editor)` build plain elements
 using tosijs-ui `icons` and menus. Buttons carry the command in `value` and optionally
 `data-shortcut`. Toolbar widgets are appended by the host with `slot="toolbar"`; menus go

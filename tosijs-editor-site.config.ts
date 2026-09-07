@@ -55,7 +55,10 @@ export default defineSiteConfig({
   /** Stamp the version file from package.json before anything reads it */
   async prebuild() {
     const pkg = await Bun.file('package.json').json()
-    await Bun.write('src/version.ts', `export const version = '${pkg.version}'\n`)
+    await Bun.write(
+      'src/version.ts',
+      `export const version = '${pkg.version}'\n`
+    )
   },
 
   /**
