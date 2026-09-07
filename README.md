@@ -26,6 +26,9 @@ tosijs-styled-editor {
   overflow: hidden;
   min-height: 260px;
 }
+.preview.preview {
+  padding: 0;
+}
 ```
 
 A pure web-component. What it does **not** use:

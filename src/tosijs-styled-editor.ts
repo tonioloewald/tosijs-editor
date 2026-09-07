@@ -24,6 +24,9 @@ tosijs-styled-editor {
   overflow: hidden;
   min-height: 240px;
 }
+.preview.preview {
+  padding: 0;
+}
 ```
 ```test
 // Runs in a real browser against the example above. That matters here: click
@@ -190,6 +193,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       flex: '0 0 auto',
     },
     ':host [part="menubar"]': {
+      flexShrink: '0',
       padding: '0 2px',
       display: 'flex',
       gap: '0',
@@ -203,6 +207,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       display: 'none',
     },
     ':host [part="toolbar"]': {
+      flexShrink: '0',
       padding: '1px 3px',
       display: 'flex',
       gap: '1px',
@@ -217,6 +222,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
     ':host [part="doc"]': {
       flex: '1 1 auto',
+      // A flex child defaults to min-height:auto, which refuses to shrink below
+      // its content — so in a constrained host the document pushed the menubar
+      // and toolbar out of view instead of scrolling. min-height:0 lets it
+      // shrink, and overflow-y below then does the scrolling.
+      minHeight: '0',
       background: 'var(--editor-surface)',
       padding: '8px',
       cursor: 'text',
