@@ -12,4 +12,3 @@ import{Ca as a,Fa as C,Pa as S,ga as B,s as R,va as U,w as O,y as A,z as F}from"
 `:""}${h}: e.g. ${x}`}}d.push(a(`${f}(${X})`,{label:f,type:"function",detail:`(${V}) -> ${Z}`,info:w||void 0,boost:2}))}}if(d.length===0)return null;return{from:o.from,options:d,validFor:/^[\w$]*$/}}catch(o){return console.warn("TJS autocomplete error:",o),null}}}function Fe(e={}){return[S({jsx:e.jsx,typescript:e.typescript}),K,I,P,C({override:[z(e.autocomplete||{})],activateOnTyping:!0})]}function Be(e={}){return[S({jsx:e.jsx,typescript:e.typescript}),ce,I,P,C({override:[z(e.autocomplete||{})],activateOnTyping:!0})]}function Ue(e={}){let r=S({jsx:e.jsx,typescript:e.typescript});return new B(r.language,[K,I,P])}export{Me as ALL_COMPLETIONS,oe as FORBIDDEN_KEYWORDS,Fe as ajs,Fe as ajsEditorExtension,Ue as ajsLanguage,z as tjsCompletionSource,Be as tjsEditorExtension};
 
 //# debugId=D4E89E623F74D47764756E2164756E21
-//# sourceMappingURL=ajs-language-hv9rtrwg.js.map
