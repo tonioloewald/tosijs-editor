@@ -68,6 +68,27 @@ describe('TosijsStyledEditor', () => {
     expect(calls).toEqual([['alpha', 'beta']])
   })
 
+  test('deleteSelection keeps a caret to type into', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    const doc = el.parts.doc
+    // The shape a word gesture leaves behind: the caret sits INSIDE the last
+    // selected character, because resetBounds() derives bounds from .selected.
+    doc.innerHTML =
+      '<p class="selected-block first-block last-block">' +
+      '<span class="spanified selected">E</span>' +
+      '<span class="spanified selected">d</span>' +
+      '<span class="spanified selected">i<input class="sel-end caret"></span>' +
+      '<span class="spanified">t</span></p>'
+
+    expect(doc.querySelector('input.caret')).not.toBeNull()
+    el.deleteSelection()
+
+    // Without a caret there is no insertion point, so typing silently does nothing
+    expect(doc.querySelector('input.caret')).not.toBeNull()
+    expect(doc.textContent).not.toContain('Edi')
+  })
+
   test('has selectable after connection', () => {
     const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)

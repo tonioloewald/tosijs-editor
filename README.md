@@ -24,7 +24,8 @@ tosijs-styled-editor {
   border: 1px solid var(--editor-edge);
   border-radius: 6px;
   overflow: hidden;
-  min-height: 260px;
+  height: 340px;
+  resize: vertical;
 }
 .preview.preview {
   padding: 0;

@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Typing over a selection deleted it and inserted nothing.** A regression from
+  the double-click fix: `resetBounds()` derives bounds from `.selected`, which
+  lands the caret INSIDE the last selected character, and `deleteSelection()`
+  then removed the caret along with the selection — leaving no insertion point,
+  so every keystroke was silently swallowed. The caret is now moved out of the
+  way before the selected chains are deleted.
+
 - Left-to-right runs inside right-to-left paragraphs — `<code>`, `<kbd>`,
   `<samp>` — inherited the paragraph's base direction, so a URL's slashes or a
   trailing period resolved to the wrong end. They now get their own

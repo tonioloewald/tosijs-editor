@@ -22,7 +22,8 @@ tosijs-styled-editor {
   border: 1px solid var(--editor-edge);
   border-radius: 6px;
   overflow: hidden;
-  min-height: 240px;
+  height: 340px;
+  resize: vertical;
 }
 .preview.preview {
   padding: 0;
@@ -1466,8 +1467,18 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
     }
 
-    const nodes = this.selectedLeafNodes()
+    // The caret can sit INSIDE the selection: after a word or block gesture
+    // resetBounds() derives the bounds from `.selected`, which lands the caret
+    // within the last selected character. Deleting the selected chains would
+    // take the caret with them, and an editor with no insertion point silently
+    // swallows everything you type.
+    const keptCaret = this.insertionPoint()
+    const nodes = this.selectedLeafNodes().filter((node) => node !== keptCaret)
     if (nodes.length) {
+      const firstTop = topSingleParentAncestor(nodes[0])
+      if (keptCaret && firstTop.parentNode) {
+        firstTop.parentNode.insertBefore(keptCaret, firstTop)
+      }
       for (const node of nodes) {
         const top = topSingleParentAncestor(node)
         top.parentNode?.removeChild(top)
