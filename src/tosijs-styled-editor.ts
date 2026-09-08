@@ -19,6 +19,7 @@ giving full control over editing behavior.
 tosijs-styled-editor {
   --editor-ink: #27488c;
   --editor-surface: var(--tosi-bg, Canvas);
+  --editor-text: var(--tosi-text, CanvasText);
   border: 1px solid var(--editor-edge);
   border-radius: 6px;
   overflow: hidden;
@@ -189,6 +190,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // re-theme the whole chrome by setting this one property.
       '--editor-ink': '#27488c',
       '--editor-surface': 'Canvas',
+      // Paired with the surface. A consumer that themes one MUST theme both:
+      // mapping only the surface to a dark page left black text on near-black.
+      '--editor-text': 'CanvasText',
       // Two chrome tints so the menubar, the toolbar and the page read as
       // three distinct surfaces rather than one slab.
       '--editor-menubar-bg':
@@ -198,9 +202,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       '--editor-edge':
         'color-mix(in oklab, var(--editor-ink) 25%, transparent)',
       '--editor-chrome-text':
-        'color-mix(in oklab, var(--editor-ink) 80%, CanvasText)',
+        'color-mix(in oklab, var(--editor-ink) 30%, var(--editor-text))',
       background: 'var(--editor-surface)',
-      color: 'CanvasText',
+      color: 'var(--editor-text) !important',
+      // So Canvas/CanvasText track the system scheme when nobody themes us
+      colorScheme: 'light dark',
     },
     ':host ::slotted(*)': {
       flex: '0 0 auto',
@@ -495,14 +501,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       borderRadius: '4px',
       background: 'transparent',
       boxShadow: 'none',
-      color: 'var(--editor-chrome-text)',
+      color: 'var(--editor-text) !important',
       cursor: 'pointer',
     },
     'tosijs-styled-editor button[slot="toolbar"]:hover:not([disabled])': {
-      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
+      background: 'color-mix(in oklab, currentColor 16%, transparent)',
     },
     'tosijs-styled-editor button[slot="toolbar"]:active:not([disabled])': {
-      background: 'color-mix(in oklab, var(--editor-ink) 32%, transparent)',
+      background: 'color-mix(in oklab, currentColor 28%, transparent)',
     },
     'tosijs-styled-editor button[slot="toolbar"][disabled]': {
       opacity: '0.35',
@@ -519,11 +525,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       boxShadow: 'none',
       borderRadius: '4px',
       padding: '4px 10px',
-      color: 'var(--editor-chrome-text)',
+      color: 'var(--editor-text) !important',
       cursor: 'pointer',
     },
     'tosijs-styled-editor [slot="menubar"] button:hover': {
-      background: 'color-mix(in oklab, var(--editor-ink) 18%, transparent)',
+      background: 'color-mix(in oklab, currentColor 16%, transparent)',
     },
     'tosijs-styled-editor [slot="menubar"] button svg': {
       width: '16px',
@@ -2401,13 +2407,27 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const menu = document.createElement('div')
     menu.className = 'touch-menu not-selectable do-not-spanify'
 
+    const selectedText = () =>
+      this.selectable
+        .findAll('.selected')
+        .map((el) => el.textContent)
+        .join('')
+
     const actions: Array<{ label: string; action: () => void }> = [
+      {
+        label: 'Cut',
+        action: () => {
+          const text = selectedText()
+          if (!text) return
+          navigator.clipboard.writeText(text)
+          this.deleteSelection()
+          this.updateUndo('new')
+        },
+      },
       {
         label: 'Copy',
         action: () => {
-          const selected = this.selectable.findAll('.selected')
-          const text = selected.map((el) => el.textContent).join('')
-          navigator.clipboard.writeText(text)
+          navigator.clipboard.writeText(selectedText())
         },
       },
       {

@@ -37,6 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Emoji were torn in half.** `spanify` split text with `split('')`, which
+  splits by UTF-16 code UNIT, so an emoji's surrogate pair became two lone
+  surrogates rendering as `?`. Splitting is now by grapheme cluster via
+  `Intl.Segmenter`, which also keeps flags (two regional indicators), skin-tone
+  modifiers, ZWJ sequences and combining marks whole — every one of those is one
+  thing a user clicks on or deletes.
+- **Dark mode: the document was black text on a near-black page.** The surface
+  followed the page theme but `color` was the system `CanvasText`, which does
+  not. Text and surface are now a paired `--editor-text` / `--editor-surface`,
+  and a consumer that themes one must theme both.
+- Added **Cut** to the touch selection menu, which had Copy and Paste but no Cut.
+
 - **The caret sat on the wrong side of the line when typing LTR into an RTL
   block** (and vice versa). The caret is an element, and bidi treats an empty
   inline as a NEUTRAL, so it resolved against the block's base direction instead

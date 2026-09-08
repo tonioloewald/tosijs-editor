@@ -19,6 +19,23 @@ import {
   allowSelection,
 } from './dom-utils'
 
+/**
+ * Split text into user-perceived characters.
+ *
+ * NOT `split('')`, which splits by UTF-16 code unit: an emoji is a surrogate
+ * PAIR, so that tears it into two lone surrogates that render as `?`. Even
+ * `[...text]` is not enough — it splits by code point, which still breaks a
+ * flag (two regional indicators), a skin-tone modifier, a ZWJ family, and any
+ * base + combining mark. Grapheme segmentation is the only correct unit here,
+ * because every one of those is ONE thing a user can click on or delete.
+ */
+function characters(text: string): string[] {
+  const Segmenter = (Intl as { Segmenter?: typeof Intl.Segmenter }).Segmenter
+  if (!Segmenter) return Array.from(text)
+  const segmenter = new Segmenter(undefined, { granularity: 'grapheme' })
+  return Array.from(segmenter.segment(text), (piece) => piece.segment)
+}
+
 /** Check if a node is a text node not inside a .do-not-spanify element */
 function isSpanifiableText(node: Node): boolean {
   return node.nodeType === 3 && !node.parentElement?.closest('.do-not-spanify')
@@ -39,10 +56,10 @@ export function spanify(element: Element, make: boolean, byWord = false): void {
       if (byWord) {
         pieces = text.match(/\s+|\w+|[^\w\s]+/g) || [text]
       } else {
-        pieces = text.split('')
+        pieces = characters(text)
       }
 
-      if (pieces.length <= 1 && text.length <= 1) continue
+      if (pieces.length <= 1 && characters(text).length <= 1) continue
 
       const parent = textNode.parentNode
       if (!parent) continue
@@ -54,7 +71,8 @@ export function spanify(element: Element, make: boolean, byWord = false): void {
 
       const fragment = document.createDocumentFragment()
       for (const piece of pieces) {
-        if (piece.length > 1) {
+        // More than one USER-PERCEIVED character, not more than one code unit
+        if (characters(piece).length > 1) {
           const wordSpan = document.createElement('span')
           wordSpan.className = 'spanified-word'
           wordSpan.textContent = piece

@@ -34,6 +34,34 @@ describe('spanify', () => {
     expect(wordSpans.length).toBe(2) // hello, world (space is single char)
   })
 
+  test('keeps an emoji whole instead of tearing its surrogate pair', () => {
+    container.innerHTML = '<p>a\u{1F310}b</p>'
+    const p = container.querySelector('p')!
+    spanify(p, true)
+    const spans = [...p.querySelectorAll('.spanified')].map((s) => s.textContent)
+    // split('') would give 4 spans, the middle two being lone surrogates
+    expect(spans).toEqual(['a', '\u{1F310}', 'b'])
+    expect(p.textContent).toBe('a\u{1F310}b')
+  })
+
+  test('keeps a flag whole — two regional indicators are one grapheme', () => {
+    container.innerHTML = '<p>\u{1F1EC}\u{1F1E7}!</p>'
+    const p = container.querySelector('p')!
+    spanify(p, true)
+    const spans = [...p.querySelectorAll('.spanified')].map((s) => s.textContent)
+    expect(spans).toEqual(['\u{1F1EC}\u{1F1E7}', '!'])
+  })
+
+  test('round-trips emoji through spanify and back', () => {
+    const original = '<p>hi \u{1F310} \u{1F1EB}\u{1F1EE}</p>'
+    container.innerHTML = original
+    const p = container.querySelector('p')!
+    spanify(p, true)
+    spanify(p, false)
+    expect(p.textContent).toBe('hi \u{1F310} \u{1F1EB}\u{1F1EE}')
+    expect(p.textContent).not.toContain('\uFFFD')
+  })
+
   test('unwraps spanified content', () => {
     container.innerHTML = '<p>ABC</p>'
     const p = container.querySelector('p')!

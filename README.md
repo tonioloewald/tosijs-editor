@@ -21,6 +21,7 @@
 tosijs-styled-editor {
   --editor-ink: #27488c;
   --editor-surface: var(--tosi-bg, Canvas);
+  --editor-text: var(--tosi-text, CanvasText);
   border: 1px solid var(--editor-edge);
   border-radius: 6px;
   overflow: hidden;
