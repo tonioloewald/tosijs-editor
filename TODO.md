@@ -6,7 +6,7 @@
     inside it is substituted at the BUTTON, not the host. Measured dark: icon oklab L 0.36 on
     a 0.16 bar. Document text is correct (#ddd on #050505). Likely fix: register the tokens
     with `@property { syntax: '<color>'; inherits: true }` so they compute eagerly to a real
-    colour and inherit resolved. Filed upstream as tosijs-ui#149.
+    colour and inherit resolved. Filed upstream as tosijs-ui#150.
 
 [x] Option-shift-left and option-shift-right arrows should extend selection by words. What happens now is chaos.
 [ ] Tabbing into an empty table cell makes the entire table shaded as though selected (behavior is fine)
