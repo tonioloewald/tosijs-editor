@@ -285,7 +285,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       marginRight: '-1px',
       marginBottom: '-4px',
       marginTop: '-6px',
-      background: 'black',
+      background: 'currentColor',
     },
     ':host .sel-start': {
       minHeight: '6px',
@@ -309,11 +309,13 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
     // Selected text
     ':host .selected': {
-      background: 'rgba(0,0,255,0.3)',
+      background:
+        'color-mix(in oklab, var(--editor-ink) 42%, var(--editor-surface))',
     },
     // Selected blocks
     ':host .selected-block': {
-      background: '#ddf',
+      background:
+        'color-mix(in oklab, var(--editor-ink) 12%, var(--editor-surface))',
     },
     ':host .first-block': {
       position: 'relative',

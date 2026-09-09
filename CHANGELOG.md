@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The selection was unreadable in dark mode.** `.selected` was a hardcoded
+  `rgba(0,0,255,0.3)` and `.selected-block` a hardcoded `#ddf` — a pale blue
+  that light text disappears into — and the caret/bounds were `background: black`,
+  invisible on a dark page. All three now derive from `--editor-ink` mixed into
+  `--editor-surface` (and `currentColor` for the bounds), so they tint whichever
+  way the page is themed. Measured: selection band at oklab L 0.75 on light and
+  L 0.24 on dark, with the document text readable on it in both.
+
 - **Emoji were torn in half.** `spanify` split text with `split('')`, which
   splits by UTF-16 code UNIT, so an emoji's surrogate pair became two lone
   surrogates rendering as `?`. Splitting is now by grapheme cluster via
