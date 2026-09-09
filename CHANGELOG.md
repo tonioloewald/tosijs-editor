@@ -42,8 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that light text disappears into — and the caret/bounds were `background: black`,
   invisible on a dark page. All three now derive from `--editor-ink` mixed into
   `--editor-surface` (and `currentColor` for the bounds), so they tint whichever
-  way the page is themed. Measured: selection band at oklab L 0.75 on light and
-  L 0.24 on dark, with the document text readable on it in both.
+  way the page is themed. The band is lifted toward white BEFORE the ink is
+  mixed in — nearly a no-op on an already-white page, but it raises a dark one
+  clear of the background, which a plain ink-into-surface mix cannot do because
+  the surface dominates. Measured light 0.75 / dark 0.38 against pages at 0.99
+  and 0.11.
 
 - **Emoji were torn in half.** `spanify` split text with `split('')`, which
   splits by UTF-16 code UNIT, so an emoji's surrogate pair became two lone
