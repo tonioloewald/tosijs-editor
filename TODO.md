@@ -1,3 +1,13 @@
+[ ] Toolbar/menu icon contrast in dark mode. The doc system declares
+    `button, select, .clickable { --text-color: var(--brand-color); color: var(--text-color) }`,
+    so our chain `--editor-text -> --tosi-text -> --text-color` RE-RESOLVES on every
+    button to the brand colour instead of the theme's text colour. `--editor-chrome-text`
+    is declared on `:host` but inherits as an unresolved token stream, so `var(--editor-text)`
+    inside it is substituted at the BUTTON, not the host. Measured dark: icon oklab L 0.36 on
+    a 0.16 bar. Document text is correct (#ddd on #050505). Likely fix: register the tokens
+    with `@property { syntax: '<color>'; inherits: true }` so they compute eagerly to a real
+    colour and inherit resolved. Filed upstream as tosijs-ui#149.
+
 [x] Option-shift-left and option-shift-right arrows should extend selection by words. What happens now is chaos.
 [ ] Tabbing into an empty table cell makes the entire table shaded as though selected (behavior is fine)
 

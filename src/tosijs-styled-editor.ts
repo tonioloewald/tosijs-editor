@@ -204,7 +204,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       '--editor-chrome-text':
         'color-mix(in oklab, var(--editor-ink) 30%, var(--editor-text))',
       background: 'var(--editor-surface)',
-      color: 'var(--editor-text) !important',
+      color: 'var(--editor-text)',
       // So Canvas/CanvasText track the system scheme when nobody themes us
       colorScheme: 'light dark',
     },
@@ -501,7 +501,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       borderRadius: '4px',
       background: 'transparent',
       boxShadow: 'none',
-      color: 'var(--editor-text) !important',
+      color: 'var(--editor-chrome-text) !important',
       cursor: 'pointer',
     },
     'tosijs-styled-editor button[slot="toolbar"]:hover:not([disabled])': {
@@ -525,7 +525,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       boxShadow: 'none',
       borderRadius: '4px',
       padding: '4px 10px',
-      color: 'var(--editor-text) !important',
+      color: 'var(--editor-chrome-text) !important',
       cursor: 'pointer',
     },
     'tosijs-styled-editor [slot="menubar"] button:hover': {
