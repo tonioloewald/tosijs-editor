@@ -299,6 +299,60 @@ export function defaultToolbar(): HTMLElement[] {
   ]
 }
 
+/**
+ * Insert menu — link, image and footnote.
+ *
+ * Link and image need a URL, and the component has no dialog of its own yet, so
+ * these prompt. A host that wants its own UI can call the commands directly:
+ * `editor.doCommand('setLink <url> [target]')`.
+ */
+export function insertMenu(editor: TosijsStyledEditor): HTMLElement {
+  return tosiMenu(
+    {
+      slot: 'menubar',
+      localized: true,
+      menuItems: [
+        menuScopeMarker(),
+        {
+          caption: 'Link…',
+          action() {
+            const url = prompt('Link URL')
+            if (!url) return
+            const target = prompt('Target (blank for a new tab)', '_blank')
+            editor.doCommand(`setLink ${url} ${target || '_blank'}`)
+          },
+        },
+        {
+          caption: 'Remove Link',
+          action: () => editor.doCommand('removeLink'),
+        },
+        null,
+        {
+          caption: 'Image…',
+          action() {
+            const url = prompt('Image URL')
+            if (!url) return
+            const alt = prompt('Alt text (describe the image)') || ''
+            editor.doCommand(`insertImage ${url} ${alt}`)
+          },
+        },
+        null,
+        {
+          caption: 'Footnote',
+          action: () => editor.doCommand('insertFootnote'),
+        },
+        {
+          caption: 'Renumber Footnotes',
+          action: () => editor.doCommand('renumberFootnotes'),
+        },
+      ] as MenuItem[],
+    },
+    icons.link(),
+    ' ',
+    menuLabel('Insert')
+  ) as unknown as HTMLElement
+}
+
 /** Table menu */
 export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
   return tosiMenu(
@@ -338,6 +392,7 @@ export function tableMenu(editor: TosijsStyledEditor): HTMLElement {
 export function defaultMenubar(editor: TosijsStyledEditor): HTMLElement[] {
   return [
     paragraphStyleMenu(editor),
+    insertMenu(editor),
     justificationMenu(editor),
     fontFamilyMenu(editor),
     fontSizeMenu(editor),

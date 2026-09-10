@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Links**: `setLink <url> [target]` and `removeLink`. Defaults to
+  `target="_blank"` with `rel="noopener"`. Clicking a link in the editor places
+  the caret; Ctrl/Cmd-click follows it.
+- **Images**: `insertImage <url> [alt…]`. An `<img>` is already a leaf node, so
+  selection and deletion treat it as one thing with no special casing.
+- **Footnotes**: `insertFootnote [text…]` and `renumberFootnotes`. Numbers are
+  derived from document order rather than stored, so inserting in the middle
+  renumbers the rest and reorders the list; deleting a marker drops its entry.
+- An **Insert** menu carrying all three.
+
 - **Localization**, following tosijs-ui's conventions rather than a private
   scheme: `localized` on the element translates the built-in widgets and adds a
   flag-only language picker. Toolbar buttons carry `data-tosi-localized` (a JSON

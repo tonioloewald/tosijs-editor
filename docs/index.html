@@ -337,6 +337,24 @@ setBlockType blockquote
 setBlocks margin-left 40px
 setBlocks line-height 2.5
 </code></pre>
+<h3>Links, images and footnotes</h3>
+<pre><code>setLink https://example.com          # wraps the selection; opens in a new tab
+setLink https://example.com _self    # same tab
+setLink https://example.com pane     # a named target
+removeLink                           # unwrap, keeping the text
+insertImage https://host/cat.png A cat
+insertFootnote optional initial text
+renumberFootnotes                    # recompute after editing by hand
+</code></pre>
+<p>Links default to <code>target=&quot;_blank&quot;</code> and get <code>rel=&quot;noopener&quot;</code> with it — without
+that, the opened page receives a live <code>window.opener</code> reference back to yours.
+Pass <code>_self</code> to clear both.</p>
+<p>Footnote <strong>numbers are never stored</strong>; they are derived from document order, so
+inserting one in the middle renumbers the rest and reorders the list to match.
+Deleting a marker drops its entry on the next renumber, and deleting the last
+one removes the list. The stable identity is <code>data-footnote</code>, not the number.</p>
+<p>Inside the editor a link is text you are editing, so clicking it places the
+caret rather than navigating. Ctrl/Cmd-click follows it.</p>
 <h3>Table commands</h3>
 <pre><code>insertTable 3              # 3 columns, 2 rows (1 header)
 insertTable 4 5 1          # 4 columns, 5 rows, 1 header row

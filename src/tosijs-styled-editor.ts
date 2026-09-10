@@ -262,6 +262,32 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ':host [part="doc"] > blockquote': {
       padding: '4px 40px',
     },
+    // Images are leaf nodes, so selection and deletion already treat one as a
+    // single thing; it just must not blow out of the column.
+    ':host [part="doc"] img': {
+      maxWidth: '100%',
+      height: 'auto',
+      verticalAlign: 'bottom',
+    },
+    ':host [part="doc"] a': {
+      color: 'color-mix(in oklab, var(--editor-ink) 65%, var(--editor-text))',
+      textDecoration: 'underline',
+    },
+    ':host [part="doc"] .footnote-ref': {
+      fontSize: '0.75em',
+      lineHeight: '0',
+      verticalAlign: 'super',
+    },
+    ':host [part="doc"] .footnote-ref a': {
+      textDecoration: 'none',
+      padding: '0 1px',
+    },
+    ':host [part="doc"] ol.footnotes': {
+      marginTop: '16px',
+      paddingTop: '8px',
+      borderTop: '1px solid var(--editor-edge)',
+      fontSize: '0.85em',
+    },
     // An LTR run inside an RTL paragraph inherits the paragraph's base
     // direction, so leading/trailing neutrals — a URL's slashes, a trailing
     // period, a leading bracket — resolve to the WRONG side even though the
@@ -741,6 +767,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     })
 
     // Toolbar button events — listen on host since buttons are slotted light DOM
+    doc.addEventListener('click', this.handleDocClick)
     this.addEventListener('click', this.handleToolbarClick)
     this.addEventListener('change', this.handleToolbarChange)
 
@@ -1875,6 +1902,25 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ) as HTMLButtonElement | null
     if (undoBtn) undoBtn.disabled = this.undoDepth >= this.undo.length - 1
     if (redoBtn) redoBtn.disabled = this.undoDepth === 0
+  }
+
+  /**
+   * A link inside the document is text you are editing, not navigation — a
+   * click there is placing the caret. Ctrl/Cmd-click still follows it, which is
+   * the convention every other editor uses.
+   */
+  private handleDocClick = (evt: MouseEvent): void => {
+    if (!this.active) return
+    const link = (evt.target as Element)?.closest?.('a')
+    if (!link || !this.parts.doc.contains(link)) return
+    if (evt.metaKey || evt.ctrlKey) {
+      window.open(
+        link.getAttribute('href') || '',
+        link.getAttribute('target') || '_blank',
+        'noopener'
+      )
+    }
+    evt.preventDefault()
   }
 
   /** Handle shortcuts (ctrl/cmd+key) */

@@ -118,6 +118,82 @@ function mergeAdjacentLists(list: Element): Element {
   return survivor
 }
 
+
+/**
+ * Set (or clear) a link's target.
+ *
+ * `target="_blank"` without `rel="noopener"` hands the opened page a live
+ * `window.opener` reference to this one, so the two travel together.
+ */
+function applyLinkTarget(link: Element, target: string): void {
+  if (!target || target === '_self') {
+    link.removeAttribute('target')
+    link.removeAttribute('rel')
+    return
+  }
+  link.setAttribute('target', target)
+  link.setAttribute('rel', 'noopener')
+}
+
+/** A stable key for a footnote pair, independent of its current number */
+let footnoteSeq = 0
+function footnoteKey(): string {
+  footnoteSeq += 1
+  return `fn-${Date.now().toString(36)}-${footnoteSeq}`
+}
+
+/**
+ * Renumber footnotes from DOCUMENT ORDER and reorder the list to match.
+ *
+ * Numbers are never stored — they are derived here — so inserting a footnote
+ * in the middle renumbers everything after it, and deleting a marker drops its
+ * entry. The stable identity is `data-footnote`, not the number.
+ */
+export function renumberFootnotes(root: HTMLElement): void {
+  const refs = Array.from(
+    root.querySelectorAll('.footnote-ref[data-footnote]')
+  ).filter((ref) => !ref.closest('.footnotes'))
+  let list = root.querySelector('ol.footnotes')
+
+  if (refs.length === 0) {
+    list?.remove()
+    return
+  }
+  if (!list) {
+    list = document.createElement('ol')
+    list.className = 'footnotes'
+    root.appendChild(list)
+  }
+
+  const existing = new Map<string, Element>()
+  for (const item of Array.from(list.children)) {
+    const key = item.getAttribute('data-footnote')
+    if (key) existing.set(key, item)
+  }
+
+  refs.forEach((ref, index) => {
+    const key = ref.getAttribute('data-footnote')!
+    const link = ref.querySelector('a')
+    if (link) {
+      link.textContent = String(index + 1)
+      link.setAttribute('href', `#${key}`)
+    }
+    let item = existing.get(key)
+    if (!item) {
+      item = document.createElement('li')
+      item.className = 'footnote'
+      item.setAttribute('data-footnote', key)
+      item.textContent = 'Footnote text'
+    }
+    item.id = key
+    existing.delete(key)
+    list!.appendChild(item)
+  })
+
+  // Markers that no longer exist take their entries with them
+  for (const orphan of existing.values()) orphan.remove()
+}
+
 /** Command definitions — extensible by adding new methods */
 export const commands: Record<string, Command> = {
   /**
@@ -232,6 +308,127 @@ export const commands: Record<string, Command> = {
       for (const block of group) block.remove()
       mergeAdjacentLists(list)
     }
+    ctx.updateUndo('new')
+  },
+
+  /**
+   * Wrap the selected text in a link, or repoint a link already covering it.
+   * Opens in a new tab unless told otherwise.
+   * Usage: setLink https://example.com | setLink https://example.com _self
+   */
+  setLink(ctx: EditableContext, url: string, target = '_blank') {
+    if (!url) return
+    ctx.selectable.resetBounds()
+    spanify(ctx.root, false)
+    ctx.selectable.markBounds()
+    ctx.normalize()
+    const nodes = ctx.selectedLeafNodes()
+    ctx.selectable.removeBounds()
+
+    for (const node of nodes) {
+      if (node.nodeType !== 3) continue
+      const existing = closestSingleParentAncestor(node, 'a')
+      if (existing instanceof Element) {
+        existing.setAttribute('href', url)
+        applyLinkTarget(existing, target)
+      } else {
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        applyLinkTarget(link, target)
+        node.parentNode?.insertBefore(link, node)
+        link.appendChild(node)
+      }
+    }
+    ctx.selectable.resetBounds()
+    ctx.focus()
+    ctx.updateUndo('new')
+  },
+
+  /** Unwrap any link covering the selection. Usage: removeLink */
+  removeLink(ctx: EditableContext) {
+    ctx.selectable.resetBounds()
+    spanify(ctx.root, false)
+    ctx.selectable.markBounds()
+    const nodes = ctx.selectedLeafNodes()
+    ctx.selectable.removeBounds()
+
+    const links = new Set<Element>()
+    for (const node of nodes) {
+      const link =
+        node.parentElement?.closest('a') ??
+        (node instanceof Element ? node.closest('a') : null)
+      if (link && ctx.root.contains(link)) links.add(link)
+    }
+    for (const link of links) {
+      const parent = link.parentNode
+      if (!parent) continue
+      while (link.firstChild) parent.insertBefore(link.firstChild, link)
+      parent.removeChild(link)
+    }
+    ctx.selectable.resetBounds()
+    ctx.focus()
+    ctx.updateUndo('new')
+  },
+
+  /**
+   * Insert an image at the caret. An <img> is a leaf node, so selection and
+   * deletion already treat it as one thing.
+   * Usage: insertImage https://example.com/cat.png A cat
+   */
+  insertImage(ctx: EditableContext, url: string, ...alt: string[]) {
+    const ip = ctx.insertionPoint()
+    if (!ip || !url) return
+    const image = document.createElement('img')
+    image.setAttribute('src', url)
+    image.setAttribute('alt', alt.join(' '))
+    ip.before(image)
+    ctx.normalize()
+    ctx.focus()
+    ctx.updateUndo('new')
+  },
+
+  /**
+   * Insert a footnote marker at the caret and its entry at the end of the
+   * document. Numbers come from document order, so inserting one in the middle
+   * renumbers the rest.
+   * Usage: insertFootnote optional initial text
+   */
+  insertFootnote(ctx: EditableContext, ...text: string[]) {
+    const ip = ctx.insertionPoint()
+    if (!ip) return
+    const key = footnoteKey()
+
+    const marker = document.createElement('sup')
+    marker.className = 'footnote-ref'
+    marker.setAttribute('data-footnote', key)
+    const link = document.createElement('a')
+    link.setAttribute('href', `#${key}`)
+    link.textContent = '?'
+    marker.appendChild(link)
+    ip.before(marker)
+
+    let list = ctx.root.querySelector('ol.footnotes')
+    if (!list) {
+      list = document.createElement('ol')
+      list.className = 'footnotes'
+      ctx.root.appendChild(list)
+    }
+    const item = document.createElement('li')
+    item.className = 'footnote'
+    item.setAttribute('data-footnote', key)
+    item.id = key
+    item.textContent = text.length ? text.join(' ') : 'Footnote text'
+    list.appendChild(item)
+
+    renumberFootnotes(ctx.root)
+    ctx.normalize()
+    ctx.focus()
+    ctx.updateUndo('new')
+  },
+
+  /** Recompute footnote numbers and order. Usage: renumberFootnotes */
+  renumberFootnotes(ctx: EditableContext) {
+    renumberFootnotes(ctx.root)
     ctx.updateUndo('new')
   },
 

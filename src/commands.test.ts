@@ -303,3 +303,141 @@ describe('setList', () => {
     expect(caret!.closest('li')).not.toBeNull()
   })
 })
+
+describe('links, images and footnotes', () => {
+  let root: HTMLElement
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    document.body.appendChild(root)
+  })
+
+  afterEach(() => {
+    root.remove()
+  })
+
+  function selectAll(html: string) {
+    root.innerHTML = html
+    for (const block of Array.from(root.children)) {
+      block.classList.add('selected-block')
+      for (const child of Array.from(block.children)) {
+        child.classList.add('selected')
+      }
+    }
+    return createContext(root)
+  }
+
+  test('setLink wraps the selection', () => {
+    const ctx = selectAll('<p><span>click me</span></p>')
+    executeCommand(ctx, 'setLink https://example.com')
+    const link = root.querySelector('a')
+    expect(link).not.toBeNull()
+    expect(link!.getAttribute('href')).toBe('https://example.com')
+    expect(link!.textContent).toBe('click me')
+  })
+
+  test('links open in a new tab by default, with rel=noopener', () => {
+    const ctx = selectAll('<p><span>click me</span></p>')
+    executeCommand(ctx, 'setLink https://example.com')
+    const link = root.querySelector('a')!
+    expect(link.getAttribute('target')).toBe('_blank')
+    // _blank without noopener gives the opened page a live window.opener
+    expect(link.getAttribute('rel')).toBe('noopener')
+  })
+
+  test('an explicit target is honoured, and _self clears it', () => {
+    const ctx = selectAll('<p><span>a</span></p>')
+    executeCommand(ctx, 'setLink https://example.com _self')
+    let link = root.querySelector('a')!
+    expect(link.hasAttribute('target')).toBe(false)
+    expect(link.hasAttribute('rel')).toBe(false)
+
+    const ctx2 = selectAll('<p><span>b</span></p>')
+    executeCommand(ctx2, 'setLink https://example.com reading-pane')
+    link = root.querySelector('a')!
+    expect(link.getAttribute('target')).toBe('reading-pane')
+  })
+
+  test('setLink repoints an existing link rather than nesting one', () => {
+    const ctx = selectAll('<p><a href="http://old.example"><span>x</span></a></p>')
+    root.querySelector('span')!.classList.add('selected')
+    executeCommand(ctx, 'setLink https://new.example')
+    expect(root.querySelectorAll('a').length).toBe(1)
+  })
+
+  test('removeLink unwraps but keeps the text', () => {
+    const ctx = selectAll('<p><a href="https://example.com"><span>keep me</span></a></p>')
+    root.querySelector('span')!.classList.add('selected')
+    executeCommand(ctx, 'removeLink')
+    expect(root.querySelector('a')).toBeNull()
+    expect(root.textContent).toContain('keep me')
+  })
+
+  test('insertImage puts an img at the caret', () => {
+    root.innerHTML = '<p>before<input class="sel-end caret">after</p>'
+    executeCommand(createContext(root), 'insertImage https://example.com/cat.png A cat')
+    const img = root.querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img!.getAttribute('src')).toBe('https://example.com/cat.png')
+    expect(img!.getAttribute('alt')).toBe('A cat')
+  })
+
+  test('insertFootnote adds a marker and an entry', () => {
+    root.innerHTML = '<p>text<input class="sel-end caret"></p>'
+    executeCommand(createContext(root), 'insertFootnote first note')
+    expect(root.querySelectorAll('.footnote-ref').length).toBe(1)
+    const item = root.querySelector('ol.footnotes li')
+    expect(item).not.toBeNull()
+    expect(item!.textContent).toBe('first note')
+    // marker points at its entry
+    expect(root.querySelector('.footnote-ref a')!.getAttribute('href')).toBe(
+      '#' + item!.id
+    )
+    expect(root.querySelector('.footnote-ref a')!.textContent).toBe('1')
+  })
+
+  test('numbers come from document order, so inserting in the middle renumbers', () => {
+    root.innerHTML = '<p>a<input class="sel-end caret"></p><p>b</p>'
+    const ctx = createContext(root)
+    executeCommand(ctx, 'insertFootnote note A')
+    // caret is now after the first marker; move it into the second paragraph
+    const caret = root.querySelector('input.caret')!
+    root.querySelectorAll('p')[1].appendChild(caret)
+    executeCommand(ctx, 'insertFootnote note B')
+
+    let numbers = [...root.querySelectorAll('.footnote-ref a')].map((a) => a.textContent)
+    expect(numbers).toEqual(['1', '2'])
+
+    // now insert one BEFORE both
+    const first = root.querySelectorAll('p')[0]
+    first.insertBefore(caret, first.firstChild)
+    executeCommand(ctx, 'insertFootnote note C')
+
+    numbers = [...root.querySelectorAll('.footnote-ref a')].map((a) => a.textContent)
+    expect(numbers).toEqual(['1', '2', '3'])
+    // and the list order follows the markers, not insertion order
+    const order = [...root.querySelectorAll('ol.footnotes li')].map((li) => li.textContent)
+    expect(order).toEqual(['note C', 'note A', 'note B'])
+  })
+
+  test('deleting a marker drops its entry on renumber', () => {
+    root.innerHTML = '<p>a<input class="sel-end caret"></p>'
+    const ctx = createContext(root)
+    executeCommand(ctx, 'insertFootnote gone')
+    executeCommand(ctx, 'insertFootnote stays')
+    root.querySelector('.footnote-ref')!.remove()
+    executeCommand(ctx, 'renumberFootnotes')
+    const items = [...root.querySelectorAll('ol.footnotes li')].map((li) => li.textContent)
+    expect(items).toEqual(['stays'])
+    expect(root.querySelector('.footnote-ref a')!.textContent).toBe('1')
+  })
+
+  test('removing the last marker removes the whole list', () => {
+    root.innerHTML = '<p>a<input class="sel-end caret"></p>'
+    const ctx = createContext(root)
+    executeCommand(ctx, 'insertFootnote only')
+    root.querySelector('.footnote-ref')!.remove()
+    executeCommand(ctx, 'renumberFootnotes')
+    expect(root.querySelector('ol.footnotes')).toBeNull()
+  })
+})

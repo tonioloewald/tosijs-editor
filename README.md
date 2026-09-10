@@ -224,6 +224,30 @@ setBlocks margin-left 40px
 setBlocks line-height 2.5
 ```
 
+### Links, images and footnotes
+
+```
+setLink https://example.com          # wraps the selection; opens in a new tab
+setLink https://example.com _self    # same tab
+setLink https://example.com pane     # a named target
+removeLink                           # unwrap, keeping the text
+insertImage https://host/cat.png A cat
+insertFootnote optional initial text
+renumberFootnotes                    # recompute after editing by hand
+```
+
+Links default to `target="_blank"` and get `rel="noopener"` with it — without
+that, the opened page receives a live `window.opener` reference back to yours.
+Pass `_self` to clear both.
+
+Footnote **numbers are never stored**; they are derived from document order, so
+inserting one in the middle renumbers the rest and reorders the list to match.
+Deleting a marker drops its entry on the next renumber, and deleting the last
+one removes the list. The stable identity is `data-footnote`, not the number.
+
+Inside the editor a link is text you are editing, so clicking it places the
+caret rather than navigating. Ctrl/Cmd-click follows it.
+
 ### Table commands
 
 ```
