@@ -310,12 +310,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Selected text
     ':host .selected': {
       background:
-        'color-mix(in oklab, var(--editor-ink) 42%, color-mix(in oklab, white 28%, var(--editor-surface)))',
+        'color-mix(in oklab, var(--editor-ink) 42%, color-mix(in oklab, white 38%, var(--editor-surface)))',
     },
     // Selected blocks
     ':host .selected-block': {
       background:
-        'color-mix(in oklab, var(--editor-ink) 12%, color-mix(in oklab, white 14%, var(--editor-surface)))',
+        'color-mix(in oklab, var(--editor-ink) 12%, color-mix(in oklab, white 21%, var(--editor-surface)))',
     },
     ':host .first-block': {
       position: 'relative',

@@ -45,8 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   way the page is themed. The band is lifted toward white BEFORE the ink is
   mixed in — nearly a no-op on an already-white page, but it raises a dark one
   clear of the background, which a plain ink-into-surface mix cannot do because
-  the surface dominates. Measured light 0.75 / dark 0.38 against pages at 0.99
-  and 0.11.
+  the surface dominates. Dark is deliberately given MORE measured separation
+  than light, because light-on-dark halates and reads as less contrast at the
+  same numbers. Measured light 0.75 against a 0.99 page (separation 0.24), dark
+  0.44 against 0.11 (separation 0.33).
 
 - **Emoji were torn in half.** `spanify` split text with `split('')`, which
   splits by UTF-16 code UNIT, so an emoji's surrogate pair became two lone
