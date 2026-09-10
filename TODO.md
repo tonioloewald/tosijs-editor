@@ -1,3 +1,26 @@
+[ ] Arrow keys are LOGICAL, but Up/Down and the mouse are VISUAL — decide and unify.
+    `arrowLeft`/`arrowRight` use previousLeafNode/nextLeafNode, i.e. movement by
+    string order. In LTR that is identical to moving left/right on screen, which is
+    why it looks fine. In RTL it inverts: Left moves the caret visually RIGHT.
+    Two independent reasons to prefer visual:
+      - Arrow keys are spatial keys; most RTL users expect Left to go left. macOS's
+        text system moves visually. (Genuinely contested though — Firefox ships
+        `bidi.edit.caret_movement_style` 0=logical / 1=visual / 2=hybrid precisely
+        because there is no consensus; its default is the hybrid.)
+      - We are already inconsistent WITH OURSELVES, independent of bidi: click and
+        drag select by hit-testing character rects, and Up/Down already use
+        groupByLine/closestCharOnLine. Only Left/Right go by DOM order. So clicking
+        a spot and then pressing Left moves opposite to where you pointed.
+    Cheap to fix: the geometry helpers already exist — pick the nearest character
+    rect to the left/right on the same line instead of walking DOM order.
+    Do NOT make these visual: Backspace/Delete must stay logical (delete what you
+    just typed, whichever way it rendered) and Home/End are logical (start of line
+    = right edge in RTL). Word movement follows the arrow visually, but word
+    BOUNDARIES stay logical.
+    Worth an attribute (`caret-movement="visual|logical"`) defaulting to visual,
+    since the hybrid case — a direction boundary where two caret positions paint in
+    the same place — has no obviously right answer.
+
 [ ] Toolbar/menu icon contrast in dark mode. The doc system declares
     `button, select, .clickable { --text-color: var(--brand-color); color: var(--text-color) }`,
     so our chain `--editor-text -> --tosi-text -> --text-color` RE-RESOLVES on every
