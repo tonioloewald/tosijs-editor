@@ -224,6 +224,34 @@ setBlocks margin-left 40px
 setBlocks line-height 2.5
 ```
 
+### Drag and drop
+
+Selected text becomes a real draggable object — spanification means the
+selection is made of elements, which is exactly what HTML5 drag and drop wants,
+so dragging works between windows, between browsers, and to and from the
+desktop with no extra machinery.
+
+Every drag offers **both representations**, and the receiver picks:
+
+| type         | what it gets      |
+| ------------ | ----------------- |
+| `text/html`  | the styled markup |
+| `text/plain` | clean text        |
+
+- **Move within the editor, Alt to copy.**
+- **Leaving the editor is always a copy.** The source is only deleted by this
+  editor's own drop handler, so text dragged into another app is never removed
+  from a document you can no longer see.
+- **The drop indicator IS the caret.** Since the editor owns its caret, the
+  thing showing where text will land is the thing that receives it.
+- Dropped **image files** are read in as data URIs; dropped HTML goes through
+  the same `pastemode` normalisation as a paste, so dropping and pasting the
+  same content produce the same document.
+
+The editor declares `data-drop="text/html;text/plain;Files;image/*"` and each
+selected element `data-drag="text/html;text/plain"`, matching the conventions
+`tosijs-ui`'s drag library uses to mark compatible drop zones.
+
 ### Links, images and footnotes
 
 ```

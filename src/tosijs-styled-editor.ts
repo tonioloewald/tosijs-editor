@@ -768,6 +768,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Toolbar button events — listen on host since buttons are slotted light DOM
     doc.addEventListener('click', this.handleDocClick)
+    doc.addEventListener('dragstart', this.handleDragStart)
+    doc.addEventListener('dragover', this.handleDragOver)
+    doc.addEventListener('drop', this.handleDrop)
+    doc.addEventListener('dragend', this.handleDragEnd)
+    doc.setAttribute('data-drop', 'text/html;text/plain;Files;image/*')
     this.addEventListener('click', this.handleToolbarClick)
     this.addEventListener('change', this.handleToolbarChange)
 
@@ -2144,6 +2149,30 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.deleteSelection()
   }
 
+  /**
+   * Insert transferred content at the caret, honouring `pastemode`.
+   *
+   * Shared by paste and drop deliberately: dropping and pasting the same
+   * content must produce the same document, and that only stays true if there
+   * is one implementation.
+   */
+  private insertTransfer(html?: string | null, text?: string | null): boolean {
+    const ip = this.insertionPoint()
+    if (!ip) return false
+
+    if (this.pastemode === 'remove' || !html) {
+      if (!text) return false
+      ip.before(document.createTextNode(text))
+    } else {
+      const temp = document.createElement('div')
+      temp.innerHTML = html
+      while (temp.firstChild) {
+        ip.before(temp.firstChild)
+      }
+    }
+    return true
+  }
+
   private handlePaste = (evt: ClipboardEvent): void => {
     if (!this.active) return
 
@@ -2151,26 +2180,114 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const text = evt.clipboardData?.getData('text/plain')
 
     this.deleteSelection()
-    const ip = this.insertionPoint()
-    if (!ip) return
-
-    if (this.pastemode === 'remove' || !html) {
-      // Plain text paste
-      if (text) {
-        ip.before(document.createTextNode(text))
-      }
-    } else {
-      // HTML paste
-      const temp = document.createElement('div')
-      temp.innerHTML = html
-      while (temp.firstChild) {
-        ip.before(temp.firstChild)
-      }
-    }
+    this.insertTransfer(html, text)
 
     this.normalize()
     this.updateUndo('new')
     evt.preventDefault()
+  }
+
+  /** True while a drag that STARTED in this editor is in flight */
+  private draggingSelection = false
+
+  /**
+   * Offer the selection as a draggable object in both representations, so the
+   * receiver picks: styled markup for a rich target, clean text for a plain one.
+   */
+  private handleDragStart = (evt: DragEvent): void => {
+    if (!this.active || !evt.dataTransfer) return
+    const selected = this.selectable.findAll('.selected')
+    if (selected.length === 0) return
+
+    const container = document.createElement('div')
+    for (const el of selected) container.appendChild(el.cloneNode(true))
+    evt.dataTransfer.setData('text/html', container.innerHTML)
+    evt.dataTransfer.setData('text/plain', container.textContent || '')
+    evt.dataTransfer.effectAllowed = 'copyMove'
+    this.draggingSelection = true
+  }
+
+  /**
+   * The drop indicator IS the caret — we own it, so there is no separate
+   * insertion bar to keep in sync with where the text will actually land.
+   */
+  private handleDragOver = (evt: DragEvent): void => {
+    if (!this.active) return
+    evt.preventDefault()
+    if (evt.dataTransfer) {
+      evt.dataTransfer.dropEffect = evt.altKey ? 'copy' : 'move'
+    }
+    const target = evt.target as Element
+    if (target instanceof Element) {
+      this.selectable.placeCaretAt(target, evt.clientX, evt.clientY)
+    }
+  }
+
+  private handleDrop = (evt: DragEvent): void => {
+    if (!this.active || !evt.dataTransfer) return
+    evt.preventDefault()
+
+    const internal = this.draggingSelection
+    this.draggingSelection = false
+
+    // Dropping a selection onto itself is a no-op, not a self-destruct
+    const caret = this.insertionPoint()
+    if (internal && caret?.closest('.selected')) {
+      this.clearDraggable()
+      return
+    }
+
+    const files = Array.from(evt.dataTransfer.files || [])
+    const images = files.filter((file) => file.type.startsWith('image/'))
+    if (images.length) {
+      void this.insertDroppedImages(images)
+      this.clearDraggable()
+      return
+    }
+
+    const html = evt.dataTransfer.getData('text/html')
+    const text = evt.dataTransfer.getData('text/plain')
+
+    // Move WITHIN the editor; Alt copies. A drop outside this editor never
+    // reaches here, so leaving the editor is always a copy — the source
+    // document is never edited by something we cannot see the result of.
+    if (internal && !evt.altKey) {
+      this.deleteSelection()
+    } else {
+      this.selectable.unmark()
+    }
+    this.clearDraggable()
+    this.insertTransfer(html, text)
+    this.normalize()
+    this.updateUndo('new')
+    this.focus()
+  }
+
+  private handleDragEnd = (): void => {
+    // Never delete here: a drop outside this editor is a copy by design
+    this.draggingSelection = false
+    this.clearDraggable()
+  }
+
+  private clearDraggable(): void {
+    for (const el of Array.from(
+      this.parts.doc.querySelectorAll('[draggable]')
+    )) {
+      el.removeAttribute('draggable')
+      el.removeAttribute('data-drag')
+    }
+  }
+
+  /** Read dropped image files in as data URIs */
+  private async insertDroppedImages(images: File[]): Promise<void> {
+    for (const file of images) {
+      const url: string = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result || ''))
+        reader.readAsDataURL(file)
+      })
+      if (url) this.doCommand(`insertImage ${url} ${file.name}`)
+    }
   }
 
   /** Find the cell edge near a pointer position, returns [table, colIndex] or null */

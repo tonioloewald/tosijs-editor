@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Drag and drop editing.** Selected text is a real draggable object, offering
+  `text/html` and `text/plain` so the receiver picks — which means dragging works
+  between windows, between browsers, and to and from the desktop. Move within
+  the editor, Alt to copy, and leaving the editor is always a copy. Dropped image
+  files come in as data URIs; dropped HTML runs through the same `pastemode`
+  path as a paste.
+
 - **Links**: `setLink <url> [target]` and `removeLink`. Defaults to
   `target="_blank"` with `rel="noopener"`. Clicking a link in the editor places
   the caret; Ctrl/Cmd-click follows it.

@@ -128,6 +128,9 @@ export class Selectable {
   }
 
   private lastHovered: Element | null = null
+  /** A click inside a selection, resolved on mouseup if no drag started */
+  private pendingCollapse: { x: number; y: number; target: Element } | null =
+    null
 
   private setup(): void {
     allowSelection(this.root, false)
@@ -246,6 +249,29 @@ export class Selectable {
     return closest
   }
 
+  /**
+   * Put the caret at the character nearest a point. Used when a click inside a
+   * selection turns out not to be a drag, and to show the live drop position
+   * while dragging — we own the caret, so the drop indicator IS the caret.
+   */
+  placeCaretAt(target: Element, x: number, y: number): void {
+    if (!(target instanceof Element) || target === this.root) return
+    let hit: Element | null = target
+    if (!target.classList.contains('spanified')) {
+      spanify(target, true, true)
+      hit = this.nearestChar(target, x, y)
+    }
+    if (!hit || !hit.classList.contains('spanified')) return
+    const rect = hit.getBoundingClientRect()
+    this.removeBounds()
+    const bounds = this.createBounds()
+    if (x - rect.left < rect.width / 2) {
+      hit.before(bounds)
+    } else {
+      hit.after(bounds)
+    }
+  }
+
   private handleMouseDown = (evt: MouseEvent): void => {
     this.touchMode = false
     let target = evt.target as Element
@@ -253,6 +279,21 @@ export class Selectable {
       target.closest('.not-selectable') ||
       target.classList.contains('not-selectable')
     ) {
+      return
+    }
+
+    // A mousedown inside an existing selection may be the start of a DRAG.
+    // preventDefault() on mousedown suppresses the browser's drag initiation
+    // entirely, so dragstart would never fire — and collapsing the selection
+    // here would destroy the thing being dragged. Native editors defer both to
+    // mouseup, which is also what makes click-inside-a-selection feel right.
+    if (
+      evt.detail === 1 &&
+      !evt.shiftKey &&
+      target.closest?.('.selected') &&
+      !target.closest?.('.not-selectable')
+    ) {
+      this.pendingCollapse = { x: evt.clientX, y: evt.clientY, target }
       return
     }
 
@@ -310,6 +351,22 @@ export class Selectable {
   }
 
   private handleMouseUp = (evt: MouseEvent): void => {
+    // A click inside a selection that did NOT become a drag collapses it here
+    const pending = this.pendingCollapse
+    this.pendingCollapse = null
+    if (pending) {
+      const moved =
+        Math.abs(evt.clientX - pending.x) + Math.abs(evt.clientY - pending.y)
+      if (moved < 4) {
+        this.unmark()
+        this.selecting = 1
+        this.placeCaretAt(pending.target, pending.x, pending.y)
+        this.selecting = false
+        this.selectionChanged()
+      }
+      return
+    }
+
     const target = evt.target as Element
     if (
       target.closest('.not-selectable') ||
@@ -594,6 +651,8 @@ export class Selectable {
   unmark(): void {
     for (const el of this.findAll('.selected')) {
       el.classList.remove('selected')
+      el.removeAttribute('draggable')
+      el.removeAttribute('data-drag')
       if (
         el instanceof HTMLElement &&
         el.classList.length === 0 &&
@@ -705,6 +764,15 @@ export class Selectable {
     }
   }
 
+  /** The representations a dragged selection offers */
+  static DRAG_TYPES = 'text/html;text/plain'
+
+  /** Make a selected element a draggable object */
+  private makeDraggable(el: Element): void {
+    el.setAttribute('draggable', 'true')
+    el.setAttribute('data-drag', Selectable.DRAG_TYPES)
+  }
+
   /** Mark a single node as selected */
   private markNode(node: Node): void {
     if (node.nodeType === 3) {
@@ -713,12 +781,14 @@ export class Selectable {
       if (parent && (parent as Element).childNodes.length === 1) {
         // Only child — mark the parent
         ;(parent as Element).classList.add('selected')
+        this.makeDraggable(parent as Element)
       } else if (parent) {
         // Wrap in a span
         const span = document.createElement('span')
         span.className = 'selected'
         parent.insertBefore(span, node)
         span.appendChild(node)
+        this.makeDraggable(span)
       }
     } else if (node instanceof Element) {
       if (
@@ -726,6 +796,7 @@ export class Selectable {
         !node.classList.contains('sel-end')
       ) {
         node.classList.add('selected')
+        this.makeDraggable(node)
       }
     }
   }

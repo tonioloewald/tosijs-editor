@@ -337,6 +337,42 @@ setBlockType blockquote
 setBlocks margin-left 40px
 setBlocks line-height 2.5
 </code></pre>
+<h3>Drag and drop</h3>
+<p>Selected text becomes a real draggable object — spanification means the
+selection is made of elements, which is exactly what HTML5 drag and drop wants,
+so dragging works between windows, between browsers, and to and from the
+desktop with no extra machinery.</p>
+<p>Every drag offers <strong>both representations</strong>, and the receiver picks:</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>what it gets</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>text/html</code></td>
+<td>the styled markup</td>
+</tr>
+<tr>
+<td><code>text/plain</code></td>
+<td>clean text</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>Move within the editor, Alt to copy.</strong></li>
+<li><strong>Leaving the editor is always a copy.</strong> The source is only deleted by this
+editor&#39;s own drop handler, so text dragged into another app is never removed
+from a document you can no longer see.</li>
+<li><strong>The drop indicator IS the caret.</strong> Since the editor owns its caret, the
+thing showing where text will land is the thing that receives it.</li>
+<li>Dropped <strong>image files</strong> are read in as data URIs; dropped HTML goes through
+the same <code>pastemode</code> normalisation as a paste, so dropping and pasting the
+same content produce the same document.</li>
+</ul>
+<p>The editor declares <code>data-drop=&quot;text/html;text/plain;Files;image/*&quot;</code> and each
+selected element <code>data-drag=&quot;text/html;text/plain&quot;</code>, matching the conventions
+<code>tosijs-ui</code>&#39;s drag library uses to mark compatible drop zones.</p>
 <h3>Links, images and footnotes</h3>
 <pre><code>setLink https://example.com          # wraps the selection; opens in a new tab
 setLink https://example.com _self    # same tab

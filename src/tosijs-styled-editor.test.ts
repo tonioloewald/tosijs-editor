@@ -144,6 +144,106 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('drag and drop editing', () => {
+    function editorWith(html: string) {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = html
+      return el
+    }
+    function transfer(data: Record<string, string> = {}) {
+      const store: Record<string, string> = { ...data }
+      return {
+        files: [] as File[],
+        effectAllowed: '',
+        dropEffect: '',
+        setData(type: string, value: string) {
+          store[type] = value
+        },
+        getData: (type: string) => store[type] || '',
+      }
+    }
+    function fire(el: TosijsStyledEditor, type: string, init: any = {}) {
+      const evt: any = new Event(type, { bubbles: true, cancelable: true })
+      Object.assign(evt, init)
+      ;(init.target || el.parts.doc).dispatchEvent(evt)
+      return evt
+    }
+
+    test('the selection becomes a draggable object offering both types', () => {
+      // plain text: markNode wraps it, which is what happens in real use.
+      // (A bare <span class="selected"> would be UNWRAPPED by unmark(), since
+      // removing the class leaves it with no attributes at all.)
+      const el = editorWith('<p>hi</p>')
+      const p = el.parts.doc.querySelector('p')!
+      el.selectable.markRange(p, p)
+      const dragged = el.parts.doc.querySelector('[draggable]')
+      expect(dragged).not.toBeNull()
+      expect(dragged!.getAttribute('data-drag')).toContain('text/html')
+      expect(dragged!.getAttribute('data-drag')).toContain('text/plain')
+    })
+
+    test('dragstart offers styled AND plain representations', () => {
+      const el = editorWith('<p><span class="selected"><b>bold</b></span></p>')
+      const dt = transfer()
+      fire(el, 'dragstart', { dataTransfer: dt })
+      expect(dt.getData('text/html')).toContain('<b>')
+      expect(dt.getData('text/plain')).toBe('bold')
+      expect(dt.effectAllowed).toBe('copyMove')
+    })
+
+    test('an internal drop MOVES: the source is gone', () => {
+      const el = editorWith(
+        '<p><span class="selected">move me</span></p><p>here<input class="sel-end caret"></p>'
+      )
+      fire(el, 'dragstart', { dataTransfer: transfer() })
+      fire(el, 'drop', {
+        dataTransfer: transfer({ 'text/plain': 'move me' }),
+        altKey: false,
+      })
+      // one copy only — the original was removed
+      expect(el.parts.doc.textContent!.split('move me').length - 1).toBe(1)
+    })
+
+    test('alt makes an internal drop COPY: both remain', () => {
+      const el = editorWith(
+        '<p><span class="selected">copy me</span></p><p>here<input class="sel-end caret"></p>'
+      )
+      fire(el, 'dragstart', { dataTransfer: transfer() })
+      fire(el, 'drop', {
+        dataTransfer: transfer({ 'text/plain': 'copy me' }),
+        altKey: true,
+      })
+      expect(el.parts.doc.textContent!.split('copy me').length - 1).toBe(2)
+    })
+
+    test('dragend never deletes — leaving the editor is a copy', () => {
+      const el = editorWith('<p><span class="selected">keep me</span></p>')
+      fire(el, 'dragstart', { dataTransfer: transfer() })
+      // no drop here: the drag landed in another window
+      fire(el, 'dragend', {})
+      expect(el.parts.doc.textContent).toContain('keep me')
+      expect(el.parts.doc.querySelector('[draggable]')).toBeNull()
+    })
+
+    test('dropping a selection onto itself does nothing', () => {
+      const el = editorWith(
+        '<p><span class="selected">self<input class="sel-end caret"></span></p>'
+      )
+      fire(el, 'dragstart', { dataTransfer: transfer() })
+      fire(el, 'drop', { dataTransfer: transfer({ 'text/plain': 'self' }) })
+      expect(el.parts.doc.textContent).toContain('self')
+    })
+
+    test('the doc declares what it accepts', () => {
+      const el = editorWith('<p>x</p>')
+      const accepts = el.parts.doc.getAttribute('data-drop') || ''
+      for (const type of ['text/html', 'text/plain', 'Files']) {
+        expect(accepts).toContain(type)
+      }
+    })
+  })
+
   test('has selectable after connection', () => {
     const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)
