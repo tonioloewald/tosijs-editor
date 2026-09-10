@@ -42,7 +42,7 @@
   <meta name="twitter:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"A Rich Text Editor Component","description":"A pure web-component. What it does not use","url":"https://editor.tosijs.net/","inLanguage":"en","image":"https://editor.tosijs.net/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://editor.tosijs.net"}}</script>
   <link rel="icon" href="tosijs-editor.svg" />
-<script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
+<style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
   <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
@@ -65,16 +65,6 @@
 </code></pre>
 <pre><code class="language-css">tosijs-styled-editor {
   --editor-ink: #27488c;
-  --editor-surface: var(--tosi-bg, Canvas);
-  --editor-text: var(--tosi-text, CanvasText);
-  border: 1px solid var(--editor-edge);
-  border-radius: 6px;
-  overflow: hidden;
-  height: 340px;
-  resize: vertical;
-}
-.preview.preview {
-  padding: 0;
 }
 </code></pre>
 <p>A pure web-component. What it does <strong>not</strong> use:</p>

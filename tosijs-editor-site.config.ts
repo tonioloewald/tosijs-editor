@@ -14,6 +14,25 @@ export default defineSiteConfig({
   ogImage: '/tosijs-editor.svg',
   // Pen-ink blue; the doc system derives most of its palette from this
   theme: { accent: '#27488c' },
+
+  // Sizing for every live example, in ONE place rather than per doc page.
+  // The editor FILLS its preview rather than taking a fixed height: tosi-example
+  // is `height: var(--tosi-example-height)` and becomes 100vh when maximized, so
+  // a fixed height both overflows the normal case (the EXAMPLE scrolls instead of
+  // the document) and ignores the space when maximized.
+  headExtra: [
+    '<style>',
+    'tosijs-styled-editor {',
+    '  --editor-surface: var(--tosi-bg, Canvas);',
+    '  --editor-text: var(--tosi-text, CanvasText);',
+    '  height: 100%;',
+    '  border: 1px solid var(--editor-edge);',
+    '  border-radius: 6px;',
+    '  overflow: hidden;',
+    '}',
+    '.preview.preview { padding: 0 }',
+    '</style>',
+  ].join(''),
   // The doc system serves this at /localized-strings.txt and inits localization,
   // so the live examples can switch language. Adopters add a column.
   localizedStrings: readFileSync('localized-strings.tsv', 'utf8'),

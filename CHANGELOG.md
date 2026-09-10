@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Live examples now fill their preview instead of taking a fixed height.**
+  `tosi-example` is `height: var(--tosi-example-height)` (320px) and becomes
+  `100vh` when maximized, so the editor's hardcoded 340px both overflowed the
+  normal case — the EXAMPLE scrolled rather than the document — and ignored the
+  space when maximized. The sizing and the preview's padding reset now live in
+  the site config's `headExtra`, so every doc page gets them, including the RTL
+  page which had no CSS block of its own.
+
 - **The selection was unreadable in dark mode.** `.selected` was a hardcoded
   `rgba(0,0,255,0.3)` and `.selected-block` a hardcoded `#ddf` — a pale blue
   that light text disappears into — and the caret/bounds were `background: black`,
