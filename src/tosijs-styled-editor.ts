@@ -289,44 +289,42 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         direction: 'ltr',
         unicodeBidi: 'isolate',
       },
-    // Selection ANCHORS: pure position markers. Zero size and no paint, so they
-    // add nothing to the inline run — a bordered, sized or replaced element here
-    // changes how the text beside it is shaped.
-    ':host .sel-start, :host .sel-end': {
-      display: 'inline',
-      fontSize: '0',
+    // Selection bounds — inline-block with negative margins to avoid displacing text
+    ':host .caret, :host .sel-start, :host .sel-end': {
+      display: 'inline-block',
+      fontSize: 'inherit',
       lineHeight: 'inherit',
-    },
-    // The caret itself: a focusable element positioned OVER the text.
-    ':host .caret-overlay': {
-      position: 'absolute',
       width: '2px',
-      padding: '0',
       border: '0',
-      outline: 'none',
-      background: 'var(--editor-text)',
-      color: 'transparent',
-      caretColor: 'transparent',
-      pointerEvents: 'none',
-      zIndex: '2',
+      padding: '0',
+      marginLeft: '-1px',
+      marginRight: '-1px',
+      marginBottom: '-4px',
+      marginTop: '-6px',
+      background: 'currentColor',
     },
-    ':host .caret-overlay.-collapsed': {
+    ':host .sel-start': {
+      minHeight: '6px',
+      background: 'green',
+    },
+    ':host .sel-end': {
+      minHeight: '6px',
+      background: 'red',
+    },
+    // Blinking caret
+    ':host .caret': {
       animation: 'blink 1s steps(2, start) infinite',
     },
-    // Expanded selection keeps its edges distinguishable
-    ':host .selection-edge': {
-      position: 'absolute',
-      width: '2px',
-      pointerEvents: 'none',
-      zIndex: '2',
+    ':host .caret:focus': {
+      outline: 'none',
     },
-    ':host .edge-sel-start': {
-      background: 'color-mix(in oklab, green 70%, var(--editor-text))',
+    '@keyframes blink': {
+      to: {
+        background: 'transparent',
+      },
     },
-    ':host .edge-sel-end': {
-      background: 'color-mix(in oklab, red 70%, var(--editor-text))',
-    },
-':host .selected': {
+    // Selected text
+    ':host .selected': {
       background:
         'color-mix(in oklab, var(--editor-ink) 42%, color-mix(in oklab, white 38%, var(--editor-surface)))',
     },
@@ -596,13 +594,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Get doc innerHTML excluding UI affordances */
   private get docHTML(): string {
     this.touchAffordances?.remove()
-    // The caret and its edge markers are painted OVER the text, not part of it
-    const chrome = Array.from(
-      this.parts.doc.querySelectorAll(':scope > .caret-overlay, :scope > .selection-edge')
-    )
-    for (const el of chrome) el.remove()
     const html = this.parts.doc.innerHTML
-    for (const el of chrome) this.parts.doc.appendChild(el)
     if (this.touchAffordances) {
       this.parts.doc.appendChild(this.touchAffordances)
     }
@@ -872,8 +864,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   }
 
   /** Get the caret input if it exists in the doc */
-  insertionPoint(): HTMLElement | null {
-    return this.parts.doc.querySelector('.caret')
+  insertionPoint(): HTMLInputElement | null {
+    return this.parts.doc.querySelector('input.caret')
   }
 
   /** Get the top-level block containing a node */
@@ -914,9 +906,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private moveCaretToCell(cell: HTMLElement): void {
     this.selectable.unmark()
     this.selectable.removeBounds()
-    const start = document.createElement('span')
+    const start = document.createElement('input')
     start.className = 'sel-start'
-    const end = document.createElement('span')
+    const end = document.createElement('input')
     end.className = 'sel-end caret'
     cell.insertBefore(start, cell.firstChild)
     cell.appendChild(end)
@@ -1885,10 +1877,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
           this.undo[0] = html
         }
     }
-
-    // The caret is painted over the text, so it has to be repositioned whenever
-    // the text or the bounds move — otherwise it freezes where it last was.
-    this.selectable?.syncCaret()
 
     // Update undo/redo button states
     this.updateUndoButtons()

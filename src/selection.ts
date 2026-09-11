@@ -282,7 +282,6 @@ export class Selectable {
     } else {
       hit.after(bounds)
     }
-    this.syncCaret()
   }
 
   private handleMouseDown = (evt: MouseEvent): void => {
@@ -551,96 +550,18 @@ export class Selectable {
     )
   }
 
-  /**
-   * The focusable caret, positioned over the text rather than sitting in it.
-   *
-   * It has to be a real focusable element — that is how keydown reaches us and
-   * how mobile browsers decide to raise a keyboard — but an <input> BETWEEN
-   * characters is a replaced element, and a replaced element breaks the shaping
-   * run: measured on Arabic, the neighbouring glyph's advance changes from 6.2
-   * to 6.7 even when the box itself is width-neutral. Absolute positioning does
-   * not rescue it; it has to leave the run entirely. So the markers in the text
-   * are plain spans (bit-identical to no markup at all) and this is parked over
-   * them as a child of the root.
-   */
-  private caretOverlay(): HTMLElement {
-    let overlay = this.root.querySelector(
-      ':scope > .caret-overlay'
-    ) as HTMLElement | null
-    if (!overlay) {
-      overlay = document.createElement('input')
-      overlay.className =
-        'caret-overlay not-editable do-not-spanify not-selectable'
-      overlay.setAttribute('tabindex', '0')
-      this.root.appendChild(overlay)
-    }
-    return overlay
-  }
-
-  /** Focus the caret */
+  /** Focus the caret input */
   focus(): void {
-    this.caretOverlay().focus()
-    this.syncCaret()
-  }
-
-  /**
-   * Put the visible caret (and, when the selection is expanded, its two edge
-   * markers) over the anchors. Nothing here participates in layout.
-   */
-  syncCaret(): void {
-    const overlay = this.caretOverlay()
-    const start = this.find('.sel-start')
-    const end = this.find('.sel-end')
-    const anchor = end || start
-    if (!anchor) {
-      overlay.style.display = 'none'
-      return
-    }
-    const collapsed = this.findAll('.selected').length === 0
-    const place = (el: HTMLElement, marker: Element) => {
-      const rect = marker.getBoundingClientRect()
-      const base = this.root.getBoundingClientRect()
-      const line =
-        rect.height ||
-        (marker.parentElement?.getBoundingClientRect().height ?? 16)
-      el.style.display = ''
-      el.style.left = `${rect.left - base.left + this.root.scrollLeft}px`
-      el.style.top = `${rect.top - base.top + this.root.scrollTop}px`
-      el.style.height = `${line}px`
-    }
-    place(overlay, anchor)
-    // Collapsed: an ordinary caret. Expanded: the edges stay distinguishable,
-    // which is the point of having two of them.
-    overlay.classList.toggle('-collapsed', collapsed)
-    this.paintEdge('sel-start', collapsed ? null : start, place)
-    this.paintEdge('sel-end', collapsed ? null : end, place)
-  }
-
-  private paintEdge(
-    which: string,
-    marker: Element | null,
-    place: (el: HTMLElement, marker: Element) => void
-  ): void {
-    const id = `edge-${which}`
-    let el = this.root.querySelector(`:scope > .${id}`) as HTMLElement | null
-    if (!marker) {
-      el?.remove()
-      return
-    }
-    if (!el) {
-      el = document.createElement('span')
-      el.className = `${id} selection-edge not-editable do-not-spanify not-selectable`
-      this.root.appendChild(el)
-    }
-    place(el, marker)
+    const caret = this.find('.caret') as HTMLInputElement | null
+    if (caret) caret.focus()
   }
 
   /** Create a document fragment with sel-start and sel-end markers */
   createBounds(): DocumentFragment {
     const fragment = document.createDocumentFragment()
-    const start = document.createElement('span')
+    const start = document.createElement('input')
     start.className = 'sel-start'
-    const end = document.createElement('span')
+    const end = document.createElement('input')
     end.className = 'sel-end caret'
     fragment.appendChild(start)
     fragment.appendChild(end)
@@ -664,7 +585,6 @@ export class Selectable {
     if (start && end) {
       this.markRange(start, end)
     }
-    this.syncCaret()
   }
 
   /** Remove selection bound markers */
@@ -672,7 +592,6 @@ export class Selectable {
     for (const el of this.findAll('.sel-start, .sel-end')) {
       el.remove()
     }
-    this.syncCaret()
   }
 
   /** Restore bounds to match the current .selected elements */
@@ -682,9 +601,9 @@ export class Selectable {
 
     this.removeBounds()
 
-    const startMarker = document.createElement('span')
+    const startMarker = document.createElement('input')
     startMarker.className = 'sel-start'
-    const endMarker = document.createElement('span')
+    const endMarker = document.createElement('input')
     endMarker.className = 'sel-end caret'
 
     const firstSelected = selected[0]
@@ -696,7 +615,6 @@ export class Selectable {
     firstLeaf.parentNode?.insertBefore(startMarker, firstLeaf)
     lastLeaf.parentNode?.insertBefore(endMarker, lastLeaf.nextSibling)
 
-    this.syncCaret()
     return this
   }
 
@@ -730,7 +648,6 @@ export class Selectable {
     }
 
     this.markRange(first, last)
-    this.syncCaret()
   }
 
   /** Get the top-level child of root that contains `node` */

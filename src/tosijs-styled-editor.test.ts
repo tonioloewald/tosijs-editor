@@ -244,22 +244,6 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
-  test('the caret follows the bounds when the text changes', () => {
-    const el = tosijsStyledEditor() as TosijsStyledEditor
-    container.appendChild(el)
-    el.parts.doc.innerHTML = '<p>abc<span class="sel-end caret"></span>def</p>'
-    // the painted caret is positioned FROM the anchor, so every edit has to
-    // repaint it or it freezes where it last was
-    let synced = 0
-    const real = el.selectable.syncCaret.bind(el.selectable)
-    el.selectable.syncCaret = () => {
-      synced += 1
-      real()
-    }
-    el.updateUndo('new')
-    expect(synced).toBeGreaterThan(0)
-  })
-
   test('has selectable after connection', () => {
     const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)

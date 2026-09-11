@@ -1,3 +1,22 @@
+[ ] Redo the painted caret (reverted once — see below). The GOAL is sound: an <input>
+    between characters is a replaced element and breaks the shaping run (measured on
+    Arabic, a neighbour's advance moves 6.2 -> 6.7 even with a width-neutral box), and
+    paint-without-a-box (box-shadow / outline) measured completely clean.
+    WHY THE FIRST ATTEMPT FAILED, so the next one does not repeat it:
+      1. The overlay elements were direct children of [part="doc"], which styles
+         `> *` as document blocks — `position: relative; padding: 4px 8px` overrode the
+         absolute positioning, so the selection edges rendered as large green and red
+         RECTANGLES sitting in the text.
+      2. Being doc children also puts them in the BLOCK MODEL: selectedBlocks(),
+         block(), topLevelAncestor(), deleteSelection() and arrow navigation would all
+         have treated them as paragraphs.
+      3. syncCaret() ran only from focus(), so the caret froze wherever it last was —
+         visible on the first keystroke, in any language.
+    Next attempt: put the overlay in the SHADOW ROOT beside [part="doc"], not inside it,
+    positioned against the host and offset by doc.scrollTop/Left; and drive repainting
+    from every bounds mutation plus updateUndo(). Needs a browser test that types and
+    arrows, since none of this is visible to DOM-structure assertions.
+
 [ ] IME composition is unhandled. No compositionstart/update/end listeners exist, so
     during composition keypress fires for the raw keystrokes and we would insert
     "nihao" as well as the committed 你好. Provisional text is also rendered INSIDE the
