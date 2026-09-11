@@ -1886,6 +1886,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         }
     }
 
+    // The caret is painted over the text, so it has to be repositioned whenever
+    // the text or the bounds move — otherwise it freezes where it last was.
+    this.selectable?.syncCaret()
+
     // Update undo/redo button states
     this.updateUndoButtons()
 

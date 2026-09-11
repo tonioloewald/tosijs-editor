@@ -282,6 +282,7 @@ export class Selectable {
     } else {
       hit.after(bounds)
     }
+    this.syncCaret()
   }
 
   private handleMouseDown = (evt: MouseEvent): void => {
@@ -663,6 +664,7 @@ export class Selectable {
     if (start && end) {
       this.markRange(start, end)
     }
+    this.syncCaret()
   }
 
   /** Remove selection bound markers */
@@ -670,6 +672,7 @@ export class Selectable {
     for (const el of this.findAll('.sel-start, .sel-end')) {
       el.remove()
     }
+    this.syncCaret()
   }
 
   /** Restore bounds to match the current .selected elements */
@@ -693,6 +696,7 @@ export class Selectable {
     firstLeaf.parentNode?.insertBefore(startMarker, firstLeaf)
     lastLeaf.parentNode?.insertBefore(endMarker, lastLeaf.nextSibling)
 
+    this.syncCaret()
     return this
   }
 
@@ -726,6 +730,7 @@ export class Selectable {
     }
 
     this.markRange(first, last)
+    this.syncCaret()
   }
 
   /** Get the top-level child of root that contains `node` */

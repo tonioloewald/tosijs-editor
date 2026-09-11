@@ -58,6 +58,14 @@ export default defineSiteConfig({
   // Historic port for this project (see practices/development.md)
   port: 8789,
 
+  // Remote access to THIS dev server over an SSH reverse tunnel. The ssh target
+  // deliberately is NOT here — it comes from PREVIEW_HOST — so a committed
+  // config can never redirect at someone else's box. Viewing requires a session
+  // by default; this is an edit host, not an audience's.
+  preview: {
+    tunnel: { localPort: 8790 },
+  },
+
   // Localhost-gated agent channel for real-browser inspection
   haltijaDev: true,
 
