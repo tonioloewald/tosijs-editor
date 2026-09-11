@@ -1,3 +1,11 @@
+[ ] IME composition is unhandled. No compositionstart/update/end listeners exist, so
+    during composition keypress fires for the raw keystrokes and we would insert
+    "nihao" as well as the committed 你好. Provisional text is also rendered INSIDE the
+    focused element, and our caret overlay is 2px wide with transparent text, so the
+    preview would be invisible. The caret overlay is now positioned AT the caret rather
+    than parked off-screen, which is what the candidate popup anchors to, so the
+    remaining work is the events and somewhere to show provisional text.
+
 [ ] Arrow keys are LOGICAL, but Up/Down and the mouse are VISUAL — decide and unify.
     `arrowLeft`/`arrowRight` use previousLeafNode/nextLeafNode, i.e. movement by
     string order. In LTR that is identical to moving left/right on screen, which is

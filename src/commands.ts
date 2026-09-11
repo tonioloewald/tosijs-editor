@@ -41,7 +41,7 @@ export interface EditableContext {
   findAll(selector: string): Element[]
   selectedLeafNodes(): Node[]
   selectedBlocks(): Element[]
-  insertionPoint(): HTMLInputElement | null
+  insertionPoint(): HTMLElement | null
   block(node: Node): Element | null
   normalize(): void
   focus(): void

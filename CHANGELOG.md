@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The caret no longer reshapes the text it sits in.** It was an `<input>`
+  between characters, and a replaced element breaks the shaping run: measured on
+  Arabic, a neighbouring glyph's advance moved 6.2 → 6.7 even though the caret's
+  box was already width-neutral, and absolute positioning did not rescue it. The
+  in-text anchors are now plain spans — bit-identical to no markup at all — and
+  the focusable caret is positioned over the text instead of inside it. Placing
+  the caret in an Arabic paragraph now leaves its width unchanged at 565.7px.
+  A collapsed selection shows an ordinary caret; an expanded one keeps its two
+  edges distinguishable.
+
 - **Arabic text jittered when you moused over it.** Not a shaping problem, as it
   appeared: spanification preserves shaping, ligatures and per-glyph positions
   exactly (measured). The cause was wrapping each SPACE in its own span, which
