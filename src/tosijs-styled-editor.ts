@@ -157,6 +157,9 @@ interface EditableParts extends PartsMap {
   menubar: HTMLElement
   toolbar: HTMLElement
   doc: HTMLElement
+  caret: HTMLElement
+  edgeStart: HTMLElement
+  edgeEnd: HTMLElement
 }
 
 export class TosijsStyledEditor extends WebComponent<EditableParts> {
@@ -289,42 +292,46 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         direction: 'ltr',
         unicodeBidi: 'isolate',
       },
-    // Selection bounds — inline-block with negative margins to avoid displacing text
-    ':host .caret, :host .sel-start, :host .sel-end': {
-      display: 'inline-block',
-      fontSize: 'inherit',
+    // Markers in the text are INERT: no size, no paint, no replaced element.
+    // A 2px <input> here is a replaced element and breaks the shaping run —
+    // that is what split Arabic words around the caret in both engines.
+    ':host .sel-start, :host .sel-end': {
+      display: 'inline',
+      fontSize: '0',
       lineHeight: 'inherit',
+    },
+    // …and the visible caret is painted over the document from their positions.
+    ':host [part="caret"]': {
+      position: 'absolute',
+      display: 'none',
       width: '2px',
-      border: '0',
       padding: '0',
-      marginLeft: '-1px',
-      marginRight: '-1px',
-      marginBottom: '-4px',
-      marginTop: '-6px',
-      background: 'currentColor',
+      margin: '0',
+      border: '0',
+      outline: 'none',
+      background: 'var(--editor-text)',
+      color: 'transparent',
+      caretColor: 'transparent',
+      pointerEvents: 'none',
+      zIndex: '3',
     },
-    ':host .sel-start': {
-      minHeight: '6px',
-      background: 'green',
-    },
-    ':host .sel-end': {
-      minHeight: '6px',
-      background: 'red',
-    },
-    // Blinking caret
-    ':host .caret': {
+    ':host [part="caret"].-collapsed': {
       animation: 'blink 1s steps(2, start) infinite',
     },
-    ':host .caret:focus': {
-      outline: 'none',
+    ':host .selection-edge': {
+      position: 'absolute',
+      display: 'none',
+      width: '2px',
+      pointerEvents: 'none',
+      zIndex: '3',
     },
-    '@keyframes blink': {
-      to: {
-        background: 'transparent',
-      },
+    ':host .selection-edge.-start': {
+      background: 'color-mix(in oklab, green 70%, var(--editor-text))',
     },
-    // Selected text
-    ':host .selected': {
+    ':host .selection-edge.-end': {
+      background: 'color-mix(in oklab, red 70%, var(--editor-text))',
+    },
+':host .selected': {
       background:
         'color-mix(in oklab, var(--editor-ink) 42%, color-mix(in oklab, white 38%, var(--editor-surface)))',
     },
@@ -641,6 +648,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       part: 'doc',
       tabindex: '0',
     }),
+    // Painted over the document, never inside it. A child of [part="doc"] would
+    // be styled as a document BLOCK and would show up in selectedBlocks(),
+    // block() and arrow navigation.
+    elements.input({ part: 'caret', class: 'caret-paint' }),
+    div({ part: 'edgeStart', class: 'selection-edge -start' }),
+    div({ part: 'edgeEnd', class: 'selection-edge -end' }),
   ]
 
   formResetCallback() {
@@ -766,6 +779,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.addEventListener('click', this.handleToolbarClick)
     this.addEventListener('change', this.handleToolbarChange)
 
+    this.selectable.focusTarget = this.parts.caret
+    this.selectable.onBoundsChanged = () => this.syncCaret()
+    this.syncCaret()
+
     this.applyWidgets()
 
     // A <slot> is always :empty in CSS terms, so whether a bar has content has
@@ -817,6 +834,50 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   disconnectedCallback(): void {
     super.disconnectedCallback()
     this.selectable?.destroy()
+  }
+
+  /**
+   * Position the caret (and, for an expanded selection, its two edges) over the
+   * document from the inert markers' rects. Nothing here is in the text, so
+   * nothing here can change how the text is shaped.
+   */
+  private syncCaret(): void {
+    const caret = this.parts.caret as HTMLElement
+    const startEdge = this.parts.edgeStart as HTMLElement
+    const endEdge = this.parts.edgeEnd as HTMLElement
+    const doc = this.parts.doc
+    const start = doc.querySelector('.sel-start')
+    const end = doc.querySelector('.sel-end')
+    const anchor = end || start
+    const collapsed = doc.querySelectorAll('.selected').length === 0
+
+    const host = this.getBoundingClientRect()
+    const view = doc.getBoundingClientRect()
+    const place = (el: HTMLElement, marker: Element | null): void => {
+      if (!marker) {
+        el.style.display = 'none'
+        return
+      }
+      const rect = marker.getBoundingClientRect()
+      const height =
+        rect.height || marker.parentElement?.getBoundingClientRect().height || 0
+      // A marker scrolled out of the document must not paint over the chrome
+      if (!height || rect.bottom < view.top || rect.top > view.bottom) {
+        el.style.display = 'none'
+        return
+      }
+      el.style.display = 'block'
+      el.style.left = `${rect.left - host.left}px`
+      el.style.top = `${rect.top - host.top}px`
+      el.style.height = `${height}px`
+    }
+
+    place(caret, anchor)
+    caret.classList.toggle('-collapsed', collapsed)
+    // Expanded selections keep their edges distinguishable; a collapsed one is
+    // just a caret, and should look like one.
+    place(startEdge, collapsed ? null : start)
+    place(endEdge, collapsed ? null : end)
   }
 
   /** Get the editing context for commands */
@@ -1877,6 +1938,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
           this.undo[0] = html
         }
     }
+
+    // The caret is painted from the markers' positions, so every edit moves it
+    this.selectable?.onBoundsChanged?.()
 
     // Update undo/redo button states
     this.updateUndoButtons()

@@ -550,18 +550,27 @@ export class Selectable {
     )
   }
 
-  /** Focus the caret input */
+  /**
+   * Set by the component. The markers in the text are inert spans — a replaced
+   * element there breaks the shaping run, which is what tore Arabic words apart
+   * around the caret — so the visible caret and the focusable element live
+   * OUTSIDE the document, and this is how they learn the bounds moved.
+   */
+  onBoundsChanged?: () => void
+  /** The focusable element that stands in for the caret */
+  focusTarget?: HTMLElement
+
   focus(): void {
-    const caret = this.find('.caret') as HTMLInputElement | null
-    if (caret) caret.focus()
+    this.focusTarget?.focus()
+    this.onBoundsChanged?.()
   }
 
   /** Create a document fragment with sel-start and sel-end markers */
   createBounds(): DocumentFragment {
     const fragment = document.createDocumentFragment()
-    const start = document.createElement('input')
+    const start = document.createElement('span')
     start.className = 'sel-start'
-    const end = document.createElement('input')
+    const end = document.createElement('span')
     end.className = 'sel-end caret'
     fragment.appendChild(start)
     fragment.appendChild(end)
@@ -585,6 +594,7 @@ export class Selectable {
     if (start && end) {
       this.markRange(start, end)
     }
+    this.onBoundsChanged?.()
   }
 
   /** Remove selection bound markers */
@@ -592,6 +602,7 @@ export class Selectable {
     for (const el of this.findAll('.sel-start, .sel-end')) {
       el.remove()
     }
+    this.onBoundsChanged?.()
   }
 
   /** Restore bounds to match the current .selected elements */
@@ -601,9 +612,9 @@ export class Selectable {
 
     this.removeBounds()
 
-    const startMarker = document.createElement('input')
+    const startMarker = document.createElement('span')
     startMarker.className = 'sel-start'
-    const endMarker = document.createElement('input')
+    const endMarker = document.createElement('span')
     endMarker.className = 'sel-end caret'
 
     const firstSelected = selected[0]
@@ -615,6 +626,7 @@ export class Selectable {
     firstLeaf.parentNode?.insertBefore(startMarker, firstLeaf)
     lastLeaf.parentNode?.insertBefore(endMarker, lastLeaf.nextSibling)
 
+    this.onBoundsChanged?.()
     return this
   }
 
@@ -648,6 +660,7 @@ export class Selectable {
     }
 
     this.markRange(first, last)
+    this.onBoundsChanged?.()
   }
 
   /** Get the top-level child of root that contains `node` */

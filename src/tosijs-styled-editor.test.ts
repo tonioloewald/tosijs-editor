@@ -244,6 +244,66 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('the caret is painted, not inserted', () => {
+    function editor() {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      return el
+    }
+
+    test('markers in the text are inert spans, never replaced elements', () => {
+      const el = editor()
+      el.parts.doc.innerHTML = '<p>hello</p>'
+      const bounds = el.selectable.createBounds()
+      const markers = [...bounds.childNodes] as Element[]
+      // an <input> here is a REPLACED element: it breaks the shaping run and
+      // tears cursive scripts apart around the caret
+      for (const m of markers) expect(m.tagName).toBe('SPAN')
+      expect(markers.some((m) => m.classList.contains('sel-start'))).toBe(true)
+      expect(markers.some((m) => m.classList.contains('caret'))).toBe(true)
+    })
+
+    test('resetBounds also creates spans', () => {
+      const el = editor()
+      el.parts.doc.innerHTML = '<p><span class="selected">hi</span></p>'
+      el.selectable.resetBounds()
+      const markers = el.parts.doc.querySelectorAll('.sel-start, .sel-end')
+      expect(markers.length).toBeGreaterThan(0)
+      for (const m of markers) expect(m.tagName).toBe('SPAN')
+    })
+
+    test('the overlay is a sibling of the doc, not a child of it', () => {
+      const el = editor()
+      // a child of [part=doc] is styled as a document BLOCK and shows up in
+      // selectedBlocks(), block() and arrow navigation
+      expect(el.parts.caret.parentElement).not.toBe(el.parts.doc)
+      expect(el.parts.doc.contains(el.parts.caret)).toBe(false)
+      expect(el.parts.doc.contains(el.parts.edgeStart)).toBe(false)
+    })
+
+    test('the overlay never leaks into value', () => {
+      const el = editor()
+      el.parts.doc.innerHTML = '<p>content</p>'
+      expect(el.value).toContain('content')
+      expect(el.value).not.toContain('part="caret"')
+      expect(el.value).not.toContain('selection-edge')
+    })
+
+    test('bounds changes notify the component so the caret can be repainted', () => {
+      const el = editor()
+      el.parts.doc.innerHTML = '<p>hello</p>'
+      let repaints = 0
+      const previous = el.selectable.onBoundsChanged
+      el.selectable.onBoundsChanged = () => {
+        repaints += 1
+        previous?.()
+      }
+      el.selectable.removeBounds()
+      // painted from the markers' positions, so it must repaint when they move
+      expect(repaints).toBeGreaterThan(0)
+    })
+  })
+
   test('has selectable after connection', () => {
     const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
     container.appendChild(el)
