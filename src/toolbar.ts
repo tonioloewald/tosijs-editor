@@ -7,12 +7,30 @@
  */
 
 import { elements } from 'tosijs'
-import { icons } from 'tosijs-ui/icons'
+import { icons, defineIcons } from 'tosijs-ui/icons'
 import { tosiMenu, type MenuItem, type SubMenu } from 'tosijs-ui/menu'
 import { tosiLocalePicker, tosiLocalized } from 'tosijs-ui/localize'
 import type { TosijsStyledEditor } from './tosijs-styled-editor'
 
 const { button, span } = elements
+
+/**
+ * Icons tosijs-ui does not ship. Stored the way its own icon data is: no
+ * `xmlns`, `width`, `height`, `fill`, `stroke` or `stroke-*` — the host supplies
+ * all of that from `--tosi-icon-*`, so a hardwired stroke would ignore the
+ * current colour and size.
+ *
+ * `highlighter` is from Lucide (ISC), which tosijs-ui's own set forked from
+ * Feather. The previous `penTool` read as a fountain pen, which is a different
+ * tool entirely.
+ */
+defineIcons({
+  highlighter:
+    '<svg class="stroked" viewBox="0 0 24 24">' +
+    '<path d="m9 11-6 6v3h9l3-3"></path>' +
+    '<path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>' +
+    '</svg>',
+})
 
 /**
  * The class we tag our own menu popups with, so menu styling can be scoped to
@@ -239,7 +257,7 @@ export function characterStyleWidgets(): HTMLElement[] {
     commandButton(
       'Highlight',
       'setText background-color rgba(255,255,64,0.5)',
-      icons.penTool()
+      icons.highlighter()
     ),
   ]
 }

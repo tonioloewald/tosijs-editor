@@ -79,3 +79,18 @@ describe('toolbar', () => {
     })
   })
 })
+
+test('the highlight button uses a highlighter icon, not a pen', () => {
+  const widgets = characterStyleWidgets()
+  const highlight = widgets.find(
+    (w) => w.getAttribute && w.getAttribute('title') === 'Highlight'
+  )
+  expect(highlight).toBeDefined()
+  const svg = highlight!.querySelector('svg')
+  expect(svg).not.toBeNull()
+  // registered icons must inherit colour and size from the host, so the stored
+  // markup carries no hardwired paint
+  for (const attr of ['fill', 'stroke', 'stroke-width', 'width', 'height']) {
+    expect(svg!.hasAttribute(attr)).toBe(false)
+  }
+})

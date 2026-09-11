@@ -137,6 +137,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Highlight button now uses Lucide's `highlighter` icon, registered through
+  `defineIcons`. The previous `penTool` read as a fountain pen — a different
+  tool. Stored following tosijs-ui's own convention: no `xmlns`, `width`,
+  `height`, `fill`, `stroke` or `stroke-*`, since the host supplies all of that
+  from `--tosi-icon-*` and a hardwired stroke would ignore the current colour.
+
 - **Renamed to one name everywhere: `tosijs-styled-editor`.** The element is now
   `<tosijs-styled-editor>` (was `<tosi-styled-editor>`), the class is
   `TosijsStyledEditor`, the creator is `tosijsStyledEditor()`, and the source is
