@@ -71,6 +71,18 @@ export function spanify(element: Element, make: boolean, byWord = false): void {
 
       const fragment = document.createDocumentFragment()
       for (const piece of pieces) {
+        // Whitespace stays a TEXT NODE, never its own span.
+        //
+        // Isolating a space in an inline box changes which spaces CSS collapses:
+        // the same number collapse, but not the same ones, so words merge and
+        // gaps open mid-word as the pointer sweeps across. Leaving whitespace in
+        // the text reproduces the original layout exactly, space for space —
+        // and costs nothing, because a click in a gap already resolves to the
+        // nearest character via nearestChar().
+        if (/^\s+$/.test(piece)) {
+          fragment.appendChild(document.createTextNode(piece))
+          continue
+        }
         // More than one USER-PERCEIVED character, not more than one code unit
         if (characters(piece).length > 1) {
           const wordSpan = document.createElement('span')

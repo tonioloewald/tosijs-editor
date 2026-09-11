@@ -54,6 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Arabic text jittered when you moused over it.** Not a shaping problem, as it
+  appeared: spanification preserves shaping, ligatures and per-glyph positions
+  exactly (measured). The cause was wrapping each SPACE in its own span, which
+  changes which spaces CSS collapses — the same number collapse, but not the
+  same ones, so words merge and gaps open mid-word. Whitespace now stays a text
+  node, which reproduces the original layout space for space.
+
 - **Live examples now fill their preview instead of taking a fixed height.**
   `tosi-example` is `height: var(--tosi-example-height)` (320px) and becomes
   `100vh` when maximized, so the editor's hardcoded 340px both overflowed the

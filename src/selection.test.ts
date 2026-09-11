@@ -62,6 +62,20 @@ describe('spanify', () => {
     expect(p.textContent).not.toContain('\uFFFD')
   })
 
+  test('whitespace stays a text node, never its own span', () => {
+    container.innerHTML = '<p>hello world again</p>'
+    const p = container.querySelector('p')!
+    spanify(p, true, true)
+    // isolating a space in an inline box changes WHICH spaces CSS collapses,
+    // so words merge and gaps open mid-word
+    const spaceSpans = [...p.querySelectorAll('.spanified')].filter(
+      (s) => /^\s+$/.test(s.textContent || '')
+    )
+    expect(spaceSpans.length).toBe(0)
+    // the spaces are still there, just not wrapped
+    expect(p.textContent).toBe('hello world again')
+  })
+
   test('unwraps spanified content', () => {
     container.innerHTML = '<p>ABC</p>'
     const p = container.querySelector('p')!
