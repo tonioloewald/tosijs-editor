@@ -178,3 +178,79 @@ export function allowSelection(element: HTMLElement, allow: boolean): void {
   // Also set webkitUserSelect for Safari
   ;(element.style as any).webkitUserSelect = allow ? 'text' : 'none'
 }
+
+/** A character position found by measurement: where it is, and which side of it */
+export interface CharacterHit {
+  node: Text
+  offset: number
+  rect: DOMRect
+  after: boolean
+}
+
+/** Should this text node be considered for hit-testing? */
+function isHitTestable(node: Node): boolean {
+  if (node.nodeType !== 3 || !node.textContent) return false
+  const parent = node.parentElement
+  if (!parent) return false
+  return !parent.closest('.not-selectable, .do-not-spanify, .not-editable')
+}
+
+/**
+ * Find the character nearest a point WITHOUT changing the document.
+ *
+ * The editor used to answer this by wrapping every character in a span and
+ * reading the spans' rects. That works, but it is a DOM mutation performed in
+ * order to measure — and measuring by mutating changes the thing measured:
+ * line-breaking shifts, and in engines that do not shape across inline box
+ * boundaries, cursive scripts come apart.
+ *
+ * A Range reports the same geometry read-only. This is Range as a measuring
+ * tape, not as a selection model: no execCommand, no browser selection, no
+ * editing behaviour handed back to the engine.
+ */
+export function characterAtPoint(
+  root: Element,
+  x: number,
+  y: number
+): CharacterHit | null {
+  const texts: Text[] = []
+  const walk = (node: Node): void => {
+    if (isHitTestable(node)) {
+      texts.push(node as Text)
+      return
+    }
+    for (const child of Array.from(node.childNodes)) walk(child)
+  }
+  walk(root)
+  if (texts.length === 0) return null
+
+  const range = document.createRange()
+  let best: CharacterHit | null = null
+  let bestScore = Infinity
+
+  for (const node of texts) {
+    const text = node.textContent || ''
+    for (let i = 0; i < text.length; i++) {
+      range.setStart(node, i)
+      range.setEnd(node, i + 1)
+      const rect = range.getBoundingClientRect()
+      if (rect.width === 0 && rect.height === 0) continue
+
+      // Vertical distance dominates: a point below a line belongs to that line,
+      // however far along it sits. Horizontal only separates within a line.
+      const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
+      const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
+      const score = dy * 1000 + dx
+      if (score < bestScore) {
+        bestScore = score
+        best = {
+          node,
+          offset: i,
+          rect,
+          after: x - rect.left >= rect.width / 2,
+        }
+      }
+    }
+  }
+  return best
+}

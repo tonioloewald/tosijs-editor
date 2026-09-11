@@ -10,6 +10,7 @@
  */
 
 import {
+  characterAtPoint,
   firstLeafNode,
   lastLeafNode,
   nextLeafNode,
@@ -193,10 +194,10 @@ export class Selectable {
       }
     }
 
-    // Spanify on hover so mousedown can pinpoint exact position
-    // But never spanify the root itself — only its descendants
+    // Hover no longer rewrites the document. Hit-testing is done by measuring
+    // with a Range when it is actually needed, so moving the pointer across a
+    // paragraph changes nothing — which is what made text jitter under it.
     if (target instanceof Element && target !== this.root) {
-      spanify(target, true, true)
       this.lastHovered = target
     }
 
@@ -218,71 +219,26 @@ export class Selectable {
   }
 
   /**
-   * Resolve a point to the nearest character span inside `container`.
-   *
-   * A click in the dead space right of a line (or in a block's padding) hits the
-   * block, not a character, so exact hit-testing finds nothing. Prefer spans on
-   * the clicked line, then the horizontally closest one; callers decide which
-   * side of the span the point falls on.
-   */
-  private nearestChar(
-    container: Element,
-    x: number,
-    y: number
-  ): Element | null {
-    const spans = Array.from(container.querySelectorAll('.spanified'))
-    if (spans.length === 0) return null
-
-    const verticalDistance = (el: Element): number => {
-      const r = el.getBoundingClientRect()
-      if (y < r.top) return r.top - y
-      if (y > r.bottom) return y - r.bottom
-      return 0
-    }
-
-    // Restrict to the closest line — 0 when the click is level with a line
-    let nearestLine = Infinity
-    for (const span of spans) {
-      nearestLine = Math.min(nearestLine, verticalDistance(span))
-    }
-    const line = spans.filter((span) => verticalDistance(span) === nearestLine)
-
-    let closest: Element | null = null
-    let closestDistance = Infinity
-    for (const span of line) {
-      const r = span.getBoundingClientRect()
-      if (x >= r.left && x <= r.right) return span
-      const distance = x < r.left ? r.left - x : x - r.right
-      if (distance < closestDistance) {
-        closestDistance = distance
-        closest = span
-      }
-    }
-    return closest
-  }
-
-  /**
    * Put the caret at the character nearest a point. Used when a click inside a
    * selection turns out not to be a drag, and to show the live drop position
    * while dragging — we own the caret, so the drop indicator IS the caret.
    */
-  placeCaretAt(target: Element, x: number, y: number): void {
-    if (!(target instanceof Element) || target === this.root) return
-    let hit: Element | null = target
-    if (!target.classList.contains('spanified')) {
-      spanify(target, true, true)
-      hit = this.nearestChar(target, x, y)
-    }
-    if (!hit || !hit.classList.contains('spanified')) return
-    const rect = hit.getBoundingClientRect()
+  placeCaretAt(x: number, y: number): void {
+    // Measured, not spanified: the old path rewrote the whole paragraph into
+    // per-character spans just to read their rects, which moved line breaks and
+    // (in engines that do not shape across inline boundaries) pulled cursive
+    // scripts apart. A Range reports the same geometry read-only.
+    const hit = characterAtPoint(this.root, x, y)
+    if (!hit) return
     this.removeBounds()
-    const bounds = this.createBounds()
-    if (x - rect.left < rect.width / 2) {
-      hit.before(bounds)
-    } else {
-      hit.after(bounds)
-    }
+    const range = document.createRange()
+    range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+    range.collapse(true)
+    range.insertNode(this.createBounds())
+    this.root.normalize()
+    this.onBoundsChanged?.()
   }
+
 
   private handleMouseDown = (evt: MouseEvent): void => {
     this.touchMode = false
@@ -311,40 +267,32 @@ export class Selectable {
 
     this.selecting = evt.detail // click count: 1=char, 2=word, 3=block
 
-    // Spanify if not already (e.g. fast click before mousemove fires)
-    if (!target.classList.contains('spanified') && target instanceof Element) {
-      spanify(target, true, true)
-      // target was a container — resolve the click to a character within it
-      if (target !== this.root) {
-        const span = this.nearestChar(target, evt.clientX, evt.clientY)
-        if (span) target = span
-      }
-    }
+    // Where did the click land? Measured with a Range — no spanification, so
+    // clicking does not reflow the paragraph it lands in.
+    const hit = characterAtPoint(this.root, evt.clientX, evt.clientY)
 
-    if (target.classList.contains('spanified')) {
-      const rect = target.getBoundingClientRect()
+    if (hit) {
       if (evt.shiftKey) {
-        // Extend selection
+        // Extend: move the end bound to the clicked character
         const selEnd = this.find('.sel-end')
         if (selEnd) {
-          if (evt.clientX - rect.left < rect.width / 2) {
-            target.before(selEnd)
-          } else {
-            target.after(selEnd)
-          }
+          selEnd.remove()
+          const range = document.createRange()
+          range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+          range.collapse(true)
+          range.insertNode(selEnd)
+          this.root.normalize()
           this.extendSelection()
         }
       } else if (this.selecting === 1) {
-        // Begin new selection
-        this.removeBounds()
-        const bounds = this.createBounds()
-        if (evt.clientX - rect.left < rect.width / 2) {
-          target.before(bounds)
-        } else {
-          target.after(bounds)
-        }
+        this.placeCaretAt(evt.clientX, evt.clientY)
       } else {
-        // Double/triple click — extend selection mode
+        // Double/triple click still needs character-level structure to find
+        // word and block boundaries, so it spanifies at that moment — a
+        // discrete action, not something that happens as the pointer moves.
+        const block = this.topLevelAncestor(hit.node)
+        if (block) spanify(block, true, true)
+        this.placeCaretAt(evt.clientX, evt.clientY)
         this.extendSelection()
       }
     } else if (
@@ -372,7 +320,7 @@ export class Selectable {
       if (moved < 4) {
         this.unmark()
         this.selecting = 1
-        this.placeCaretAt(pending.target, pending.x, pending.y)
+        this.placeCaretAt(pending.x, pending.y)
         this.selecting = false
         this.selectionChanged()
       }

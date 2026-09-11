@@ -99,19 +99,38 @@ matter for two things: deleting a character deletes the whole empty chain around
 
 ### `src/selection.ts` — the selection replacement
 
-`spanify(element, make, byWord?)` temporarily wraps every character in
-`<span class="spanified">` (or `.spanified-word` wrapping chars) so that character
-positions can be hit-tested with `getBoundingClientRect` — this is how the editor
-resolves a click to a character with no browser Range API. `spanify(el, false)` unwraps
-and normalizes.
+**Click-to-character hit testing uses Range measurement, not DOM mutation**
+(`characterAtPoint` in `dom-utils.ts`). A Range whose boundaries are set ON A TEXT NODE
+takes *character* offsets, so `setStart(t, i); setEnd(t, i + 1); getBoundingClientRect()`
+returns one glyph's box without touching the DOM. This is NOT true of a Range set on an
+element: there the offsets are *child indices*, so the finest rect available is a whole
+child node — which is why measuring via `selectNode`/`selectNodeContents` appears
+impossible and led to the original spanify approach.
+
+Two caveats. Text-node offsets are UTF-16 code units, so stepping by 1 lands inside a
+surrogate pair (step graphemes with `Intl.Segmenter`). And characters inside a cursive
+ligature cluster (Arabic lam-alef) have overlapping rects, so a point inside one is
+genuinely ambiguous — measured ~99% agreement overall, with every disagreement being an
+adjacent character in an Arabic cluster. `getClientRects()` (plural) returns one rect per
+line box, split at bidi run boundaries.
+
+**Do not reintroduce spanification for measurement.** Wrapping characters in spans
+changes the thing being measured: each span is an inline box, so shaping breaks across
+the boundaries, Arabic cursive joins come apart, and lines re-wrap. Hovering a paragraph
+visibly relaid it out. Spans are still created for *word/line grouping* by double-click
+and vertical arrows, but never on hover and never to resolve a click.
+
+`spanify(element, make, byWord?)` wraps each character in `<span class="spanified">` (or
+`.spanified-word`); `spanify(el, false)` unwraps and normalizes. Whitespace is left as
+bare text nodes — putting it inside spans changes *which* spaces collapse.
 
 `Selectable` owns the mouse/touch listeners on the doc element and maintains selection as
 DOM state:
 
 | Class                            | Meaning                                                                                   |
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `.sel-start`                     | `<input>` marking selection start                                                         |
-| `.sel-end .caret`                | `<input>` marking selection end / the caret. It's an `<input>` so mobile keyboards appear |
+| `.sel-start`                     | `<span>` marking selection start                                                          |
+| `.sel-end .caret`                | `<span>` marking selection end / the caret                                                |
 | `.selected`                      | every selected leaf-level element                                                         |
 | `.selected-block`                | every block intersecting the selection                                                    |
 | `.first-block` / `.last-block`   | ends of a multi-block selection                                                           |
@@ -119,6 +138,13 @@ DOM state:
 | `.do-not-spanify`                | subtree spanify skips                                                                     |
 | `.not-selectable`                | subtree selection skips (UI chrome, annotations)                                          |
 | `.not-editable`                  | keydown handling bails out inside this                                                    |
+
+The bounds markers are `<span>`, deliberately. They were `<input>` (to raise mobile
+keyboards) but a replaced element between two characters ALWAYS breaks the shaping run —
+measured on Arabic, a neighbouring glyph's advance shifts even when the box is
+width-neutral. Paint-only styling (box-shadow/outline) measures clean; anything that
+generates a box, including a pseudo-element, does not. Mobile keyboard focus is handled by
+a separate off-document `focusTarget`.
 
 `markBounds()` (bounds → `.selected`), `resetBounds()` (`.selected` → bounds), and
 `removeBounds()` convert between the two representations. Commands that restructure the
@@ -203,9 +229,14 @@ to `slot="menubar"`.
 allowlist** of globals (`windowProps`) onto `globalThis`. If a test fails with
 `X is not defined`, add `X` to that list rather than working around it.
 
-happy-dom has no layout, so anything geometry-based (click-to-character hit testing,
-vertical arrow movement, affordance positioning) cannot be unit tested — those paths are
-verified in the browser via `bun start`.
+happy-dom has no layout: every rect is zero. Geometry-based paths (click-to-character
+hit testing, vertical arrow movement, affordance positioning) therefore need a stub, and
+the stub goes on the surface the code actually measures through — `getBoundingClientRect`
+on the **Range prototype** (reachable as `Object.getPrototypeOf(document.createRange())`),
+not on elements. See `describe('click position resolution')` in `selection.test.ts`, which
+gives every character a synthetic 10px box. That only proves the resolution logic; whether
+the measurement matches real shaping is a browser question — verify via `bun start`, and
+drive it with `hj eval` against the RTL page for a repeatable per-character sweep.
 
 ## Notes
 

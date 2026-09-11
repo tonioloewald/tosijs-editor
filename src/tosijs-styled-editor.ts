@@ -2273,7 +2273,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
     const target = evt.target as Element
     if (target instanceof Element) {
-      this.selectable.placeCaretAt(target, evt.clientX, evt.clientY)
+      this.selectable.placeCaretAt(evt.clientX, evt.clientY)
     }
   }
 

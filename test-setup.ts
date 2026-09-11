@@ -38,6 +38,7 @@ const windowProps = [
   'Node',
   'Text',
   'DocumentFragment',
+  'Range',
   'Event',
   'CustomEvent',
   'MouseEvent',
