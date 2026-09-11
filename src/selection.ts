@@ -201,16 +201,25 @@ export class Selectable {
       this.lastHovered = target
     }
 
-    if (this.selecting && target.classList.contains('spanified')) {
-      const rect = target.getBoundingClientRect()
+    // Extending a drag-selection is the same measurement problem as placing the
+    // caret, so it uses the same answer. This used to require `target` to BE a
+    // `.spanified` span, which only held because hover spanified everything the
+    // pointer touched; once hover stopped rewriting the document that condition
+    // was never true again and drag-selection silently stopped extending in
+    // every language. Measure the character under the pointer instead.
+    if (this.selecting) {
+      const hit = characterAtPoint(this.root, evt.clientX, evt.clientY)
       const selEnd = this.find('.sel-end')
-      if (selEnd) {
-        if (evt.clientX - rect.left < rect.width / 2) {
-          target.before(selEnd)
-        } else {
-          target.after(selEnd)
-        }
+      if (hit && selEnd) {
+        const range = document.createRange()
+        range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+        range.collapse(true)
+        // insertNode MOVES selEnd: it is already in the document, so this
+        // relocates the existing marker rather than cloning it.
+        range.insertNode(selEnd)
+        this.root.normalize()
         this.extendSelection()
+        this.onBoundsChanged?.()
       }
     }
 

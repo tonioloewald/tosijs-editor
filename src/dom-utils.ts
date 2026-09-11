@@ -228,8 +228,25 @@ export function characterAtPoint(
   let best: CharacterHit | null = null
   let bestScore = Infinity
 
+  // A caret goes at the NEAREST EDGE of the character under the pointer — that
+  // single rule covers clicking, dragging from, and dragging to, so there is no
+  // separate start-bound/end-bound rounding anywhere. The only direction-
+  // dependent part is which logical offset an edge corresponds to:
+  //
+  //            left edge   right edge
+  //   LTR run  offset i    offset i+1
+  //   RTL run  offset i+1  offset i
+  //
+  // `after` means offset + 1. Testing the visual right half unconditionally got
+  // RTL backwards, which is why LTR and RTL drifted in opposite directions.
+  const isRtl = (node: Text): boolean => {
+    const el = node.parentElement
+    return !!el && getComputedStyle(el).direction === 'rtl'
+  }
+
   for (const node of texts) {
     const text = node.textContent || ''
+    const rtl = isRtl(node)
     for (let i = 0; i < text.length; i++) {
       range.setStart(node, i)
       range.setEnd(node, i + 1)
@@ -247,7 +264,9 @@ export function characterAtPoint(
           node,
           offset: i,
           rect,
-          after: x - rect.left >= rect.width / 2,
+          after: rtl
+            ? x - rect.left < rect.width / 2
+            : x - rect.left >= rect.width / 2,
         }
       }
     }
