@@ -273,3 +273,100 @@ export function characterAtPoint(
   }
   return best
 }
+
+/**
+ * Where a caret sitting at `marker` should actually paint.
+ *
+ * The marker is an empty element, so its own rect is 0x0 and carries no line
+ * box — falling back to the PARENT's rect gives the height of the whole block,
+ * which paints a caret several lines tall. The geometry has to come from an
+ * adjacent character instead, measured with a Range.
+ *
+ * Which edge of that character depends on direction: a caret before a character
+ * sits at its leading edge (left in LTR, right in RTL); a caret after the last
+ * character sits at its trailing edge.
+ */
+export function caretGeometryAt(
+  marker: Element,
+  root: Element
+): { left: number; top: number; height: number } | null {
+  const nextText = (from: Node | null): Text | null => {
+    let node = from
+    while (node) {
+      if (node.nodeType === 3 && (node as Text).data.length > 0) {
+        return node as Text
+      }
+      node = nextLeafNode(node, root)
+    }
+    return null
+  }
+  const prevText = (from: Node | null): Text | null => {
+    let node = from
+    while (node) {
+      if (node.nodeType === 3 && (node as Text).data.length > 0) {
+        return node as Text
+      }
+      node = previousLeafNode(node, root)
+    }
+    return null
+  }
+
+  // A COLLAPSED range AT A TEXT OFFSET is the caret position straight from the
+  // layout engine: zero width, the line box's height, and an x the engine
+  // resolved for that logical offset, so bidi needs no direction handling here.
+  // It must be a text offset — collapsed BEFORE the marker element the engine
+  // returns an empty rect, which is what made the caret fall back to the
+  // parent block's height and paint several lines tall.
+  const caretAt = (node: Text, offset: number) => {
+    const range = document.createRange()
+    range.setStart(node, offset)
+    range.collapse(true)
+    const rect = range.getBoundingClientRect()
+    return rect.height
+      ? { left: rect.left, top: rect.top, height: rect.height }
+      : null
+  }
+
+  const after = nextText(nextLeafNode(marker, root))
+  if (after) {
+    const geometry = caretAt(after, 0)
+    if (geometry) return geometry
+  }
+
+  const before = prevText(previousLeafNode(marker, root))
+  if (before) {
+    const geometry = caretAt(before, before.data.length)
+    if (geometry) return geometry
+  }
+
+  // Last resort: an adjacent character's box, edge chosen by direction.
+  const rtl =
+    getComputedStyle(marker.parentElement || marker).direction === 'rtl'
+  const range = document.createRange()
+  if (after) {
+    range.setStart(after, 0)
+    range.setEnd(after, 1)
+    const rect = range.getBoundingClientRect()
+    if (rect.height) {
+      return {
+        left: rtl ? rect.right : rect.left,
+        top: rect.top,
+        height: rect.height,
+      }
+    }
+  }
+  if (before) {
+    range.setStart(before, before.data.length - 1)
+    range.setEnd(before, before.data.length)
+    const rect = range.getBoundingClientRect()
+    if (rect.height) {
+      return {
+        left: rtl ? rect.left : rect.right,
+        top: rect.top,
+        height: rect.height,
+      }
+    }
+  }
+
+  return null
+}

@@ -443,6 +443,7 @@ export class Selectable {
       // blinking mid-word. Re-derive them from the marked range.
       // Character selection already ends with .sel-end under the pointer.
       if (mode !== 1) this.resetBounds()
+      this.normalizeBoundsOrder()
       this.selecting = false
     }
     // Despanify non-selected blocks to clean up hover spanification
@@ -537,6 +538,7 @@ export class Selectable {
   private handleTouchEnd = (evt: TouchEvent): void => {
     if (this.selecting) {
       this.extendSelection()
+      this.normalizeBoundsOrder()
       this.selecting = false
     }
     // Despanify non-selected blocks
@@ -583,6 +585,27 @@ export class Selectable {
     fragment.appendChild(start)
     fragment.appendChild(end)
     return fragment
+  }
+
+  /**
+   * Put the bound markers in TEXTUAL order.
+   *
+   * While a drag is in flight `.sel-end` is the moving bound and `.sel-start`
+   * the anchor, so dragging backwards leaves the end marker earlier in the
+   * document than the start. That is the right model for dragging but the wrong
+   * one for painting: the edges are coloured by which marker they are, so a
+   * backwards drag showed the colours swapped. Once the gesture is complete the
+   * labels are re-assigned by document order, so start is always textually
+   * first — and in RTL that means it paints on the right.
+   */
+  normalizeBoundsOrder(): void {
+    const start = this.find('.sel-start')
+    const end = this.find('.sel-end')
+    if (!start || !end || start === end) return
+    if (isBefore(start, end)) return
+    start.className = 'sel-end caret'
+    end.className = 'sel-start'
+    this.onBoundsChanged?.()
   }
 
   /** Find an element within the root */

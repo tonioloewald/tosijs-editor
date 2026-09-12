@@ -108,6 +108,7 @@ import {
   leafNodes,
   topSingleParentAncestor,
   characterAtPoint,
+  caretGeometryAt,
 } from './dom-utils'
 import {
   defaultToolbar,
@@ -854,23 +855,38 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     const host = this.getBoundingClientRect()
     const view = doc.getBoundingClientRect()
+    // An absolutely positioned child resolves against the containing block's
+    // PADDING box, but getBoundingClientRect() gives the BORDER box — so the
+    // host's border has to come out or every overlay sits one border-width
+    // down and to the right of the caret it is meant to mark.
+    const hostStyle = getComputedStyle(this)
+    const insetTop = host.top + parseFloat(hostStyle.borderTopWidth || '0')
+    const insetLeft = host.left + parseFloat(hostStyle.borderLeftWidth || '0')
     const place = (el: HTMLElement, marker: Element | null): void => {
       if (!marker) {
         el.style.display = 'none'
         return
       }
-      const rect = marker.getBoundingClientRect()
-      const height =
-        rect.height || marker.parentElement?.getBoundingClientRect().height || 0
+      // The marker is an empty element: its own rect is 0x0, and the previous
+      // fallback to the PARENT's rect gave the height of the whole block, so
+      // the caret painted several lines tall and offset from its line.
+      const geometry = caretGeometryAt(marker, doc)
+      if (!geometry) {
+        el.style.display = 'none'
+        return
+      }
       // A marker scrolled out of the document must not paint over the chrome
-      if (!height || rect.bottom < view.top || rect.top > view.bottom) {
+      if (
+        geometry.top + geometry.height < view.top ||
+        geometry.top > view.bottom
+      ) {
         el.style.display = 'none'
         return
       }
       el.style.display = 'block'
-      el.style.left = `${rect.left - host.left}px`
-      el.style.top = `${rect.top - host.top}px`
-      el.style.height = `${height}px`
+      el.style.left = `${geometry.left - insetLeft}px`
+      el.style.top = `${geometry.top - insetTop}px`
+      el.style.height = `${geometry.height}px`
     }
 
     place(caret, anchor)
@@ -1893,6 +1909,47 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   }
 
   /** Manage undo/redo stack */
+  /**
+   * The document's CONTENT, with every trace of the selection removed.
+   *
+   * Undo snapshots are full HTML and the selection lives in the DOM — bound
+   * markers are elements, `.selected` is a class and sometimes a wrapper span.
+   * So moving the caret changes the snapshot string even though nothing was
+   * edited, and every caret move pushed an undo step that undid nothing.
+   * Comparing signatures instead means only real edits create steps, while the
+   * snapshots themselves keep their markers so undo still restores a selection.
+   */
+  private signatureOf(html: string): string {
+    const scratch = document.createElement('div')
+    scratch.innerHTML = html
+    for (const marker of Array.from(
+      scratch.querySelectorAll('.sel-start, .sel-end')
+    )) {
+      marker.remove()
+    }
+    for (const el of Array.from(
+      scratch.querySelectorAll('[class], [draggable], [data-drag]')
+    )) {
+      el.classList.remove(
+        'selected',
+        'selected-block',
+        'first-block',
+        'last-block'
+      )
+      if (el.classList.length === 0) el.removeAttribute('class')
+      el.removeAttribute('draggable')
+      el.removeAttribute('data-drag')
+    }
+    // A span that carried nothing but the selection is not content
+    for (const span of Array.from(scratch.querySelectorAll('span'))) {
+      if (span.attributes.length === 0) {
+        span.replaceWith(...Array.from(span.childNodes))
+      }
+    }
+    scratch.normalize()
+    return scratch.innerHTML
+  }
+
   updateUndo(command?: string, reason?: string): void {
     if (this.undo.length === 0) {
       command = 'init'
@@ -1914,6 +1971,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
           this.undo = this.undo.slice(this.undoDepth)
           this.undoDepth = 0
         }
+        // Selection-only change: refresh the current snapshot so it carries the
+        // live selection, but do not create an undo step that undoes nothing.
+        if (
+          this.undo.length &&
+          this.signatureOf(this.undo[0]) === this.signatureOf(html)
+        ) {
+          this.undo[0] = html
+          break
+        }
         this.undo.unshift(html)
         break
       case 'undo':
@@ -1932,6 +1998,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         break
       default:
         if (this.undoDepth || this.undo.length === 1) {
+          // Same signature check as 'new': with a single snapshot in hand this
+          // branch used to unshift unconditionally, so the FIRST selection
+          // change after loading always created an empty undo step.
+          if (
+            this.undo.length &&
+            this.signatureOf(this.undo[0]) === this.signatureOf(html)
+          ) {
+            this.undo[0] = html
+            break
+          }
           this.undo = this.undo.slice(this.undoDepth)
           this.undoDepth = 0
           this.undo.unshift(html)
