@@ -1,4 +1,4 @@
-# tosijs-styled-editor v0.3.9
+# tosijs-styled-editor v0.4.0
 
 Rich text editor web component — no contentEditable, no execCommand, no browser selection APIs
 

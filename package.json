@@ -1,6 +1,6 @@
 {
   "name": "tosijs-styled-editor",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
   "source": "src/index.ts",
   "type": "module",

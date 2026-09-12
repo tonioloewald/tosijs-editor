@@ -297,10 +297,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Markers in the text are INERT: no size, no paint, no replaced element.
     // A 2px <input> here is a replaced element and breaks the shaping run —
     // that is what split Arabic words around the caret in both engines.
+    // NO BOX. These were `display: inline; font-size: 0`, but an empty inline
+    // box still contributes a strut to its line: in WebKit that grew the
+    // paragraph containing the selection by ~5px and shifted everything after
+    // it, which is the "metric difference" between a selected paragraph and an
+    // unselected one. `display: contents` generates no box at all, so the
+    // markers cannot affect layout. Nothing measures them directly any more —
+    // see markerRect().
     ':host .sel-start, :host .sel-end': {
-      display: 'inline',
-      fontSize: '0',
-      lineHeight: 'inherit',
+      display: 'contents',
     },
     // …and the visible caret is painted over the document from their positions.
     ':host [part="caret"]': {
@@ -843,6 +848,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * document from the inert markers' rects. Nothing here is in the text, so
    * nothing here can change how the text is shaped.
    */
+  /**
+   * Where a bound marker is on screen.
+   *
+   * The markers are styled `display: contents` so they generate NO BOX — an
+   * inline box between two characters changed the line it sat in (in WebKit an
+   * empty marker with `font-size: 0` grew the paragraph by ~5px and shifted
+   * every block after it). With no box their own getBoundingClientRect() is
+   * meaningless, so position comes from the caret geometry beside them.
+   */
+  private markerRect(marker: Element): {
+    left: number
+    top: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+  } {
+    const geometry = caretGeometryAt(marker, this.parts.doc)
+    if (geometry) {
+      return {
+        left: geometry.left,
+        top: geometry.top,
+        right: geometry.left,
+        bottom: geometry.top + geometry.height,
+        width: 0,
+        height: geometry.height,
+      }
+    }
+    return marker.getBoundingClientRect()
+  }
+
   private syncCaret(): void {
     const caret = this.parts.caret as HTMLElement
     const startEdge = this.parts.edgeStart as HTMLElement
@@ -1327,7 +1363,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Determine sticky X: capture on first vertical move, reuse on subsequent ones
     const isConsecutiveVertical = this.lastKey === 38 || this.lastKey === 40
     if (!isConsecutiveVertical) {
-      const caretRect = ip.getBoundingClientRect()
+      const caretRect = this.markerRect(ip)
       this.lastCursorX = caretRect.left
     }
     const targetX = this.lastCursorX
@@ -1343,7 +1379,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     if (spans.length > 0) {
       const lines = this.groupByLine(spans)
-      const caretRect = ip.getBoundingClientRect()
+      const caretRect = this.markerRect(ip)
       const caretTop = Math.round(caretRect.top)
 
       // Find which line the caret is on (nearest by top)
@@ -2471,8 +2507,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
 
     const docRect = this.parts.doc.getBoundingClientRect()
-    const startRect = selStart.getBoundingClientRect()
-    const endRect = selEnd.getBoundingClientRect()
+    const startRect = this.markerRect(selStart)
+    const endRect = this.markerRect(selEnd)
 
     // Check if padding is needed (skip during drag)
     let needsPaddingChange = false
@@ -2516,8 +2552,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!selStart || !selEnd) return
 
     const docRect = this.parts.doc.getBoundingClientRect()
-    const startRect = selStart.getBoundingClientRect()
-    const endRect = selEnd.getBoundingClientRect()
+    const startRect = this.markerRect(selStart)
+    const endRect = this.markerRect(selEnd)
 
     const startX = startRect.left - docRect.left + this.parts.doc.scrollLeft
     const startY = startRect.top - docRect.top + this.parts.doc.scrollTop
