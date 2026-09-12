@@ -107,6 +107,7 @@ import {
   previousLeafNode,
   leafNodes,
   topSingleParentAncestor,
+  characterAtPoint,
 } from './dom-utils'
 import {
   defaultToolbar,
@@ -2533,46 +2534,20 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       return
     }
 
-    // Spanify the target area
-    if (
-      !elementAtPoint.classList.contains('spanified') &&
-      elementAtPoint instanceof Element
-    ) {
-      spanify(elementAtPoint, true, true)
-    }
+    // Measured, not spanified. Dragging a selection handle used to wrap the
+    // whole target block in per-character spans on every pointer move.
+    const hit = characterAtPoint(this.parts.doc, cursorX, cursorY)
+    if (!hit) return
 
-    // Find the closest spanified character at the offset cursor position
-    let target: Element | null = null
-    if (elementAtPoint.classList.contains('spanified')) {
-      target = elementAtPoint
-    } else {
-      let bestDist = Infinity
-      for (const span of Array.from(
-        elementAtPoint.querySelectorAll('.spanified')
-      )) {
-        const r = span.getBoundingClientRect()
-        const cx = (r.left + r.right) / 2
-        const cy = (r.top + r.bottom) / 2
-        const dist = Math.hypot(cursorX - cx, cursorY - cy)
-        if (dist < bestDist) {
-          bestDist = dist
-          target = span
-        }
-      }
-    }
-
-    if (!target) return
-
-    const rect = target.getBoundingClientRect()
     const markerSelector = drag.target === 'start' ? '.sel-start' : '.sel-end'
     const marker = this.parts.doc.querySelector(markerSelector)
 
     if (marker) {
-      if (cursorX - rect.left < rect.width / 2) {
-        target.before(marker)
-      } else {
-        target.after(marker)
-      }
+      const range = document.createRange()
+      range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+      range.collapse(true)
+      range.insertNode(marker)
+      this.parts.doc.normalize()
       this.selectable.markBounds()
 
       // Just move the dragged handle to follow the pointer

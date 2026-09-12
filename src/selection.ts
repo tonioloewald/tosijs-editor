@@ -37,6 +37,33 @@ function characters(text: string): string[] {
   return Array.from(segmenter.segment(text), (piece) => piece.segment)
 }
 
+/**
+ * The bounds of the word containing `offset`, by Unicode word segmentation.
+ *
+ * This replaces the old approach of wrapping every word in a `.spanified-word`
+ * element and reading boundaries off the DOM: the boundaries are a property of
+ * the TEXT, so they can be computed from it directly and the document left
+ * alone. Falls back to a whitespace split where Intl.Segmenter is missing.
+ */
+function wordBoundsAt(text: string, offset: number): { start: number; end: number } {
+  const Segmenter = (Intl as { Segmenter?: typeof Intl.Segmenter }).Segmenter
+  if (Segmenter) {
+    const segmenter = new Segmenter(undefined, { granularity: 'word' })
+    for (const piece of segmenter.segment(text)) {
+      const end = piece.index + piece.segment.length
+      if (offset >= piece.index && offset < end) {
+        return { start: piece.index, end }
+      }
+    }
+    return { start: offset, end: offset }
+  }
+  let start = offset
+  let end = offset
+  while (start > 0 && !/\s/.test(text[start - 1])) start--
+  while (end < text.length && !/\s/.test(text[end])) end++
+  return { start, end }
+}
+
 /** Check if a node is a text node not inside a .do-not-spanify element */
 function isSpanifiableText(node: Node): boolean {
   return node.nodeType === 3 && !node.parentElement?.closest('.do-not-spanify')
@@ -249,6 +276,65 @@ export class Selectable {
   }
 
 
+  /** Put the bounds around the word containing an offset in a text node. */
+  selectWordAt(node: Text, offset: number): void {
+    const block = this.topLevelAncestor(node) || this.root
+
+    // Segment the WHOLE block's text, not one text node's. Text nodes get split
+    // by the bounds markers and by inline elements, so a word is very often
+    // spread over several of them — segmenting one fragment selects the part of
+    // the word on one side of a previous caret, which is not a word.
+    const parts: Array<{ node: Text; start: number }> = []
+    let text = ''
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+    let current: Node | null
+    while ((current = walker.nextNode())) {
+      const textNode = current as Text
+      parts.push({ node: textNode, start: text.length })
+      text += textNode.data
+    }
+
+    const hitPart = parts.find((part) => part.node === node)
+    if (!hitPart) return
+
+    const { start, end } = wordBoundsAt(text, hitPart.start + offset)
+    const locate = (index: number): { node: Text; offset: number } | null => {
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (index >= parts[i].start) {
+          return { node: parts[i].node, offset: index - parts[i].start }
+        }
+      }
+      return null
+    }
+    const startPos = locate(start)
+    const endPos = locate(end)
+    if (!startPos || !endPos) return
+
+    this.removeBounds()
+
+    const startEl = document.createElement('span')
+    startEl.className = 'sel-start'
+    const endEl = document.createElement('span')
+    endEl.className = 'sel-end caret'
+
+    // End first: inserting the start marker splits the text node and would
+    // invalidate the later offset.
+    const endRange = document.createRange()
+    endRange.setStart(endPos.node, Math.min(endPos.offset, endPos.node.length))
+    endRange.collapse(true)
+    endRange.insertNode(endEl)
+
+    const startRange = document.createRange()
+    startRange.setStart(
+      startPos.node,
+      Math.min(startPos.offset, startPos.node.length)
+    )
+    startRange.collapse(true)
+    startRange.insertNode(startEl)
+
+    this.onBoundsChanged?.()
+  }
+
   private handleMouseDown = (evt: MouseEvent): void => {
     this.touchMode = false
     let target = evt.target as Element
@@ -295,12 +381,17 @@ export class Selectable {
         }
       } else if (this.selecting === 1) {
         this.placeCaretAt(evt.clientX, evt.clientY)
+      } else if (this.selecting === 2) {
+        // Double click selects a word. The boundaries come from segmenting the
+        // TEXT, so the document is not rewritten to find them — spanifying the
+        // block here left per-character spans in the DOM for as long as the
+        // selection lived, and in engines that do not shape across inline
+        // boundaries that visibly reflowed cursive scripts.
+        this.selectWordAt(hit.node, hit.offset)
+        this.extendSelection()
       } else {
-        // Double/triple click still needs character-level structure to find
-        // word and block boundaries, so it spanifies at that moment — a
-        // discrete action, not something that happens as the pointer moves.
-        const block = this.topLevelAncestor(hit.node)
-        if (block) spanify(block, true, true)
+        // Triple click selects the block, which extendSelection derives from
+        // the caret's ancestry — no character-level structure needed.
         this.placeCaretAt(evt.clientX, evt.clientY)
         this.extendSelection()
       }
@@ -392,38 +483,13 @@ export class Selectable {
 
     this.selecting = 1
 
-    // Spanify the touched element so we can find exact character positions
-    if (!target.classList.contains('spanified') && target instanceof Element) {
-      spanify(target, true, true)
-      // Find the spanified char at touch position
-      for (const span of Array.from(target.querySelectorAll('.spanified'))) {
-        const r = span.getBoundingClientRect()
-        if (
-          touch.clientX >= r.left &&
-          touch.clientX <= r.right &&
-          touch.clientY >= r.top &&
-          touch.clientY <= r.bottom
-        ) {
-          target = span
-          break
-        }
-      }
-    }
-
-    if (target.classList.contains('spanified')) {
-      const rect = target.getBoundingClientRect()
-      this.removeBounds()
-      const bounds = this.createBounds()
-      if (touch.clientX - rect.left < rect.width / 2) {
-        target.before(bounds)
-      } else {
-        target.after(bounds)
-      }
-    } else if (
-      target instanceof HTMLElement &&
-      target.querySelectorAll('.spanified').length === 0 &&
-      target !== this.root
-    ) {
+    // Measured, like the mouse path. This used to spanify the touched element
+    // and hit-test the resulting spans, which rewrote the document on every
+    // touch and left the spans behind.
+    const hit = characterAtPoint(this.root, touch.clientX, touch.clientY)
+    if (hit) {
+      this.placeCaretAt(touch.clientX, touch.clientY)
+    } else if (target instanceof HTMLElement && target !== this.root) {
       // Empty element (e.g. empty table cell)
       this.removeBounds()
       const bounds = this.createBounds()
@@ -450,34 +516,19 @@ export class Selectable {
       return
     }
 
-    // Spanify if needed
-    if (!target.classList.contains('spanified') && target instanceof Element) {
-      spanify(target, true, true)
-      for (const span of Array.from(target.querySelectorAll('.spanified'))) {
-        const r = span.getBoundingClientRect()
-        if (
-          touch.clientX >= r.left &&
-          touch.clientX <= r.right &&
-          touch.clientY >= r.top &&
-          touch.clientY <= r.bottom
-        ) {
-          target = span
-          break
-        }
-      }
-    }
-
-    if (target && target.classList.contains('spanified')) {
-      const rect = target.getBoundingClientRect()
-      const selEnd = this.find('.sel-end')
-      if (selEnd) {
-        if (touch.clientX - rect.left < rect.width / 2) {
-          target.before(selEnd)
-        } else {
-          target.after(selEnd)
-        }
-        this.extendSelection()
-      }
+    // Same measurement as a mouse drag: move the end bound to the character
+    // under the finger. No spanification, so dragging a touch selection does
+    // not reflow the text it is dragging across.
+    const hit = characterAtPoint(this.root, touch.clientX, touch.clientY)
+    const selEnd = this.find('.sel-end')
+    if (hit && selEnd) {
+      const range = document.createRange()
+      range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+      range.collapse(true)
+      range.insertNode(selEnd)
+      this.root.normalize()
+      this.extendSelection()
+      this.onBoundsChanged?.()
     }
 
     if (evt.cancelable) evt.preventDefault()
