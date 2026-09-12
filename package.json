@@ -1,7 +1,15 @@
 {
   "name": "tosijs-styled-editor",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tonioloewald/tosijs-editor.git"
+  },
+  "homepage": "https://editor.tosijs.net",
+  "bugs": {
+    "url": "https://github.com/tonioloewald/tosijs-editor/issues"
+  },
   "source": "src/index.ts",
   "type": "module",
   "types": "dist/index.d.ts",
@@ -16,6 +24,7 @@
   },
   "files": [
     "dist",
+    "!dist/*.tsbuildinfo",
     "README.md",
     "LICENSE"
   ],

@@ -1,7 +1,8 @@
 # Right-to-Left Text
 
 Bidirectional text is where an editor that fakes its own selection either works or
-falls over. Selection here is resolved by measuring character spans, so the
+falls over. Selection here is resolved by measuring with Ranges — the document is
+never rewritten to find out where a character is — so the
 interesting question is not "does Arabic render" — the browser does that — but
 whether **selection, the caret and arrow keys follow the visual order** when the
 visual order disagrees with the logical order.
@@ -59,7 +60,7 @@ double-click a word in each of the mixed lines.
 
 | Behaviour | Why it is hard |
 |---|---|
-| **Double-click a word** in an RTL run | Word boundaries are found by walking spanified characters, which are in *logical* order while the rendering is *visual* |
+| **Double-click a word** in an RTL run | Word boundaries come from Unicode segmentation of the block's text, which is in *logical* order while the rendering is *visual* |
 | **Arrow keys** across a direction boundary | One logical step can move the caret to the other end of a run |
 | **Caret position** at the seam between scripts | The seam has two valid positions — the end of the LTR run and the start of the RTL run — that paint at the same place |
 | **Selecting across a boundary** | A logically contiguous range is visually discontiguous, so a single highlight rectangle is wrong |

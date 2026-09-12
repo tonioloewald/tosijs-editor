@@ -106,7 +106,7 @@ export function spanify(element: Element, make: boolean, byWord = false): void {
         // gaps open mid-word as the pointer sweeps across. Leaving whitespace in
         // the text reproduces the original layout exactly, space for space —
         // and costs nothing, because a click in a gap already resolves to the
-        // nearest character via nearestChar().
+        // nearest character via characterAtPoint().
         if (/^\s+$/.test(piece)) {
           fragment.appendChild(document.createTextNode(piece))
           continue

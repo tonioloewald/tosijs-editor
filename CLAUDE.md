@@ -114,6 +114,17 @@ genuinely ambiguous — measured ~99% agreement overall, with every disagreement
 adjacent character in an Arabic cluster. `getClientRects()` (plural) returns one rect per
 line box, split at bidi run boundaries.
 
+`characterAtPoint` has two details that are easy to undo by accident:
+
+- **Ties break on distance to the glyph's CENTRE.** Cursive rects overlap, so a point in
+  Arabic often sits inside several at once and they tie on edge distance. Breaking the tie
+  by document order (a plain `<`) makes the answer non-monotonic in x: dragging a selection
+  stalled for 216px of pointer travel and then jumped 32 characters.
+- **A per-node pre-pass picks the nearest line band first.** Measuring every character is
+  one rect per character on every mousemove — 2.1ms for 1k characters, so ~21ms and visible
+  jank at 10k. One rect per text node narrows it to a line band first (0.84ms for the same
+  document, and now scaling with the band rather than the document).
+
 **Do not reintroduce spanification for measurement.** Wrapping characters in spans
 changes the thing being measured: each span is an inline box, so shaping breaks across
 the boundaries, Arabic cursive joins come apart, and lines re-wrap. Hovering a paragraph
@@ -139,12 +150,29 @@ DOM state:
 | `.not-selectable`                | subtree selection skips (UI chrome, annotations)                                          |
 | `.not-editable`                  | keydown handling bails out inside this                                                    |
 
-The bounds markers are `<span>`, deliberately. They were `<input>` (to raise mobile
-keyboards) but a replaced element between two characters ALWAYS breaks the shaping run —
-measured on Arabic, a neighbouring glyph's advance shifts even when the box is
-width-neutral. Paint-only styling (box-shadow/outline) measures clean; anything that
-generates a box, including a pseudo-element, does not. Mobile keyboard focus is handled by
-a separate off-document `focusTarget`.
+The bounds markers are `<span>` styled `display: contents`, and both halves matter.
+
+They were `<input>` (to raise mobile keyboards), but a replaced element between two
+characters ALWAYS breaks the shaping run. Mobile keyboard focus moved to a separate
+off-document `focusTarget`.
+
+`display: contents` is what keeps them from generating a BOX. They were previously
+`display: inline; font-size: 0`, which is narrow but still an inline box — and an empty
+inline box contributes a strut to its line. Measured in WebKit, selecting inside an Arabic
+paragraph grew the block 33.59px -> 38.47px, lifted it 7.31px and shifted every following
+block by 2.44px. With `display: contents` all three deltas are 0.
+
+Because they generate no box, **their own `getBoundingClientRect()` is meaningless** —
+never measure a marker directly. `TosijsStyledEditor.markerRect()` derives a marker's
+screen position from `caretGeometryAt()`, and everything that needs marker geometry (the
+caret overlay, vertical arrow movement, the touch affordances) goes through it.
+
+WHAT THIS STILL DOES NOT FIX: WebKit does not shape across TEXT NODE boundaries. Merely
+splitting a text node — inserting no element at all — reshapes Arabic at roughly half the
+positions tested, by up to 4px. Since the markers live in the text, inserting them splits
+it. No styling avoids this; `display: contents` and a bare `splitText()` measure
+identically. Removing it means representing the bounds as offsets rather than as elements,
+i.e. a change to the selection model. Chromium measures 0 throughout.
 
 `markBounds()` (bounds → `.selected`), `resetBounds()` (`.selected` → bounds), and
 `removeBounds()` convert between the two representations. Commands that restructure the

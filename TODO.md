@@ -1,21 +1,27 @@
-[ ] Redo the painted caret (reverted once — see below). The GOAL is sound: an <input>
-    between characters is a replaced element and breaks the shaping run (measured on
-    Arabic, a neighbour's advance moves 6.2 -> 6.7 even with a width-neutral box), and
-    paint-without-a-box (box-shadow / outline) measured completely clean.
-    WHY THE FIRST ATTEMPT FAILED, so the next one does not repeat it:
-      1. The overlay elements were direct children of [part="doc"], which styles
-         `> *` as document blocks — `position: relative; padding: 4px 8px` overrode the
-         absolute positioning, so the selection edges rendered as large green and red
-         RECTANGLES sitting in the text.
-      2. Being doc children also puts them in the BLOCK MODEL: selectedBlocks(),
-         block(), topLevelAncestor(), deleteSelection() and arrow navigation would all
-         have treated them as paragraphs.
-      3. syncCaret() ran only from focus(), so the caret froze wherever it last was —
-         visible on the first keystroke, in any language.
-    Next attempt: put the overlay in the SHADOW ROOT beside [part="doc"], not inside it,
-    positioned against the host and offset by doc.scrollTop/Left; and drive repainting
-    from every bounds mutation plus updateUndo(). Needs a browser test that types and
-    arrows, since none of this is visible to DOM-structure assertions.
+[x] Painted caret — DONE. Overlay lives in the shadow root beside [part="doc"], and its
+    geometry comes from caretGeometryAt(): a COLLAPSED RANGE AT A TEXT OFFSET beside the
+    marker, which reports the line box's height and an x the engine resolved for that
+    logical offset (so bidi needs no direction handling). Two traps found on the way:
+    collapsed BEFORE the marker element the engine returns an empty rect, and an
+    absolutely positioned child resolves against the containing block's PADDING box while
+    getBoundingClientRect() gives the BORDER box. Painted vs computed is now 0,0,0.
+
+[ ] Selection bounds are ELEMENTS in the text, and WebKit does not shape across text node
+    boundaries — so inserting them splits the text and reshapes Arabic by up to 4px at
+    about half the positions in a line. This is the last visible artefact in Safari.
+    Splitting alone does it: `display: contents` and a bare splitText() measure
+    identically, so no styling fixes it. The fix is to hold the bounds as (node, offset)
+    pairs and paint the selection, rather than inserting marker elements — a change to the
+    selection model, and to the commands that read `.selected`. Chromium measures 0.
+    NOTE: the CSS Custom Highlight API was tried for the painting half and reverted — both
+    engines expose it, but ::highlight() would not paint for ranges inside a shadow tree
+    in WebKit, and it does not address the splitting anyway.
+
+[ ] Five spanify sites remain, all transient (spanify then despanify inside one
+    operation, nothing persists): vertical arrow movement, list-item and table-cell
+    navigation. They still rewrite the document to measure it, so they carry the same
+    reshaping cost while they run. groupByLine/closestCharOnLine can be rebuilt on
+    Range.getClientRects(), which returns one rect per line box already.
 
 [ ] IME composition is unhandled. No compositionstart/update/end listeners exist, so
     during composition keypress fires for the raw keystrokes and we would insert

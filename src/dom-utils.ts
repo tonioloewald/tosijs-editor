@@ -225,6 +225,30 @@ export function characterAtPoint(
   if (texts.length === 0) return null
 
   const range = document.createRange()
+
+  // Cheap pre-pass. Measuring every character in the document costs one rect
+  // per character, which is linear in document size and runs on every
+  // mousemove of a drag — fine for a demo paragraph, jank for a real document.
+  // A text node can only contain the answer if it is on (or nearest to) the
+  // pointer's line, and that takes ONE rect per node to decide. Only the nodes
+  // in the nearest vertical band are then measured character by character.
+  let nearestBand = Infinity
+  const bands: Array<{ node: Text; dy: number }> = []
+  for (const node of texts) {
+    range.selectNodeContents(node)
+    const box = range.getBoundingClientRect()
+    if (box.width === 0 && box.height === 0) continue
+    const dy = y < box.top ? box.top - y : y > box.bottom ? y - box.bottom : 0
+    bands.push({ node, dy })
+    if (dy < nearestBand) nearestBand = dy
+  }
+  if (bands.length === 0) return null
+  // Keep a little slack: adjacent inline runs on one line can differ slightly
+  // in box height, and a node spanning several lines contains the point anyway.
+  const candidates = bands
+    .filter((entry) => entry.dy <= nearestBand + 2)
+    .map((entry) => entry.node)
+
   let best: CharacterHit | null = null
   let bestScore = Infinity
 
@@ -244,7 +268,7 @@ export function characterAtPoint(
     return !!el && getComputedStyle(el).direction === 'rtl'
   }
 
-  for (const node of texts) {
+  for (const node of candidates) {
     const text = node.textContent || ''
     const rtl = isRtl(node)
     for (let i = 0; i < text.length; i++) {

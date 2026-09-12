@@ -28,19 +28,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="../doc-system.css?v=0.4.1" data-tosi-doc-system />
+  <link rel="stylesheet" href="../doc-system.css?v=0.4.2" data-tosi-doc-system />
   <title>Right-to-Left Text — tosijs-styled-editor</title>
-  <meta name="description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…" />
+  <meta name="description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring with Ranges — the…" />
   <link rel="canonical" href="https://editor.tosijs.net/right-to-left/" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
   <meta property="og:title" content="Right-to-Left Text — tosijs-styled-editor" />
-  <meta property="og:description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…" />
+  <meta property="og:description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring with Ranges — the…" />
   <meta property="og:url" content="https://editor.tosijs.net/right-to-left/" />
   <meta property="og:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Right-to-Left Text","description":"Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…","url":"https://editor.tosijs.net/right-to-left/","inLanguage":"en","image":"https://editor.tosijs.net/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://editor.tosijs.net"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Right-to-Left Text","description":"Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring with Ranges — the…","url":"https://editor.tosijs.net/right-to-left/","inLanguage":"en","image":"https://editor.tosijs.net/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://editor.tosijs.net"}}</script>
   <link rel="icon" href="../tosijs-editor.svg" />
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
@@ -49,7 +49,8 @@
   <article class="doc-content">
 <h1>Right-to-Left Text</h1>
 <p>Bidirectional text is where an editor that fakes its own selection either works or
-falls over. Selection here is resolved by measuring character spans, so the
+falls over. Selection here is resolved by measuring with Ranges — the document is
+never rewritten to find out where a character is — so the
 interesting question is not &quot;does Arabic render&quot; — the browser does that — but
 whether <strong>selection, the caret and arrow keys follow the visual order</strong> when the
 visual order disagrees with the logical order.</p>
@@ -109,7 +110,7 @@ double-click a word in each of the mixed lines.</p>
 </thead>
 <tbody><tr>
 <td><strong>Double-click a word</strong> in an RTL run</td>
-<td>Word boundaries are found by walking spanified characters, which are in <em>logical</em> order while the rendering is <em>visual</em></td>
+<td>Word boundaries come from Unicode segmentation of the block&#39;s text, which is in <em>logical</em> order while the rendering is <em>visual</em></td>
 </tr>
 <tr>
 <td><strong>Arrow keys</strong> across a direction boundary</td>
@@ -242,6 +243,6 @@ does.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="../hydrate.js?v=0.4.1"></script>
+  <script type="module" src="../hydrate.js?v=0.4.2"></script>
 </body>
 </html>

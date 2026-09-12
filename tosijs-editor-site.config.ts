@@ -94,7 +94,11 @@ export default defineSiteConfig({
     } catch {
       // tsc emits declarations even when it reports errors
     }
-    await $`mv ${dist}/src/index.d.ts ${dist}/index.d.ts || true`.quiet()
+    // Move ALL the declarations up, not just index.d.ts: it re-exports its
+    // siblings (`export * from './dom-utils'` and so on), so moving one and
+    // deleting the rest publishes a types entry pointing at files that are not
+    // in the package.
+    await $`cp -R ${dist}/src/. ${dist}/ || true`.quiet()
     await $`rm -rf ${dist}/src ${dist}/demo ${dist}/bin ${dist}/tosijs-editor-site.config.d.ts || true`.quiet()
     await $`bun build ./src/index.ts --outfile ${dist}/module.js --target browser --format esm --external tosijs --external tosijs-ui`.quiet()
     await $`bun build ./src/index.ts --outfile ${dist}/index.js --target browser --format iife`.quiet()
