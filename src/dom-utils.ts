@@ -257,7 +257,14 @@ export function characterAtPoint(
       // however far along it sits. Horizontal only separates within a line.
       const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
       const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
-      const score = dy * 1000 + dx
+      // Cursive scripts overlap: in Arabic a point often falls INSIDE several
+      // glyph boxes at once, so dx is 0 for all of them and the winner used to
+      // be whichever came first in document order. That makes the answer
+      // non-monotonic as the pointer moves — dragging a selection could stop
+      // advancing while the pointer kept going. Break the tie on distance to
+      // the glyph's CENTRE, which does vary smoothly with x.
+      const centreDistance = Math.abs(x - (rect.left + rect.right) / 2)
+      const score = dy * 1000 + dx + centreDistance / 1000
       if (score < bestScore) {
         bestScore = score
         best = {
