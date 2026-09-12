@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="../doc-system.css?v=0.3.6" data-tosi-doc-system />
+  <link rel="stylesheet" href="../doc-system.css?v=0.3.7" data-tosi-doc-system />
   <title>Right-to-Left Text — tosijs-styled-editor</title>
   <meta name="description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring character spans, so the…" />
   <link rel="canonical" href="https://editor.tosijs.net/right-to-left/" />
@@ -132,6 +132,79 @@ double-click a word in each of the mixed lines.</p>
 <td>Digits are left-to-right even in RTL text, and trailing punctuation resolves against the surrounding run, not the number</td>
 </tr>
 </tbody></table>
+<h2>The same text in <code>contentEditable</code></h2>
+<p>Here is the identical content in a plain <code>contentEditable</code>, so you can put the two
+side by side and judge for yourself. This is the browser&#39;s own selection, caret and
+bidi handling — the thing this component replaces.</p>
+<pre><code class="language-html">&lt;div
+  contenteditable=&quot;true&quot;
+  spellcheck=&quot;false&quot;
+  style=&quot;border: 1px solid var(--tosi-border-color, #ccc); border-radius: 4px; padding: 8px 12px; min-height: 200px; max-height: 400px; overflow-y: auto; background: var(--tosi-background, #fff); color: var(--tosi-text, #222)&quot;
+&gt;
+  &lt;h2&gt;عربي — a right-to-left block&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    هذا النص مكتوب من اليمين إلى اليسار. حاول تحديد كلمة بالنقر المزدوج،
+    ثم حرّك المؤشر بمفاتيح الأسهم.
+  &lt;/p&gt;
+
+  &lt;h2&gt;עברית — another right-to-left block&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    זהו טקסט מימין לשמאל. נסו לבחור מילה בלחיצה כפולה ולהזיז את הסמן.
+  &lt;/p&gt;
+
+  &lt;h2&gt;Mixed, in a left-to-right paragraph&lt;/h2&gt;
+  &lt;p&gt;
+    An English sentence containing العربية in the middle, then back to English.
+    Numbers embed too: the price is ١٢٣٤ dinars, or 1234 if you prefer.
+  &lt;/p&gt;
+
+  &lt;h2&gt;Right-to-left block with embedded left-to-right&lt;/h2&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    جملة عربية تحتوي على English words في المنتصف، ثم تعود إلى العربية.
+  &lt;/p&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    الأمر هو &lt;code&gt;bun run make&lt;/code&gt; وعنوان الموقع
+    &lt;code&gt;https://tosijs.net&lt;/code&gt; — كلاهما يُعرض من اليسار إلى اليمين
+    داخل فقرة من اليمين إلى اليسار.
+  &lt;/p&gt;
+  &lt;p dir=&quot;rtl&quot;&gt;
+    الإصدار 1.13.0 صدر في 2026، والسعر 1,234.56 — الأرقام والترقيم
+    هي الحالة الأصعب لأن اتجاهها يتغير داخل الجملة.
+  &lt;/p&gt;
+&lt;/div&gt;
+</code></pre>
+<p>Worth trying in both, in RTL text specifically: click between two letters of a
+cursive cluster, drag a selection across a direction boundary, and walk the caret
+through an embedded <code>bun run make</code> with the arrow keys.</p>
+<p>One measured comparison, on click-to-caret accuracy — probing every non-space
+character in a paragraph and asking which character the caret landed beside:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>contentEditable</code> (<code>caretPositionFromPoint</code>)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Hebrew</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Arabic</td>
+<td>98.8%</td>
+</tr>
+<tr>
+<td>LTR with embedded Arabic</td>
+<td>98.4%</td>
+</tr>
+<tr>
+<td>RTL with embedded LTR</td>
+<td>98.1%</td>
+</tr>
+</tbody></table>
+<p>So the browser&#39;s own hit-testing is not exact either. Cursive clusters are the
+common residue: where two letters render as one glyph, their rects overlap and a
+point inside genuinely belongs to both.</p>
 <p><code>&lt;code&gt;</code>, <code>&lt;kbd&gt;</code> and <code>&lt;samp&gt;</code> are given <code>direction: ltr; unicode-bidi: isolate</code>
 inside the document, because they are left-to-right by nature: without the
 isolate, a URL&#39;s slashes or a trailing period resolve against the paragraph&#39;s
@@ -169,6 +242,6 @@ does.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="../hydrate.js?v=0.3.6"></script>
+  <script type="module" src="../hydrate.js?v=0.3.7"></script>
 </body>
 </html>
