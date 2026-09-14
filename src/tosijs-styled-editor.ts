@@ -790,6 +790,13 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.selectable.onBoundsChanged = () => this.syncCaret()
     this.syncCaret()
 
+    // The overlay is positioned in VIEWPORT coordinates, so anything that moves
+    // the text without changing the bounds strands it — scrolling the document
+    // left the caret painted where the text used to be. Neither of these fires
+    // onBoundsChanged, so they have to repaint it themselves.
+    this.parts.doc.addEventListener('scroll', this.repaintCaret, { passive: true })
+    window.addEventListener('resize', this.repaintCaret, { passive: true })
+
     this.applyWidgets()
 
     // A <slot> is always :empty in CSS terms, so whether a bar has content has
@@ -841,6 +848,25 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   disconnectedCallback(): void {
     super.disconnectedCallback()
     this.selectable?.destroy()
+    this.parts?.doc?.removeEventListener('scroll', this.repaintCaret)
+    window.removeEventListener('resize', this.repaintCaret)
+    if (this.caretRepaintHandle) cancelAnimationFrame(this.caretRepaintHandle)
+  }
+
+  private caretRepaintHandle = 0
+
+  /**
+   * Repaint the caret overlay, coalesced to one per frame.
+   *
+   * Scroll fires far more often than a frame, and syncCaret() measures with
+   * Ranges, so it is not something to run per event.
+   */
+  private repaintCaret = (): void => {
+    if (this.caretRepaintHandle) return
+    this.caretRepaintHandle = requestAnimationFrame(() => {
+      this.caretRepaintHandle = 0
+      this.syncCaret()
+    })
   }
 
   /**
