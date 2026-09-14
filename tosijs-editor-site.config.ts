@@ -100,7 +100,13 @@ export default defineSiteConfig({
     // in the package.
     await $`cp -R ${dist}/src/. ${dist}/ || true`.quiet()
     await $`rm -rf ${dist}/src ${dist}/demo ${dist}/bin ${dist}/tosijs-editor-site.config.d.ts || true`.quiet()
+    // module.js is consumed by a bundler, which will minify it — shipping it
+    // readable costs consumers nothing at runtime and is the only debuggable
+    // copy, since sourcemaps are deliberately not published (they embed
+    // dependency source that has tripped GitHub push protection).
     await $`bun build ./src/index.ts --outfile ${dist}/module.js --target browser --format esm --external tosijs --external tosijs-ui`.quiet()
-    await $`bun build ./src/index.ts --outfile ${dist}/index.js --target browser --format iife`.quiet()
+    // index.js is the drop-in <script> build, loaded as-is, so it IS minified:
+    // 83.5kB -> 70.8kB gzipped. `bun build` does not minify unless asked.
+    await $`bun build ./src/index.ts --outfile ${dist}/index.js --target browser --format iife --minify`.quiet()
   },
 })
