@@ -250,6 +250,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       cursor: 'text',
       overflowY: 'auto',
       position: 'relative',
+      // DOUBLE-TAP SELECTS A WORD here, but to a touch browser a double tap is
+      // zoom — so the gesture that selects also zoomed the page. `manipulation`
+      // turns off double-tap zoom (and its 300ms click delay) while KEEPING
+      // panning and pinch-zoom, so scrolling the document and zooming
+      // deliberately both still work. `none` would break both.
+      touchAction: 'manipulation',
       transition: 'padding-top 0.15s ease-out, padding-bottom 0.15s ease-out',
     },
     // Blocks inside doc
@@ -320,6 +326,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       margin: '0',
       border: '0',
       outline: 'none',
+      // iOS Safari ZOOMS THE PAGE when focus lands on a form control whose
+      // computed font-size is under 16px, and this input is the focus target
+      // that raises the mobile keyboard — measured at 11px (the UA default for
+      // form controls), so every touch selection zoomed the document. The fix
+      // has to be the font size: suppressing it with user-scalable=no or
+      // maximum-scale on the viewport would disable pinch-zoom for everyone,
+      // which fails WCAG 1.4.4. Nothing here is visible — the text is
+      // transparent and width/height are set explicitly — so the size is free.
+      fontSize: '16px',
+      lineHeight: '1',
       background: 'var(--editor-text)',
       color: 'transparent',
       caretColor: 'transparent',
