@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="../doc-system.css?v=0.4.4" data-tosi-doc-system />
+  <link rel="stylesheet" href="../doc-system.css?v=0.4.5" data-tosi-doc-system />
   <title>&lt;tosijs-styled-editor&gt;</title>
   <meta name="description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
   <link rel="canonical" href="https://editor.tosijs.net/tosijs-styled-editor/" />
@@ -84,7 +84,7 @@ test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
 
   // Clicking the dead space right of a line puts the caret at the END of it.
   clickAt(box.right + 200, box.top + box.height / 2)
-  const caret = doc.querySelector(&#39;input.caret&#39;)
+  const caret = doc.querySelector(&#39;.sel-end&#39;)
   expect(caret).not.toBe(null)
   const rest = document.createRange()
   rest.setStartAfter(caret)
@@ -96,7 +96,7 @@ test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
   clickAt(box.left + 12, box.top + box.height / 2, 2)
   const selected = [...doc.querySelectorAll(&#39;.selected&#39;)]
   expect(selected.length).toBeGreaterThan(1)
-  const held = doc.querySelector(&#39;input.caret&#39;)
+  const held = doc.querySelector(&#39;.sel-end&#39;)
   const stranded = selected.filter(
     (el) =&gt; held.compareDocumentPosition(el) &amp; Node.DOCUMENT_POSITION_FOLLOWING
   )
@@ -107,11 +107,15 @@ test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
 <p>The editor uses three layers:</p>
 <ol>
 <li><strong>DOM utilities</strong> — leaf-node traversal (every operation works with text nodes)</li>
-<li><strong>Selection</strong> — custom selection via &quot;spanification&quot; (wrapping chars in spans)</li>
+<li><strong>Selection</strong> — custom selection, hit-tested by MEASURING with Ranges rather
+than by rewriting the document</li>
 <li><strong>Commands</strong> — extensible command system for formatting</li>
 </ol>
-<p>The caret is an actual <code>&lt;input&gt;</code> element, which means mobile browsers
-will show their keyboard automatically.</p>
+<p>The caret and selection edges are painted in the shadow root, positioned from a
+collapsed Range beside the bound markers. The markers themselves are spans
+styled <code>display: contents</code>, so they generate no box and cannot disturb the line
+they sit in. Mobile keyboard focus is handled by a separate off-document
+element.</p>
 <h2>Commands</h2>
 <p>Commands are invoked via <code>doCommand(commandString)</code>:</p>
 <ul>
@@ -133,6 +137,6 @@ will show their keyboard automatically.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="../hydrate.js?v=0.4.4"></script>
+  <script type="module" src="../hydrate.js?v=0.4.5"></script>
 </body>
 </html>

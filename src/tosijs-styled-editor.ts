@@ -43,7 +43,7 @@ test('click position is resolved from real layout', async () => {
 
   // Clicking the dead space right of a line puts the caret at the END of it.
   clickAt(box.right + 200, box.top + box.height / 2)
-  const caret = doc.querySelector('input.caret')
+  const caret = doc.querySelector('.sel-end')
   expect(caret).not.toBe(null)
   const rest = document.createRange()
   rest.setStartAfter(caret)
@@ -55,7 +55,7 @@ test('click position is resolved from real layout', async () => {
   clickAt(box.left + 12, box.top + box.height / 2, 2)
   const selected = [...doc.querySelectorAll('.selected')]
   expect(selected.length).toBeGreaterThan(1)
-  const held = doc.querySelector('input.caret')
+  const held = doc.querySelector('.sel-end')
   const stranded = selected.filter(
     (el) => held.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
   )
@@ -68,11 +68,15 @@ test('click position is resolved from real layout', async () => {
 The editor uses three layers:
 
 1. **DOM utilities** — leaf-node traversal (every operation works with text nodes)
-2. **Selection** — custom selection via "spanification" (wrapping chars in spans)
+2. **Selection** — custom selection, hit-tested by MEASURING with Ranges rather
+   than by rewriting the document
 3. **Commands** — extensible command system for formatting
 
-The caret is an actual `<input>` element, which means mobile browsers
-will show their keyboard automatically.
+The caret and selection edges are painted in the shadow root, positioned from a
+collapsed Range beside the bound markers. The markers themselves are spans
+styled `display: contents`, so they generate no box and cannot disturb the line
+they sit in. Mobile keyboard focus is handled by a separate off-document
+element.
 
 ## Commands
 
@@ -794,8 +798,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // the text without changing the bounds strands it — scrolling the document
     // left the caret painted where the text used to be. Neither of these fires
     // onBoundsChanged, so they have to repaint it themselves.
-    this.parts.doc.addEventListener('scroll', this.syncCaretNow, { passive: true })
-    window.addEventListener('resize', this.syncCaretNow, { passive: true })
+    // The overlay and the touch affordances are DERIVED VIEWS: they hold no
+    // state, they measure the document and repaint. So they must be driven by
+    // every signal that moves text, not recomputed after the actions we happen
+    // to think of — that is what stranded the caret on scroll, and froze it at
+    // a stale position before that. ResizeObserver catches the rest: container
+    // resizes, a late font load, and the padding transition under the touch
+    // affordances (measured: 5 callbacks across that 0.15s transition, so the
+    // affordances track it continuously instead of waiting a guessed 160ms).
+    this.parts.doc.addEventListener('scroll', this.handleGeometryChange, {
+      passive: true,
+    })
+    window.addEventListener('resize', this.handleGeometryChange, {
+      passive: true,
+    })
+    this.geometryObserver = new ResizeObserver(this.handleGeometryChange)
+    this.geometryObserver.observe(this.parts.doc, { box: 'content-box' })
 
     this.applyWidgets()
 
@@ -848,12 +866,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   disconnectedCallback(): void {
     super.disconnectedCallback()
     this.selectable?.destroy()
-    this.parts?.doc?.removeEventListener('scroll', this.syncCaretNow)
-    window.removeEventListener('resize', this.syncCaretNow)
+    this.parts?.doc?.removeEventListener('scroll', this.handleGeometryChange)
+    window.removeEventListener('resize', this.handleGeometryChange)
+    this.geometryObserver?.disconnect()
   }
 
+  private geometryObserver: ResizeObserver | null = null
+
   /**
-   * Repaint the caret overlay, synchronously.
+   * Repaint everything positioned over the document.
    *
    * Deliberately NOT coalesced with requestAnimationFrame. Measured: one
    * repaint costs 0.015ms — 0.09% of a frame — and the browser already
@@ -861,8 +882,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * rAF bought no work reduction and cost a frame of latency, which shows up
    * as the caret trailing the text while scrolling.
    */
-  private syncCaretNow = (): void => {
+  private handleGeometryChange = (): void => {
     this.syncCaret()
+    if (this.touchAffordances?.style.display === 'block') {
+      this.positionAffordances()
+    }
   }
 
   /**
@@ -999,9 +1023,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     return Array.from(this.parts.doc.querySelectorAll('.selected-block'))
   }
 
-  /** Get the caret input if it exists in the doc */
-  insertionPoint(): HTMLInputElement | null {
-    return this.parts.doc.querySelector('input.caret')
+  /**
+   * The caret marker, if the doc has one.
+   *
+   * This selected `input.caret` until the markers stopped being `<input>`
+   * elements, after which it matched nothing and returned null forever —
+   * silently disabling every command that inserts at the caret
+   * (insertFootnote, insertTable, insertImage, setLink and the rest), because
+   * they all bail on a null insertion point.
+   */
+  insertionPoint(): HTMLElement | null {
+    return this.parts.doc.querySelector('.sel-end')
   }
 
   /** Get the top-level block containing a node */
@@ -2533,7 +2565,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const endRect = this.markerRect(selEnd)
 
     // Check if padding is needed (skip during drag)
-    let needsPaddingChange = false
     if (this.touchDrags.size === 0) {
       // Subtract existing padding to check where selection would be without it
       const existingTopPad = parseFloat(this.parts.doc.style.paddingTop) || 0
@@ -2547,25 +2578,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const hadTop = this.parts.doc.style.paddingTop
       const hadBottom = this.parts.doc.style.paddingBottom
       if (wantTop !== hadTop || wantBottom !== hadBottom) {
-        needsPaddingChange = true
         this.parts.doc.style.paddingTop = wantTop
         this.parts.doc.style.paddingBottom = wantBottom
       }
     }
 
-    if (needsPaddingChange) {
-      // Hide affordances, wait for padding transition, then position and fade in
-      this.touchAffordances.style.opacity = '0'
-      this.touchAffordances.style.display = 'block'
-      setTimeout(() => {
-        this.positionAffordances()
-        this.touchAffordances!.style.opacity = '1'
-      }, 160)
-    } else {
-      this.positionAffordances()
-      this.touchAffordances.style.display = 'block'
-      this.touchAffordances.style.opacity = '1'
-    }
+    // Show them straight away, wherever the text is NOW. If the padding just
+    // changed, the ResizeObserver repositions them as the transition animates,
+    // so they follow the text instead of being hidden for a guessed 160ms and
+    // reappearing. That guess also had a failure mode this does not: if the
+    // transition never ran, the affordances stayed invisible.
+    this.positionAffordances()
+    this.touchAffordances.style.display = 'block'
+    this.touchAffordances.style.opacity = '1'
   }
 
   private positionAffordances(): void {
@@ -2726,10 +2751,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       this.hideTouchMenu()
       return
     }
-    this.showTouchMenu()
+    this.showTouchMenu(evt)
   }
 
-  private showTouchMenu(): void {
+  private showTouchMenu(openedBy?: Event): void {
     this.hideTouchMenu()
 
     const menu = document.createElement('div')
@@ -2843,16 +2868,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.touchMenuEl = menu
     this.touchAffordances!.appendChild(menu)
 
-    // Dismiss when tapping outside the menu
+    // Dismiss when tapping outside the menu. The listener goes on immediately
+    // and ignores the event that OPENED the menu by identity — that event is
+    // still bubbling toward the doc, and would otherwise dismiss the menu the
+    // instant it appeared. Deferring the subscription by a timeout also works,
+    // but it guesses at ordering rather than stating the rule, and leaves a
+    // window in which an outside tap does not dismiss.
     this.touchMenuDismiss = (e: Event) => {
+      if (e === openedBy) return
       if (this.touchMenuEl && !this.touchMenuEl.contains(e.target as Node)) {
         this.hideTouchMenu()
       }
     }
-    // Use setTimeout so the current event doesn't immediately trigger dismissal
-    setTimeout(() => {
-      this.parts.doc.addEventListener('pointerdown', this.touchMenuDismiss!)
-    }, 0)
+    this.parts.doc.addEventListener('pointerdown', this.touchMenuDismiss)
   }
 
   private touchMenuDismiss: ((e: Event) => void) | null = null

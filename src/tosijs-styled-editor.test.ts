@@ -399,18 +399,36 @@ describe('TosijsStyledEditor', () => {
   })
 
   describe('insertionPoint', () => {
-    test('returns caret input when present', () => {
+    // This test used to build its own `<input class="sel-end caret">` and then
+    // assert the selector found it. That passes whatever the editor actually
+    // does — so when the markers stopped being `<input>` elements, the selector
+    // `input.caret` silently matched nothing, insertionPoint() returned null
+    // forever, and every command that inserts at the caret quietly did nothing.
+    // The test stayed green throughout. Use the REAL bounds, not a fixture.
+    test('finds the caret the selection system actually creates', () => {
       const el = tosijsStyledEditor() as TosijsStyledEditor
       container.appendChild(el)
-      // Manually place caret in the doc
       el.parts.doc.innerHTML = '<p>Test</p>'
       const p = el.parts.doc.querySelector('p')!
-      const caret = document.createElement('input')
-      caret.className = 'sel-end caret'
-      p.appendChild(caret)
+      p.appendChild(el.selectable.createBounds())
+
       const ip = el.insertionPoint()
       expect(ip).not.toBeNull()
       expect(ip!.classList.contains('caret')).toBe(true)
+      expect(el.parts.doc.contains(ip)).toBe(true)
+    })
+
+    test('commands that insert at the caret find one', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>Test</p>'
+      const p = el.parts.doc.querySelector('p')!
+      p.appendChild(el.selectable.createBounds())
+
+      // insertTable bails out on a null insertion point, so reaching the DOM at
+      // all is the assertion: this is what was silently broken.
+      el.doCommand('insertTable')
+      expect(el.parts.doc.querySelector('ul.editor-table')).not.toBeNull()
     })
   })
 
