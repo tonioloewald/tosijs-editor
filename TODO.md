@@ -1,3 +1,10 @@
+[ ] Footnotes are inserted but never maintained. Deleting a reference with Backspace
+    leaves the footnote text orphaned in the list and does NOT renumber the survivors
+    (measured: refs [1,2] + delete -> refs [2], items 2). renumberFootnotes runs only at
+    insertion time. See EXTENSIBILITY.md — the likely fix is that a footnote becomes a
+    custom element that unregisters itself in disconnectedCallback, rather than a global
+    pass someone has to remember to call.
+
 [x] Painted caret — DONE. Overlay lives in the shadow root beside [part="doc"], and its
     geometry comes from caretGeometryAt(): a COLLAPSED RANGE AT A TEXT OFFSET beside the
     marker, which reports the line box's height and an x the engine resolved for that
