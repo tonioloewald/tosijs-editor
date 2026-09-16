@@ -409,17 +409,32 @@ export function caretGeometryAt(
  * origin, and `noopener` does not prevent it. `data:` is allowed only for
  * images, because `data:text/html` is a same-origin script vector.
  */
+/**
+ * Normalize a URL the way the URL parser does, for scheme testing only.
+ *
+ * WHATWG removes leading and trailing C0-or-space, and every ASCII tab/LF/CR
+ * ANYWHERE, before matching a scheme. Testing the raw string instead let
+ * `java&#9;script:` read as a schemeless relative path while the browser saw
+ * `javascript:` — checking a different string from the one that gets parsed.
+ *
+ * It must mirror the parser in BOTH directions. Stripping all spaces was too
+ * aggressive: `Chapter 3: Intro.html` became `Chapter3:Intro.html`, which
+ * matches the scheme pattern, fails the allowlist, and had its href silently
+ * removed — a legitimate relative link destroyed by the sanitizer. Interior
+ * spaces are preserved here, and still break the scheme match exactly as they
+ * do in the parser.
+ *
+ * ONE implementation, deliberately: this logic previously existed twice as
+ * inline expressions, and the fix for the tab bypass reached only one of them.
+ */
+function forSchemeTest(value: string): string {
+  return value
+    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
+    .replace(/[\t\n\r]/g, '')
+}
+
 function isSafeUrl(value: string): boolean {
-  // Strip ASCII control characters and spaces ANYWHERE before testing the
-  // scheme, because that is what the URL parser does: WHATWG removes every
-  // tab/LF/CR from the input BEFORE matching a scheme, so `java&#9;script:` is
-  // `javascript:` to the browser while `.trim()` alone leaves it looking like a
-  // schemeless relative path. Checking a different string from the one that
-  // gets parsed is the whole shape of a sanitizer bypass.
-  //
-  // Only the scheme TEST uses this — the attribute value is never rewritten —
-  // so collapsing spaces here cannot corrupt a legitimate URL.
-  const trimmed = value.replace(/[\u0000-\u0020]+/g, '')
+  const trimmed = forSchemeTest(value)
   // Protocol-relative and path-relative URLs carry no scheme and are fine.
   if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true
   if (/^data:image\/(png|jpeg|jpg|gif|webp|avif|bmp|svg\+xml);/i.test(trimmed)) {
@@ -501,7 +516,15 @@ export function sanitizeInPlace(root: Element | DocumentFragment): void {
   for (const el of doomed) el.remove()
 }
 
-/** Is this URL safe to navigate to or write into an href? */
+/**
+ * Is this URL safe to NAVIGATE to, or to write into an href?
+ *
+ * Stricter than `isSafeUrl`: that one allows raster `data:image/*` because an
+ * `<img src>` may legitimately carry one, while a link must never — so this
+ * rejects every `data:` URL. Both must normalize identically, or the stricter
+ * check is the one that gets bypassed: `da&#9;ta:image/png;…` passed here while
+ * `data:image/png;…` was correctly rejected.
+ */
 export function isSafeNavigationUrl(value: string): boolean {
-  return isSafeUrl(value) && !/^data:/i.test(value.trim())
+  return isSafeUrl(value) && !/^data:/i.test(forSchemeTest(value))
 }

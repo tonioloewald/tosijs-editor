@@ -119,6 +119,35 @@ The editor uses three layers:
 
 The caret is an `<input>` element, so mobile browsers show their keyboard automatically.
 
+## Security: what is sanitized, and what is not
+
+Replacing `contentEditable` also means replacing the sanitization the browser
+was doing on your behalf. As of 0.4.4:
+
+**Sanitized** — content arriving from outside the document, which is the path an
+attacker controls:
+
+- **paste** and **drop** (both go through one shared choke point)
+- inline event handlers (`onerror`, `onload`, …) are removed
+- `script`, `iframe`, `object`, `embed`, `link`, `meta`, `base`, `style`,
+  `form` and the SVG animation elements are removed — in **any** namespace, so
+  `<svg><script>` and `<svg><style>` are caught too
+- `href`/`src`/`xlink:href` are scheme-checked: `http(s)`, `mailto`, `tel` and
+  relative URLs are kept, `javascript:` is dropped, and `data:` is allowed only
+  for raster images (never for a link, never `data:image/svg+xml`)
+- ordinary formatting and **unregistered custom elements survive** — plugin
+  markup is content, not a threat
+
+**NOT sanitized** — content you supply, which is inside your own trust boundary:
+
+- `editor.value = html`
+- initial light-DOM content
+
+**If you are upgrading from 0.4.3 or earlier, read this:** documents your users
+created before 0.4.4 may already contain a payload that was pasted in, and the
+component cannot fix that for you — setting `value` does not filter. Sanitize
+your stored corpus as part of the upgrade.
+
 ## Keyboard Behavior
 
 ### General editing

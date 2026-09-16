@@ -141,6 +141,32 @@ for (const widget of defaultToolbar()) {
 <li><strong>Commands</strong> (<code>commands.ts</code>) — extensible command system for formatting and editing</li>
 </ol>
 <p>The caret is an <code>&lt;input&gt;</code> element, so mobile browsers show their keyboard automatically.</p>
+<h2>Security: what is sanitized, and what is not</h2>
+<p>Replacing <code>contentEditable</code> also means replacing the sanitization the browser
+was doing on your behalf. As of 0.4.4:</p>
+<p><strong>Sanitized</strong> — content arriving from outside the document, which is the path an
+attacker controls:</p>
+<ul>
+<li><strong>paste</strong> and <strong>drop</strong> (both go through one shared choke point)</li>
+<li>inline event handlers (<code>onerror</code>, <code>onload</code>, …) are removed</li>
+<li><code>script</code>, <code>iframe</code>, <code>object</code>, <code>embed</code>, <code>link</code>, <code>meta</code>, <code>base</code>, <code>style</code>,
+<code>form</code> and the SVG animation elements are removed — in <strong>any</strong> namespace, so
+<code>&lt;svg&gt;&lt;script&gt;</code> and <code>&lt;svg&gt;&lt;style&gt;</code> are caught too</li>
+<li><code>href</code>/<code>src</code>/<code>xlink:href</code> are scheme-checked: <code>http(s)</code>, <code>mailto</code>, <code>tel</code> and
+relative URLs are kept, <code>javascript:</code> is dropped, and <code>data:</code> is allowed only
+for raster images (never for a link, never <code>data:image/svg+xml</code>)</li>
+<li>ordinary formatting and <strong>unregistered custom elements survive</strong> — plugin
+markup is content, not a threat</li>
+</ul>
+<p><strong>NOT sanitized</strong> — content you supply, which is inside your own trust boundary:</p>
+<ul>
+<li><code>editor.value = html</code></li>
+<li>initial light-DOM content</li>
+</ul>
+<p><strong>If you are upgrading from 0.4.3 or earlier, read this:</strong> documents your users
+created before 0.4.4 may already contain a payload that was pasted in, and the
+component cannot fix that for you — setting <code>value</code> does not filter. Sanitize
+your stored corpus as part of the upgrade.</p>
 <h2>Keyboard Behavior</h2>
 <h3>General editing</h3>
 <table>

@@ -377,9 +377,25 @@ describe('sanitizer bypasses that were shipped and caught in review', () => {
     expect(isSafeNavigationUrl('java\nscript:alert(1)')).toBe(false)
     expect(isSafeNavigationUrl('java\rscript:alert(1)')).toBe(false)
     expect(isSafeNavigationUrl('  java\t\nscript:alert(1)  ')).toBe(false)
+    // the stricter data: rejection must normalize identically, or it is the
+    // check that gets bypassed
+    expect(isSafeNavigationUrl('data:image/png;base64,AAAA')).toBe(false)
+    expect(isSafeNavigationUrl('da\tta:image/png;base64,AAAA')).toBe(false)
+    expect(isSafeNavigationUrl('da\nta:image/png;base64,AAAA')).toBe(false)
     // and a legitimate URL is still legitimate
     expect(isSafeNavigationUrl('https://example.com/a b')).toBe(true)
     expect(isSafeNavigationUrl('/my page')).toBe(true)
+  })
+
+  test('a relative href containing a space keeps its href', () => {
+    // Stripping every space made `Chapter 3: Intro.html` look like a scheme,
+    // and the sanitizer silently deleted a legitimate link.
+    const el = frag('<a id="rel" href="Chapter 3: Intro.html">x</a>')
+    sanitizeInPlace(el)
+    expect(el.querySelector('#rel')!.getAttribute('href')).toBe(
+      'Chapter 3: Intro.html'
+    )
+    expect(isSafeNavigationUrl('Chapter 3: Intro.html')).toBe(true)
   })
 
   test('an encoded tab in a pasted href is stripped', () => {
@@ -392,23 +408,35 @@ describe('sanitizer bypasses that were shipped and caught in review', () => {
     // localName, not tagName: foreign content reports a lowercase tagName, so
     // an upper-case denylist missed all of it. An SVG <style> applies
     // document-wide the moment it lands — no store-and-re-serve needed.
-    // `<p>` goes FIRST: happy-dom drops content after `</svg>` when parsing,
-    // which is a parser quirk, not a sanitizer result.
-    const el = frag(
-      '<p>keep</p><svg><script>bad()</script><style>body{x:y}</style></svg>'
-    )
-    sanitizeInPlace(el)
-    expect(el.querySelectorAll('script').length).toBe(0)
-    expect(el.querySelectorAll('style').length).toBe(0)
-    expect(el.querySelector('p')!.textContent).toBe('keep')
+    // Two fragments, not one: happy-dom drops everything parsed after
+    // `</script>`, so a combined fixture made the <style> assertion VACUOUS —
+    // it passed against the pre-fix uppercase denylist too.
+    // `<p>` goes first for the same reason (content after `</svg>` is dropped).
+    const withScript = frag('<p>keep</p><svg><script>bad()</script></svg>')
+    sanitizeInPlace(withScript)
+    expect(withScript.querySelectorAll('script').length).toBe(0)
+    expect(withScript.querySelector('p')!.textContent).toBe('keep')
+
+    const withStyle = frag('<p>keep</p><svg><style>body{x:y}</style></svg>')
+    expect(withStyle.querySelectorAll('style').length).toBe(1) // fixture is real
+    sanitizeInPlace(withStyle)
+    expect(withStyle.querySelectorAll('style').length).toBe(0)
+    expect(withStyle.querySelector('p')!.textContent).toBe('keep')
   })
 
   test('SVG animation cannot retarget an attribute past the scheme check', () => {
     const el = frag(
-      '<svg><a id="a" href="/ok"><set attributeName="href" to="javascript:bad()"/></a></svg>'
+      '<p>k</p><svg><set attributeName="href" to="javascript:bad()"/></svg>'
     )
+    expect(el.querySelectorAll('set').length).toBe(1) // fixture is real
     sanitizeInPlace(el)
-    expect(el.querySelectorAll('set, animate').length).toBe(0)
+    expect(el.querySelectorAll('set').length).toBe(0)
+
+    // camelCase animation tags too — localName is lower-case regardless
+    const camel = frag('<p>k</p><svg><animateTransform attributeName="x"/></svg>')
+    expect(camel.querySelectorAll('animateTransform').length).toBe(1)
+    sanitizeInPlace(camel)
+    expect(camel.querySelectorAll('animateTransform').length).toBe(0)
   })
 })
 
