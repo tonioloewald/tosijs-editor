@@ -440,6 +440,31 @@ describe('sanitizer bypasses that were shipped and caught in review', () => {
   })
 })
 
+describe("DOMPurify's corpus: the two cases that pull opposite ways", () => {
+  // Our whole sanitizer passes DOMPurify's 223 published fixtures with zero
+  // executable residue. These two are the pair that constrains the URL
+  // normalizer from both sides — widen it and the link breaks, narrow it and
+  // the payload executes.
+  test('C0 controls inside a scheme are stripped (DOMPurify #Low-range-ASCII)', () => {
+    const el = document.createElement('div')
+    // Blink removes the whole low-ASCII range from a URL before parsing, so
+    // this IS `javascript:` by the time it is used.
+    el.innerHTML = '<a id="x" href="\u0001java\u0003script:alert(1)">y</a>'
+    sanitizeInPlace(el)
+    expect(el.querySelector('#x')!.hasAttribute('href')).toBe(false)
+    expect(isSafeNavigationUrl('\u0001java\u0003script:alert(1)')).toBe(false)
+  })
+
+  test('but interior SPACES are preserved, so relative links survive', () => {
+    const el = document.createElement('div')
+    el.innerHTML = '<a id="x" href="Chapter 3: Intro.html">y</a>'
+    sanitizeInPlace(el)
+    expect(el.querySelector('#x')!.getAttribute('href')).toBe(
+      'Chapter 3: Intro.html'
+    )
+  })
+})
+
 describe('attributes dangerous by capability, not by scheme', () => {
   test('ping is removed even though its URL is perfectly ordinary', () => {
     const el = document.createElement('div')

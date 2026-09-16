@@ -428,9 +428,22 @@ export function caretGeometryAt(
  * inline expressions, and the fix for the tab bypass reached only one of them.
  */
 function forSchemeTest(value: string): string {
-  return value
-    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
-    .replace(/[\t\n\r]/g, '')
+  return (
+    value
+      // Leading/trailing whitespace: the parser ignores it.
+      .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
+      // EVERY C0 control anywhere, not just tab/LF/CR. Blink strips the whole
+      // low-ASCII range out of a URL before parsing it, so
+      // `\u0001java\u0003script:` is `javascript:` by the time it is used —
+      // DOMPurify's own corpus carries this as "Low-range-ASCII obfuscated
+      // JavaScript URI", and a narrower rule let it through.
+      //
+      // Interior SPACES are deliberately kept: stripping those turned
+      // `Chapter 3: Intro.html` into something that looked like a scheme and
+      // got a legitimate link deleted. Controls out, spaces in — the two
+      // failures pull in opposite directions and this is the line between them.
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+  )
 }
 
 function isSafeUrl(value: string): boolean {
