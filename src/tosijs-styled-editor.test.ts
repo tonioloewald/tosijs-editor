@@ -432,6 +432,57 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('pasted and dropped content is sanitized', () => {
+    // The component replaced contentEditable but not the sanitization the
+    // browser was doing on its behalf. Pasted HTML reaches the live document,
+    // `value`, `internals.setFormValue` and every undo snapshot — so an
+    // unsanitized payload is stored, re-served, and re-fired on undo.
+    const pasteInto = (el: TosijsStyledEditor, html: string): void => {
+      el.parts.doc.innerHTML = '<p>Target</p>'
+      const p = el.parts.doc.querySelector('p')!
+      p.appendChild(el.selectable.createBounds())
+      const data = {
+        getData: (type: string) => (type === 'text/html' ? html : 'plain'),
+        types: ['text/html', 'text/plain'],
+      }
+      const evt = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(evt, 'clipboardData', { value: data })
+      el.parts.doc.dispatchEvent(evt)
+    }
+
+    test('strips handlers and javascript: URLs from pasted HTML', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      pasteInto(
+        el,
+        '<img src="x" onerror="boom()"><a href="javascript:boom()">x</a><script>boom()<\/script>'
+      )
+      const html = el.value
+      expect(html).not.toMatch(/onerror/i)
+      expect(html).not.toMatch(/javascript:/i)
+      expect(el.parts.doc.querySelectorAll('script').length).toBe(0)
+    })
+
+    test('keeps ordinary formatting and unknown plugin elements', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      pasteInto(el, '<b>bold</b> <x-plugin data-k="1">plugin</x-plugin>')
+      const html = el.value
+      expect(html).toMatch(/<b>bold<\/b>/)
+      expect(html).toMatch(/x-plugin/)
+      expect(html).toMatch(/plugin/)
+    })
+
+    test('a handler cannot survive into an undo snapshot', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      pasteInto(el, '<img src="x" onerror="boom()" data-probe="1">')
+      el.doCommand('updateUndo new')
+      el.doCommand('updateUndo undo')
+      expect(el.value).not.toMatch(/onerror/i)
+    })
+  })
+
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor

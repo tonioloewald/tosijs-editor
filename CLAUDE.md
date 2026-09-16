@@ -153,8 +153,11 @@ DOM state:
 The bounds markers are `<span>` styled `display: contents`, and both halves matter.
 
 They were `<input>` (to raise mobile keyboards), but a replaced element between two
-characters ALWAYS breaks the shaping run. Mobile keyboard focus moved to a separate
-off-document `focusTarget`.
+characters ALWAYS breaks the shaping run. The keyboard is now raised by the caret
+OVERLAY instead — `elements.input({ part: 'caret' })` in the shadow root, assigned to
+`selectable.focusTarget`. It is outside the text flow, so it can be a real form control
+without disturbing the line. That also means its computed `font-size` matters: iOS
+Safari zooms the page on focus below 16px (see the caret CSS).
 
 `display: contents` is what keeps them from generating a BOX. They were previously
 `display: inline; font-size: 0`, which is narrow but still an inline box — and an empty

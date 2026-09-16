@@ -6,7 +6,10 @@
  * the editable context and arguments parsed from the command string.
  */
 
-import { closestSingleParentAncestor } from './dom-utils'
+import {
+  closestSingleParentAncestor,
+  isSafeNavigationUrl,
+} from './dom-utils'
 import type { Selectable } from './selection'
 import { spanify } from './selection'
 import {
@@ -318,6 +321,12 @@ export const commands: Record<string, Command> = {
    */
   setLink(ctx: EditableContext, url: string, target = '_blank') {
     if (!url) return
+    // A link's href is navigated on Ctrl/Cmd-click, so an unchecked scheme here
+    // is the same `javascript:` execution vector as a pasted one.
+    if (!isSafeNavigationUrl(url)) {
+      console.error('setLink: refusing unsafe URL scheme', url)
+      return
+    }
     ctx.selectable.resetBounds()
     spanify(ctx.root, false)
     ctx.selectable.markBounds()
@@ -687,6 +696,29 @@ export const commands: Record<string, Command> = {
  * Supports chained commands separated by semicolons.
  * Example: "setText font-weight bold; setBlockType h2"
  */
+/**
+ * Run a single command with already-separated arguments.
+ *
+ * The string form splits on `;` and whitespace, so any runtime value
+ * interpolated into it can inject a second command — and a data URI contains
+ * `;` BY SPEC (`data:image/png;base64,…`), which silently broke every dropped
+ * image. Call sites that build a command from a URL, a filename or anything
+ * else the user did not type must use this form instead.
+ */
+export function runCommand(
+  ctx: EditableContext,
+  name: string,
+  ...args: string[]
+): void {
+  const registry = ctx.commands ?? commands
+  const fn = registry[name]
+  if (fn) {
+    fn(ctx, ...args)
+  } else {
+    console.error('unrecognized command', name)
+  }
+}
+
 export function executeCommand(
   ctx: EditableContext,
   commandString: string

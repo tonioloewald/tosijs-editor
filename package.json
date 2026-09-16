@@ -1,6 +1,6 @@
 {
   "name": "tosijs-styled-editor",
-  "version": "0.4.6",
+  "version": "0.4.4",
   "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
   "repository": {
     "type": "git",
@@ -31,6 +31,7 @@
   "scripts": {
     "start": "bun bin/site.ts",
     "make": "bun bin/site.ts --build",
+    "prepublishOnly": "bun run make && bun test && bun run lint",
     "test": "bun test",
     "lint": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "format": "bun prettier --write .",

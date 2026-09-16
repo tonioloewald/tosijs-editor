@@ -51,10 +51,20 @@ test('click position is resolved from real layout', async () => {
   expect(rest.toString().replace(/\s+/g, '')).toBe('')
 
   // Double-click selects a word and leaves the caret at the end of it.
+  // Assert the BEHAVIOUR (what text is selected), not the element count: word
+  // selection used to spanify, so a word was many `.selected` char spans and
+  // `length > 1` held incidentally. It is now one wrapper span, and that
+  // assertion went red while the feature was perfectly correct.
   clickAt(box.left + 12, box.top + box.height / 2)
   clickAt(box.left + 12, box.top + box.height / 2, 2)
   const selected = [...doc.querySelectorAll('.selected')]
-  expect(selected.length).toBeGreaterThan(1)
+  const selectedText = selected.map((el) => el.textContent).join('')
+  expect(selectedText.length).toBeGreaterThan(0)
+  // a word, not a fragment of one and not the whole line
+  expect(/^\S+$/.test(selectedText.trim())).toBe(true)
+  expect(paragraph.textContent.includes(selectedText.trim())).toBe(true)
+  // and nothing is spanified any more — measurement must not rewrite the doc
+  expect(doc.querySelectorAll('.spanified, .spanified-word').length).toBe(0)
   const held = doc.querySelector('.sel-end')
   const stranded = selected.filter(
     (el) => held.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -75,8 +85,9 @@ The editor uses three layers:
 The caret and selection edges are painted in the shadow root, positioned from a
 collapsed Range beside the bound markers. The markers themselves are spans
 styled `display: contents`, so they generate no box and cannot disturb the line
-they sit in. Mobile keyboard focus is handled by a separate off-document
-element.
+they sit in. The mobile keyboard is raised by the caret OVERLAY, which is an
+`<input part="caret">` in the shadow root and is the selection's focus target —
+it sits outside the text flow, so it raises a keyboard without breaking shaping.
 
 ## Commands
 
@@ -103,6 +114,7 @@ import { Selectable, spanify } from './selection'
 import {
   commands,
   executeCommand,
+  runCommand,
   type Command,
   type EditableContext,
 } from './commands'
@@ -113,6 +125,8 @@ import {
   topSingleParentAncestor,
   characterAtPoint,
   caretGeometryAt,
+  sanitizeInPlace,
+  isSafeNavigationUrl,
 } from './dom-utils'
 import {
   defaultToolbar,
@@ -821,15 +835,32 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // a stale position before that. ResizeObserver catches the rest: container
     // resizes, a late font load, and the padding transition under the touch
     // affordances (measured: 5 callbacks across that 0.15s transition, so the
-    // affordances track it continuously instead of waiting a guessed 160ms).
+    // affordances track it continuously instead of waiting a guessed 160ms —
+    // that count was measured in a HEIGHT-CONSTRAINED host; see the two
+    // observations below for why the box being watched matters).
+    // Capture phase: `scroll` does not bubble, so a bubble-phase listener on
+    // the doc would miss any scrollable element INSIDE it (a wide table, a
+    // code block). Nothing scrolls in there today; this keeps it true later.
     this.parts.doc.addEventListener('scroll', this.handleGeometryChange, {
+      capture: true,
       passive: true,
     })
     window.addEventListener('resize', this.handleGeometryChange, {
       passive: true,
     })
     this.geometryObserver = new ResizeObserver(this.handleGeometryChange)
+    // TWO observations, because which box changes depends on the host's layout
+    // and the documented default is the one the content-box alone misses:
+    //   height-constrained host -> padding shrinks the doc's CONTENT box
+    //   auto-height host        -> padding grows the BORDER box and the host
+    //                              with it, leaving the content box unchanged
+    // Observing only the content box worked in the project's own examples
+    // solely because the site config forces `height: 100%`; in the README's
+    // markup the observer never fired and the touch affordances stranded.
+    // Re-observing the SAME element would replace the first observation, so
+    // these must be two different elements.
     this.geometryObserver.observe(this.parts.doc, { box: 'content-box' })
+    this.geometryObserver.observe(this, { box: 'border-box' })
 
     this.applyWidgets()
 
@@ -882,7 +913,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   disconnectedCallback(): void {
     super.disconnectedCallback()
     this.selectable?.destroy()
-    this.parts?.doc?.removeEventListener('scroll', this.handleGeometryChange)
+    this.parts?.doc?.removeEventListener('scroll', this.handleGeometryChange, {
+      capture: true,
+    })
     window.removeEventListener('resize', this.handleGeometryChange)
     this.geometryObserver?.disconnect()
   }
@@ -949,7 +982,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const start = doc.querySelector('.sel-start')
     const end = doc.querySelector('.sel-end')
     const anchor = end || start
-    const collapsed = doc.querySelectorAll('.selected').length === 0
+    const collapsed = doc.querySelector('.selected') === null
 
     const host = this.getBoundingClientRect()
     const view = doc.getBoundingClientRect()
@@ -1016,6 +1049,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Execute a command string */
   doCommand(commandString: string): void {
     executeCommand(this.getContext(), commandString)
+  }
+
+  /**
+   * Run one command with pre-separated arguments.
+   *
+   * Use this whenever an argument is a runtime value (a URL, a filename): the
+   * string form splits on `;` and whitespace, so those values can inject a
+   * second command — and a data URI contains `;` by spec.
+   */
+  doCommandWith(name: string, ...args: string[]): void {
+    runCommand(this.getContext(), name, ...args)
   }
 
   focus(): void {
@@ -1090,10 +1134,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private moveCaretToCell(cell: HTMLElement): void {
     this.selectable.unmark()
     this.selectable.removeBounds()
-    const start = document.createElement('input')
-    start.className = 'sel-start'
-    const end = document.createElement('input')
-    end.className = 'sel-end caret'
+    // Use the real factory, not a hand-rolled pair. These were `<input>`
+    // elements, the last ones left after the markers became spans, so
+    // Tab/arrow navigation through a table wrote two empty form controls into
+    // the document — and from there into `value`, the form value and every
+    // undo snapshot. `display: contents` computes to `none` on a replaced
+    // element, so nothing rendered and nothing caught it.
+    const bounds = this.selectable.createBounds()
+    const end = bounds.lastChild as HTMLElement
+    const start = bounds.firstChild as HTMLElement
     cell.insertBefore(start, cell.firstChild)
     cell.appendChild(end)
     this.selectable.normalize()
@@ -2156,11 +2205,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const link = (evt.target as Element)?.closest?.('a')
     if (!link || !this.parts.doc.contains(link)) return
     if (evt.metaKey || evt.ctrlKey) {
-      window.open(
-        link.getAttribute('href') || '',
-        link.getAttribute('target') || '_blank',
-        'noopener'
-      )
+      // Scheme allowlist: `javascript:` executes in the embedding page's origin
+      // and `noopener` does not prevent it. `_self`/`_top`/`_parent` are
+      // resolved BEFORE noopener is consulted, so a document-supplied target
+      // would run it same-origin — always open a new context instead.
+      const href = link.getAttribute('href') || ''
+      if (isSafeNavigationUrl(href)) {
+        window.open(href, '_blank', 'noopener')
+      }
     }
     evt.preventDefault()
   }
@@ -2171,8 +2223,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const key = evt.key.toLowerCase()
     const shortcutStr = `${evt.ctrlKey || evt.metaKey ? 'ctrl+' : ''}${key}`
 
+    // evt.key can be a quote or a backslash, which would close or escape the
+    // attribute selector and throw SyntaxError out of the keydown listener.
+    const escaped =
+      typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(shortcutStr)
+        : shortcutStr.replace(/["\\]/g, '\\$&')
     const btn = this.parts.toolbar.querySelector(
-      `[data-shortcut="${shortcutStr}"]`
+      `[data-shortcut="${escaped}"]`
     ) as HTMLElement | null
     if (btn) {
       const value = btn.getAttribute('value')
@@ -2403,6 +2461,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     } else {
       const temp = document.createElement('div')
       temp.innerHTML = html
+      // Sanitize while the nodes are still detached. This is the single shared
+      // choke point for paste AND drop, which is why it is the right place:
+      // anything that reaches the document from outside passes through here.
+      sanitizeInPlace(temp)
       while (temp.firstChild) {
         ip.before(temp.firstChild)
       }
@@ -2523,7 +2585,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         reader.onload = () => resolve(String(reader.result || ''))
         reader.readAsDataURL(file)
       })
-      if (url) this.doCommand(`insertImage ${url} ${file.name}`)
+      if (url) this.doCommandWith('insertImage', url, file.name)
     }
   }
 
@@ -2560,10 +2622,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private updateTouchAffordances(): void {
     if (!this.touchAffordances) return
 
+    // Clearing the padding moves every line back, so the caret has to be
+    // repainted on the way OUT as well as on the way in. The ResizeObserver
+    // should also catch this, but the caret is cheap (0.015ms) and correctness
+    // here should not depend on which box the host's layout happens to change.
     if (!this.isTouchInteraction && !this.touchMenuEl) {
       this.touchAffordances.style.display = 'none'
       this.parts.doc.style.paddingTop = ''
       this.parts.doc.style.paddingBottom = ''
+      this.syncCaret()
       return
     }
 
@@ -2573,6 +2640,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       this.touchAffordances.style.display = 'none'
       this.parts.doc.style.paddingTop = ''
       this.parts.doc.style.paddingBottom = ''
+      this.syncCaret()
       return
     }
 
@@ -2770,7 +2838,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.showTouchMenu(evt)
   }
 
-  private showTouchMenu(openedBy?: Event): void {
+  private showTouchMenu(openedBy: Event): void {
     this.hideTouchMenu()
 
     const menu = document.createElement('div')
@@ -2885,11 +2953,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.touchAffordances!.appendChild(menu)
 
     // Dismiss when tapping outside the menu. The listener goes on immediately
-    // and ignores the event that OPENED the menu by identity — that event is
-    // still bubbling toward the doc, and would otherwise dismiss the menu the
-    // instant it appeared. Deferring the subscription by a timeout also works,
-    // but it guesses at ordering rather than stating the rule, and leaves a
-    // window in which an outside tap does not dismiss.
+    // rather than being deferred by a timeout, which guessed at ordering and
+    // left a window in which an outside tap did not dismiss.
+    //
+    // The `openedBy` check is DEFENCE IN DEPTH, not the load-bearing guard:
+    // handleTouchContextMenu calls stopPropagation() before this runs, so the
+    // opening event does not reach the doc listener today. It is kept, and the
+    // argument is required, so that removing that stopPropagation() later
+    // cannot silently make the menu close the instant it opens.
     this.touchMenuDismiss = (e: Event) => {
       if (e === openedBy) return
       if (this.touchMenuEl && !this.touchMenuEl.contains(e.target as Node)) {
@@ -2994,9 +3065,18 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!select) return
 
     const value = (select as HTMLSelectElement).value
-    if (value) {
-      this.doCommand(value)
-    }
+    if (!value) return
+
+    // A select in the bars is not necessarily a command source. The locale
+    // picker is a <select> whose value is a locale code, so every locale change
+    // ran `doCommand('en')` and logged "unrecognized command en" — and a locale
+    // code that happened to match a command name would have RUN it. Only act
+    // when the value actually names a command; anything else belongs to a
+    // widget that is not ours.
+    const name = value.trim().split(/[\s;]/)[0]
+    if (!name || !(name in this.commands)) return
+
+    this.doCommand(value)
   }
 }
 

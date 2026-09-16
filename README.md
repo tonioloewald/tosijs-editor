@@ -27,7 +27,11 @@ A pure web-component. What it does **not** use:
 
 - No `document.execCommand`
 - No `contentEditable`
-- No horrible browser selection and Range APIs
+- No `getSelection`, no browser selection model, no `execCommand`-era APIs
+
+Range is used, but only as a **measuring tape** — `getBoundingClientRect()` to
+ask the layout engine where a character is. It is never a selection model, and
+nothing is handed back to the browser to edit.
 
 What you get instead:
 
@@ -110,7 +114,7 @@ for (const widget of defaultToolbar()) {
 The editor uses three layers:
 
 1. **DOM utilities** (`dom-utils.ts`) — leaf-node traversal; nearly all operations work with leaf nodes
-2. **Selection** (`selection.ts`) — custom selection via "spanification" (wrapping characters in `<span>` elements to determine exact positions without browser APIs)
+2. **Selection** (`selection.ts`) — a custom selection model. Character positions are found by MEASURING with a Range, which does not touch the document; wrapping characters in spans to measure them changes the thing being measured (it breaks shaping, so cursive scripts come apart and lines re-wrap)
 3. **Commands** (`commands.ts`) — extensible command system for formatting and editing
 
 The caret is an `<input>` element, so mobile browsers show their keyboard automatically.
@@ -216,10 +220,10 @@ setBlocks line-height 2.5
 
 ### Drag and drop
 
-Selected text becomes a real draggable object — spanification means the
-selection is made of elements, which is exactly what HTML5 drag and drop wants,
-so dragging works between windows, between browsers, and to and from the
-desktop with no extra machinery.
+Selected text becomes a real draggable object — the selection is marked on
+elements, which is exactly what HTML5 drag and drop wants, so dragging works
+between windows, between browsers, and to and from the desktop with no extra
+machinery.
 
 Every drag offers **both representations**, and the receiver picks:
 

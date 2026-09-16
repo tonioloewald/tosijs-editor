@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=0.4.6" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=0.4.4" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -71,8 +71,11 @@
 <ul>
 <li>No <code>document.execCommand</code></li>
 <li>No <code>contentEditable</code></li>
-<li>No horrible browser selection and Range APIs</li>
+<li>No <code>getSelection</code>, no browser selection model, no <code>execCommand</code>-era APIs</li>
 </ul>
+<p>Range is used, but only as a <strong>measuring tape</strong> — <code>getBoundingClientRect()</code> to
+ask the layout engine where a character is. It is never a selection model, and
+nothing is handed back to the browser to edit.</p>
 <p>What you get instead:</p>
 <ul>
 <li>Fully styleable selections</li>
@@ -134,7 +137,7 @@ for (const widget of defaultToolbar()) {
 <p>The editor uses three layers:</p>
 <ol>
 <li><strong>DOM utilities</strong> (<code>dom-utils.ts</code>) — leaf-node traversal; nearly all operations work with leaf nodes</li>
-<li><strong>Selection</strong> (<code>selection.ts</code>) — custom selection via &quot;spanification&quot; (wrapping characters in <code>&lt;span&gt;</code> elements to determine exact positions without browser APIs)</li>
+<li><strong>Selection</strong> (<code>selection.ts</code>) — a custom selection model. Character positions are found by MEASURING with a Range, which does not touch the document; wrapping characters in spans to measure them changes the thing being measured (it breaks shaping, so cursive scripts come apart and lines re-wrap)</li>
 <li><strong>Commands</strong> (<code>commands.ts</code>) — extensible command system for formatting and editing</li>
 </ol>
 <p>The caret is an <code>&lt;input&gt;</code> element, so mobile browsers show their keyboard automatically.</p>
@@ -328,10 +331,10 @@ setBlocks margin-left 40px
 setBlocks line-height 2.5
 </code></pre>
 <h3>Drag and drop</h3>
-<p>Selected text becomes a real draggable object — spanification means the
-selection is made of elements, which is exactly what HTML5 drag and drop wants,
-so dragging works between windows, between browsers, and to and from the
-desktop with no extra machinery.</p>
+<p>Selected text becomes a real draggable object — the selection is marked on
+elements, which is exactly what HTML5 drag and drop wants, so dragging works
+between windows, between browsers, and to and from the desktop with no extra
+machinery.</p>
 <p>Every drag offers <strong>both representations</strong>, and the receiver picks:</p>
 <table>
 <thead>
@@ -522,6 +525,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=0.4.6"></script>
+  <script type="module" src="hydrate.js?v=0.4.4"></script>
 </body>
 </html>

@@ -401,3 +401,83 @@ export function caretGeometryAt(
 
   return null
 }
+
+/**
+ * Schemes a URL-bearing attribute may use inside the document.
+ *
+ * `javascript:` is the one that matters — it executes in the embedding page's
+ * origin, and `noopener` does not prevent it. `data:` is allowed only for
+ * images, because `data:text/html` is a same-origin script vector.
+ */
+function isSafeUrl(value: string): boolean {
+  const trimmed = value.trim()
+  // Protocol-relative and path-relative URLs carry no scheme and are fine.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true
+  if (/^data:image\/(png|jpeg|jpg|gif|webp|avif|bmp|svg\+xml);/i.test(trimmed)) {
+    // SVG can carry script, so allow it only where it cannot execute (img src),
+    // which the caller enforces by attribute name.
+    return !/^data:image\/svg/i.test(trimmed)
+  }
+  return /^(https?|mailto|tel):/i.test(trimmed)
+}
+
+/** Elements that can execute or re-target, and are never document content. */
+const FORBIDDEN_TAGS = new Set([
+  'SCRIPT',
+  'IFRAME',
+  'OBJECT',
+  'EMBED',
+  'LINK',
+  'META',
+  'BASE',
+  'STYLE',
+  'FORM',
+  'NOSCRIPT',
+  'TEMPLATE',
+])
+
+const URL_ATTRIBUTES = ['href', 'src', 'xlink:href', 'action', 'formaction']
+
+/**
+ * Strip executable content from a subtree, IN PLACE.
+ *
+ * The editor replaced `contentEditable` but not the sanitization the browser
+ * was doing on its behalf: pasted and dropped HTML is written into the live
+ * document, and from there into `value`, `internals.setFormValue` and every
+ * undo snapshot — so an unsanitized payload is stored, re-served, and re-fired
+ * on undo. Must run BEFORE any node enters the document.
+ *
+ * This is deliberately a denylist for elements and an allowlist for URL
+ * schemes: unknown ELEMENTS are content (including a plugin's custom elements,
+ * which must survive — see EXTENSIBILITY.md), whereas unknown SCHEMES are not.
+ */
+export function sanitizeInPlace(root: Element | DocumentFragment): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+  const doomed: Element[] = []
+  let node: Node | null
+  while ((node = walker.nextNode())) {
+    const el = node as Element
+    if (FORBIDDEN_TAGS.has(el.tagName)) {
+      doomed.push(el)
+      continue
+    }
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase()
+      // Every inline handler, however it is spelled.
+      if (name.startsWith('on')) {
+        el.removeAttribute(attr.name)
+        continue
+      }
+      if (URL_ATTRIBUTES.includes(name) && !isSafeUrl(attr.value)) {
+        el.removeAttribute(attr.name)
+      }
+    }
+  }
+  // Removing during the walk invalidates it, so do it after.
+  for (const el of doomed) el.remove()
+}
+
+/** Is this URL safe to navigate to or write into an href? */
+export function isSafeNavigationUrl(value: string): boolean {
+  return isSafeUrl(value) && !/^data:/i.test(value.trim())
+}

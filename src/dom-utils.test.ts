@@ -11,6 +11,8 @@ import {
   topSingleParentAncestor,
   closestSingleParentAncestor,
   allowSelection,
+  sanitizeInPlace,
+  isSafeNavigationUrl,
 } from './dom-utils'
 
 describe('makeFilter', () => {
@@ -292,5 +294,81 @@ describe('allowSelection', () => {
     const el = document.createElement('div')
     allowSelection(el, false)
     expect(el.style.userSelect).toBe('none')
+  })
+})
+
+describe('sanitizeInPlace', () => {
+  const frag = (html: string): HTMLElement => {
+    const el = document.createElement('div')
+    el.innerHTML = html
+    return el
+  }
+
+  test('strips inline event handlers however they are spelled', () => {
+    const el = frag('<img src="x" onerror="boom()"><b ONCLICK="boom()">hi</b>')
+    sanitizeInPlace(el)
+    expect(el.querySelector('img')!.hasAttribute('onerror')).toBe(false)
+    expect(el.querySelector('b')!.hasAttribute('ONCLICK')).toBe(false)
+    expect(el.textContent).toBe('hi')
+  })
+
+  test('removes elements that execute or re-target', () => {
+    const el = frag(
+      '<p>keep</p><script>bad()</script><iframe src="x"></iframe><object></object><base href="http://evil">'
+    )
+    sanitizeInPlace(el)
+    expect(el.querySelectorAll('script, iframe, object, base').length).toBe(0)
+    expect(el.querySelector('p')!.textContent).toBe('keep')
+  })
+
+  test('drops javascript: URLs but keeps ordinary ones', () => {
+    const el = frag(
+      '<a id="bad" href="javascript:alert(1)">x</a>' +
+        '<a id="spaced" href="  JaVaScRiPt:alert(1)">x</a>' +
+        '<a id="ok" href="https://example.com">x</a>' +
+        '<a id="rel" href="/page">x</a>' +
+        '<a id="mail" href="mailto:a@b.c">x</a>'
+    )
+    sanitizeInPlace(el)
+    expect(el.querySelector('#bad')!.hasAttribute('href')).toBe(false)
+    expect(el.querySelector('#spaced')!.hasAttribute('href')).toBe(false)
+    expect(el.querySelector('#ok')!.getAttribute('href')).toBe(
+      'https://example.com'
+    )
+    expect(el.querySelector('#rel')!.getAttribute('href')).toBe('/page')
+    expect(el.querySelector('#mail')!.getAttribute('href')).toBe('mailto:a@b.c')
+  })
+
+  test('allows raster data: images but not data:text/html or data:image/svg', () => {
+    const el = frag(
+      '<img id="png" src="data:image/png;base64,iVBOR">' +
+        '<img id="html" src="data:text/html;base64,PHNjcmlwdD4=">' +
+        '<img id="svg" src="data:image/svg+xml;base64,PHN2Zz4=">'
+    )
+    sanitizeInPlace(el)
+    expect(el.querySelector('#png')!.hasAttribute('src')).toBe(true)
+    expect(el.querySelector('#html')!.hasAttribute('src')).toBe(false)
+    expect(el.querySelector('#svg')!.hasAttribute('src')).toBe(false)
+  })
+
+  test('leaves unknown custom elements and their content alone', () => {
+    // Plugin markup must survive even when its component is not registered —
+    // see EXTENSIBILITY.md. Unknown ELEMENTS are content; unknown SCHEMES are not.
+    const el = frag('<x-plugin data-note="k">text <em>inside</em></x-plugin>')
+    sanitizeInPlace(el)
+    expect(el.querySelector('x-plugin')).not.toBeNull()
+    expect(el.querySelector('x-plugin')!.getAttribute('data-note')).toBe('k')
+    expect(el.textContent).toBe('text inside')
+  })
+})
+
+describe('isSafeNavigationUrl', () => {
+  test('rejects javascript: and data:, allows http(s)/mailto/relative', () => {
+    expect(isSafeNavigationUrl('javascript:alert(1)')).toBe(false)
+    expect(isSafeNavigationUrl(' javascript:alert(1)')).toBe(false)
+    expect(isSafeNavigationUrl('data:image/png;base64,x')).toBe(false)
+    expect(isSafeNavigationUrl('https://example.com')).toBe(true)
+    expect(isSafeNavigationUrl('mailto:a@b.c')).toBe(true)
+    expect(isSafeNavigationUrl('/relative/path')).toBe(true)
   })
 })

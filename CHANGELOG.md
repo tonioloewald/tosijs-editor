@@ -7,11 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.6] - 2026-09-16
+## [0.4.4] - 2026-09-16
 
-Everything below through the 0.2.0 heading shipped across 0.4.2–0.4.6. Those
-intermediate versions were published without their own changelog sections, so
+First release since 0.4.3 to reach npm. 0.4.4 and 0.4.5 were versioned in the
+repo during development and **never published**, so this is numbered 0.4.4:
+semver describes what consumers observe between releases, and consumers
+observed none of it.
+
+Everything below through the 0.2.0 heading shipped across 0.4.2–0.4.4. The
+earlier 0.4.x releases went out without changelog sections of their own, so
 they are collected here rather than reconstructed inaccurately.
+
+### Security
+
+- **Pasted and dropped HTML is now sanitized** before it enters the document.
+  The editor replaced `contentEditable` but not the sanitization the browser
+  was doing on its behalf: clipboard and drop HTML went in through `innerHTML`
+  verbatim, so `<img onerror>`, `<svg onload>`, `javascript:` URLs and
+  `<script>` reached the live document — and from there `value`,
+  `internals.setFormValue` and every undo snapshot, meaning a host storing
+  `value` stored the payload. Handlers, executing elements and unsafe URL
+  schemes are now stripped at the single shared paste/drop choke point.
+  Ordinary formatting and unregistered custom elements are preserved.
+  *This path was unreachable in 0.4.2–0.4.3 only because `insertionPoint()` was
+  broken; fixing that is what made it live again.*
+- **Ctrl/Cmd-clicking a link checks the URL scheme** and always opens a new
+  context. `javascript:` executes in the embedding page's origin and `noopener`
+  does not prevent it; `_self`/`_top` are resolved before `noopener` is
+  consulted, so a document-supplied `target` could run it same-origin.
+  `setLink` validates the scheme too.
+- **Commands built from runtime values no longer go through the string form.**
+  `executeCommand` splits on `;`, and a data URI contains `;` by spec — so
+  every dropped image produced `<img src="data:image/png">` plus a bogus second
+  command, and a crafted filename could inject one. `doCommandWith(name, ...args)`
+  passes arguments without parsing.
 
 ### Fixed
 

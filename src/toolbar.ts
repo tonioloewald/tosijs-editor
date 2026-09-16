@@ -337,7 +337,7 @@ export function insertMenu(editor: TosijsStyledEditor): HTMLElement {
             const url = prompt('Link URL')
             if (!url) return
             const target = prompt('Target (blank for a new tab)', '_blank')
-            editor.doCommand(`setLink ${url} ${target || '_blank'}`)
+            editor.doCommandWith('setLink', url, target || '_blank')
           },
         },
         {
@@ -351,7 +351,7 @@ export function insertMenu(editor: TosijsStyledEditor): HTMLElement {
             const url = prompt('Image URL')
             if (!url) return
             const alt = prompt('Alt text (describe the image)') || ''
-            editor.doCommand(`insertImage ${url} ${alt}`)
+            editor.doCommandWith('insertImage', url, alt)
           },
         },
         null,
