@@ -440,6 +440,27 @@ describe('sanitizer bypasses that were shipped and caught in review', () => {
   })
 })
 
+describe('DOM clobbering cannot break the sanitizer', () => {
+  test('a form control named localName does not throw or hide the form', () => {
+    // Named form controls shadow same-named properties on their form, so
+    // `el.localName` returned an INPUT and `.toLowerCase()` threw — taking the
+    // whole paste with it. Reading the prototype getter cannot be shadowed.
+    const el = document.createElement('div')
+    el.innerHTML =
+      '<form><input name="localName"><input name="attributes"></form><p>keep</p>'
+    expect(() => sanitizeInPlace(el)).not.toThrow()
+    expect(el.querySelectorAll('form').length).toBe(0)
+  })
+
+  test('clobbering does not smuggle a handler past the attribute scan', () => {
+    const el = document.createElement('div')
+    el.innerHTML =
+      '<form><input name="attributes"></form><img src="x" onerror="boom()">'
+    sanitizeInPlace(el)
+    expect(el.innerHTML).not.toMatch(/onerror/i)
+  })
+})
+
 describe('isSafeNavigationUrl', () => {
   test('rejects javascript: and data:, allows http(s)/mailto/relative', () => {
     expect(isSafeNavigationUrl('javascript:alert(1)')).toBe(false)

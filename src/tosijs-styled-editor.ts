@@ -676,6 +676,36 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** The editable commands — extend this object to add custom commands */
   commands: Record<string, Command> = { ...commands }
 
+  /**
+   * Sanitizer applied to pasted and dropped content, before it enters the
+   * document. Replace it to use a different one:
+   *
+   * ```js
+   * editor.sanitize = (root) => {
+   *   DOMPurify.sanitize(root, {
+   *     IN_PLACE: true,
+   *     FORBID_TAGS: ['style'],
+   *     CUSTOM_ELEMENT_HANDLING: {
+   *       tagNameCheck: /^[a-z][a-z0-9]*-[a-z0-9-]*$/,
+   *       attributeNameCheck: /^data-|^slot$|^dir$/,
+   *     },
+   *   })
+   * }
+   * ```
+   *
+   * It takes a detached ELEMENT and mutates it, rather than taking and
+   * returning an HTML string, deliberately: a string signature would force a
+   * serialize-and-reparse round trip, and that round trip is where mutation
+   * XSS lives — markup that is inert when parsed once can become executable
+   * when re-parsed from its own serialization. DOMPurify's `IN_PLACE: true`
+   * has the same shape for the same reason.
+   *
+   * The default is `sanitizeInPlace`. Setting this to a no-op disables
+   * sanitization; see the security section of the README for what is and is
+   * not covered.
+   */
+  sanitize: (root: Element) => void = sanitizeInPlace
+
   content = [
     slot({
       name: 'menubar',
@@ -2464,7 +2494,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // Sanitize while the nodes are still detached. This is the single shared
       // choke point for paste AND drop, which is why it is the right place:
       // anything that reaches the document from outside passes through here.
-      sanitizeInPlace(temp)
+      this.sanitize(temp)
       while (temp.firstChild) {
         ip.before(temp.firstChild)
       }

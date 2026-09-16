@@ -478,6 +478,35 @@ const FORBIDDEN_TAGS = new Set([
 const URL_ATTRIBUTES = ['href', 'src', 'xlink:href', 'action', 'formaction']
 
 /**
+ * Clobber-proof accessors.
+ *
+ * Named form controls shadow same-named properties on their form, so a crafted
+ * `<input name="localName">` or `name="attributes"` turns a string or a
+ * NamedNodeMap into an element. These read the real getters off the prototype,
+ * which an attacker cannot shadow.
+ */
+const localNameGetter = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  'localName'
+)?.get
+const attributesGetter = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  'attributes'
+)?.get
+
+function getLocalName(el: Element): string | undefined {
+  return localNameGetter
+    ? (localNameGetter.call(el) as string)
+    : (el.localName as string)
+}
+
+function getAttributes(el: Element): NamedNodeMap | undefined {
+  return attributesGetter
+    ? (attributesGetter.call(el) as NamedNodeMap)
+    : el.attributes
+}
+
+/**
  * Strip executable content from a subtree, IN PLACE.
  *
  * The editor replaced `contentEditable` but not the sanitization the browser
@@ -496,11 +525,17 @@ export function sanitizeInPlace(root: Element | DocumentFragment): void {
   let node: Node | null
   while ((node = walker.nextNode())) {
     const el = node as Element
-    if (FORBIDDEN_TAGS.has(el.localName.toLowerCase())) {
+    // DOM CLOBBERING: a form's named controls shadow its own properties, so
+    // `<form><input name="localName">` makes `el.localName` return that INPUT
+    // rather than a string — `.toLowerCase()` then throws and takes the whole
+    // paste with it. Reading through the prototype's own getter cannot be
+    // clobbered, because the attacker can only shadow the instance.
+    const localName = String(getLocalName(el) ?? '').toLowerCase()
+    if (FORBIDDEN_TAGS.has(localName)) {
       doomed.push(el)
       continue
     }
-    for (const attr of Array.from(el.attributes)) {
+    for (const attr of Array.from(getAttributes(el) ?? [])) {
       const name = attr.name.toLowerCase()
       // Every inline handler, however it is spelled.
       if (name.startsWith('on')) {

@@ -163,6 +163,24 @@ markup is content, not a threat</li>
 <li><code>editor.value = html</code></li>
 <li>initial light-DOM content</li>
 </ul>
+<p><strong>Using a different sanitizer.</strong> <code>editor.sanitize</code> is the hook — it receives a
+detached element and mutates it:</p>
+<pre><code class="language-js">editor.sanitize = (root) =&gt; {
+  DOMPurify.sanitize(root, {
+    IN_PLACE: true,
+    FORBID_TAGS: [&#39;style&#39;],
+    CUSTOM_ELEMENT_HANDLING: {
+      tagNameCheck: /^[a-z][a-z0-9]*-[a-z0-9-]*$/,
+      attributeNameCheck: /^data-|^slot$|^dir$/,
+    },
+  })
+}
+</code></pre>
+<p>It takes an element rather than an HTML string on purpose: a string signature
+would force a serialize-and-reparse round trip, and that round trip is where
+mutation XSS lives. Note the <code>CUSTOM_ELEMENT_HANDLING</code> block — DOMPurify
+unwraps unknown custom elements by default, which would discard plugin markup
+the built-in sanitizer preserves.</p>
 <p><strong>If you are upgrading from 0.4.3 or earlier, read this:</strong> documents your users
 created before 0.4.4 may already contain a payload that was pasted in, and the
 component cannot fix that for you — setting <code>value</code> does not filter. Sanitize

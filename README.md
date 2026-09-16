@@ -143,6 +143,28 @@ attacker controls:
 - `editor.value = html`
 - initial light-DOM content
 
+**Using a different sanitizer.** `editor.sanitize` is the hook — it receives a
+detached element and mutates it:
+
+```js
+editor.sanitize = (root) => {
+  DOMPurify.sanitize(root, {
+    IN_PLACE: true,
+    FORBID_TAGS: ['style'],
+    CUSTOM_ELEMENT_HANDLING: {
+      tagNameCheck: /^[a-z][a-z0-9]*-[a-z0-9-]*$/,
+      attributeNameCheck: /^data-|^slot$|^dir$/,
+    },
+  })
+}
+```
+
+It takes an element rather than an HTML string on purpose: a string signature
+would force a serialize-and-reparse round trip, and that round trip is where
+mutation XSS lives. Note the `CUSTOM_ELEMENT_HANDLING` block — DOMPurify
+unwraps unknown custom elements by default, which would discard plugin markup
+the built-in sanitizer preserves.
+
 **If you are upgrading from 0.4.3 or earlier, read this:** documents your users
 created before 0.4.4 may already contain a payload that was pasted in, and the
 component cannot fix that for you — setting `value` does not filter. Sanitize

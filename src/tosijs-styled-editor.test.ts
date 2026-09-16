@@ -483,6 +483,33 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('the sanitizer is swappable', () => {
+    test('a host can replace it, and replacing it takes effect', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      const seen: string[] = []
+      el.sanitize = (root: Element) => {
+        seen.push(root.innerHTML)
+        root.querySelectorAll('b').forEach((b) => b.remove())
+      }
+      el.parts.doc.innerHTML = '<p>T</p>'
+      const p = el.parts.doc.querySelector('p')!
+      p.appendChild(el.selectable.createBounds())
+      const data = {
+        getData: (t: string) => (t === 'text/html' ? '<b>gone</b><i>kept</i>' : 'x'),
+        types: ['text/html'],
+      }
+      const evt = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(evt, 'clipboardData', { value: data })
+      el.parts.doc.dispatchEvent(evt)
+
+      expect(seen.length).toBe(1)
+      expect(seen[0]).toMatch(/<b>gone<\/b>/)
+      expect(el.value).not.toMatch(/<b>/)
+      expect(el.value).toMatch(/<i>kept<\/i>/)
+    })
+  })
+
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor

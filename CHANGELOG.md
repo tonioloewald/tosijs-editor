@@ -29,6 +29,8 @@ they are collected here rather than reconstructed inaccurately.
   `value` stored the payload. Handlers, executing elements and unsafe URL
   schemes are now stripped at the single shared paste/drop choke point.
   Ordinary formatting and unregistered custom elements are preserved.
+  `editor.sanitize` is a swappable hook if you would rather supply your own
+  (DOMPurify drops in; see the README).
   *This path was unreachable in 0.4.2–0.4.3 only because `insertionPoint()` was
   broken; fixing that is what made it live again.*
 - **Ctrl/Cmd-clicking a link checks the URL scheme** and always opens a new
