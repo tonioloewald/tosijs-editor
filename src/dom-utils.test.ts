@@ -362,6 +362,56 @@ describe('sanitizeInPlace', () => {
   })
 })
 
+describe('sanitizer bypasses that were shipped and caught in review', () => {
+  const frag = (html: string): HTMLElement => {
+    const el = document.createElement('div')
+    el.innerHTML = html
+    return el
+  }
+
+  test('control characters inside the scheme do not smuggle javascript:', () => {
+    // The URL parser removes tab/LF/CR BEFORE matching a scheme, so these are
+    // all `javascript:` to the browser. Testing the raw string saw a
+    // schemeless relative path and let them through.
+    expect(isSafeNavigationUrl('java\tscript:alert(1)')).toBe(false)
+    expect(isSafeNavigationUrl('java\nscript:alert(1)')).toBe(false)
+    expect(isSafeNavigationUrl('java\rscript:alert(1)')).toBe(false)
+    expect(isSafeNavigationUrl('  java\t\nscript:alert(1)  ')).toBe(false)
+    // and a legitimate URL is still legitimate
+    expect(isSafeNavigationUrl('https://example.com/a b')).toBe(true)
+    expect(isSafeNavigationUrl('/my page')).toBe(true)
+  })
+
+  test('an encoded tab in a pasted href is stripped', () => {
+    const el = frag('<a id="x" href="java&#9;script:alert(1)">x</a>')
+    sanitizeInPlace(el)
+    expect(el.querySelector('#x')!.hasAttribute('href')).toBe(false)
+  })
+
+  test('script and style in SVG/MathML foreign content are removed', () => {
+    // localName, not tagName: foreign content reports a lowercase tagName, so
+    // an upper-case denylist missed all of it. An SVG <style> applies
+    // document-wide the moment it lands — no store-and-re-serve needed.
+    // `<p>` goes FIRST: happy-dom drops content after `</svg>` when parsing,
+    // which is a parser quirk, not a sanitizer result.
+    const el = frag(
+      '<p>keep</p><svg><script>bad()</script><style>body{x:y}</style></svg>'
+    )
+    sanitizeInPlace(el)
+    expect(el.querySelectorAll('script').length).toBe(0)
+    expect(el.querySelectorAll('style').length).toBe(0)
+    expect(el.querySelector('p')!.textContent).toBe('keep')
+  })
+
+  test('SVG animation cannot retarget an attribute past the scheme check', () => {
+    const el = frag(
+      '<svg><a id="a" href="/ok"><set attributeName="href" to="javascript:bad()"/></a></svg>'
+    )
+    sanitizeInPlace(el)
+    expect(el.querySelectorAll('set, animate').length).toBe(0)
+  })
+})
+
 describe('isSafeNavigationUrl', () => {
   test('rejects javascript: and data:, allows http(s)/mailto/relative', () => {
     expect(isSafeNavigationUrl('javascript:alert(1)')).toBe(false)

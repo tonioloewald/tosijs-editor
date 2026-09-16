@@ -410,7 +410,16 @@ export function caretGeometryAt(
  * images, because `data:text/html` is a same-origin script vector.
  */
 function isSafeUrl(value: string): boolean {
-  const trimmed = value.trim()
+  // Strip ASCII control characters and spaces ANYWHERE before testing the
+  // scheme, because that is what the URL parser does: WHATWG removes every
+  // tab/LF/CR from the input BEFORE matching a scheme, so `java&#9;script:` is
+  // `javascript:` to the browser while `.trim()` alone leaves it looking like a
+  // schemeless relative path. Checking a different string from the one that
+  // gets parsed is the whole shape of a sanitizer bypass.
+  //
+  // Only the scheme TEST uses this — the attribute value is never rewritten —
+  // so collapsing spaces here cannot corrupt a legitimate URL.
+  const trimmed = value.replace(/[\u0000-\u0020]+/g, '')
   // Protocol-relative and path-relative URLs carry no scheme and are fine.
   if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true
   if (/^data:image\/(png|jpeg|jpg|gif|webp|avif|bmp|svg\+xml);/i.test(trimmed)) {
@@ -421,19 +430,34 @@ function isSafeUrl(value: string): boolean {
   return /^(https?|mailto|tel):/i.test(trimmed)
 }
 
-/** Elements that can execute or re-target, and are never document content. */
+/**
+ * Elements that can execute or re-target, and are never document content.
+ *
+ * Compared against `localName`, NOT `tagName`. `tagName` is upper-cased only
+ * for elements in the HTML namespace: anything parsed into SVG or MathML
+ * foreign content reports a LOWERCASE tagName, so an upper-case set silently
+ * misses every entry there — `<svg><script>` survived, and an SVG `<style>`
+ * needs no store-and-re-serve hop at all, since it applies document-wide the
+ * moment it is inserted.
+ */
 const FORBIDDEN_TAGS = new Set([
-  'SCRIPT',
-  'IFRAME',
-  'OBJECT',
-  'EMBED',
-  'LINK',
-  'META',
-  'BASE',
-  'STYLE',
-  'FORM',
-  'NOSCRIPT',
-  'TEMPLATE',
+  'script',
+  'iframe',
+  'object',
+  'embed',
+  'link',
+  'meta',
+  'base',
+  'style',
+  'form',
+  'noscript',
+  'template',
+  // SVG animation can retarget an attribute — `<set attributeName="href"
+  // to="javascript:…">` — which reintroduces a scheme we just checked.
+  'animate',
+  'animatetransform',
+  'animatemotion',
+  'set',
 ])
 
 const URL_ATTRIBUTES = ['href', 'src', 'xlink:href', 'action', 'formaction']
@@ -457,7 +481,7 @@ export function sanitizeInPlace(root: Element | DocumentFragment): void {
   let node: Node | null
   while ((node = walker.nextNode())) {
     const el = node as Element
-    if (FORBIDDEN_TAGS.has(el.tagName)) {
+    if (FORBIDDEN_TAGS.has(el.localName.toLowerCase())) {
       doomed.push(el)
       continue
     }
