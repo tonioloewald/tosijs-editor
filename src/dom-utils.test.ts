@@ -440,6 +440,34 @@ describe('sanitizer bypasses that were shipped and caught in review', () => {
   })
 })
 
+describe('attributes dangerous by capability, not by scheme', () => {
+  test('ping is removed even though its URL is perfectly ordinary', () => {
+    const el = document.createElement('div')
+    el.innerHTML = '<a href="/ok" ping="https://evil.example/collect">x</a>'
+    sanitizeInPlace(el)
+    const a = el.querySelector('a')!
+    expect(a.hasAttribute('ping')).toBe(false)
+    expect(a.getAttribute('href')).toBe('/ok')
+  })
+
+  test('URL attributes beyond href/src are scheme-checked', () => {
+    const el = document.createElement('div')
+    el.innerHTML =
+      '<img id="a" srcset="javascript:boom() 1x"><video id="b" poster="javascript:boom()"></video>'
+    sanitizeInPlace(el)
+    expect(el.querySelector('#a')!.hasAttribute('srcset')).toBe(false)
+    expect(el.querySelector('#b')!.hasAttribute('poster')).toBe(false)
+  })
+
+  test('an executing scheme is stripped from an unlisted attribute too', () => {
+    // The capability scan does not depend on having heard of the attribute.
+    const el = document.createElement('div')
+    el.innerHTML = '<div data-whatever="javascript:boom()">x</div>'
+    sanitizeInPlace(el)
+    expect(el.querySelector('div')!.hasAttribute('data-whatever')).toBe(false)
+  })
+})
+
 describe('DOM clobbering cannot break the sanitizer', () => {
   test('a form control named localName does not throw or hide the form', () => {
     // Named form controls shadow same-named properties on their form, so

