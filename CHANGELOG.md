@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-09-16
+
+Everything below through the 0.2.0 heading shipped across 0.4.2–0.4.6. Those
+intermediate versions were published without their own changelog sections, so
+they are collected here rather than reconstructed inaccurately.
+
+### Fixed
+
+- **Mobile browsers no longer zoom when you select text.** Two independent
+  causes: the caret is a real `<input>` (that is what raises the mobile
+  keyboard) and inherited the UA default form-control font size of 11px, and
+  iOS Safari zooms the page on focus below 16px; and double-tap selects a word
+  here, which a touch browser reads as zoom. Fixed by sizing the caret at 16px
+  and setting `touch-action: manipulation` on the document, which keeps panning
+  and pinch-zoom. Deliberately NOT fixed with `user-scalable=no`, which would
+  fail WCAG 1.4.4.
+- **The caret no longer strands itself when the document scrolls.** The overlay
+  is positioned in viewport coordinates but only repainted when the selection
+  bounds changed, so scrolling left it where the text used to be. Scroll, window
+  resize and a `ResizeObserver` on the document now repaint it; measured drift is
+  0 at every scroll offset, and it hides correctly once its line scrolls out of
+  view.
+- **Commands that insert at the caret worked again.** `insertionPoint()` selected
+  `input.caret`, which has matched nothing since the bound markers stopped being
+  `<input>` elements — so `insertFootnote`, `insertTable`, `insertImage` and
+  `setLink` all bailed out silently. Its unit test passed throughout because it
+  built the `<input>` itself and asserted the selector found it; the test now
+  uses the real `createBounds()`.
+
+### Changed
+
+- Both `setTimeout` calls replaced with the signals they were approximating: a
+  `ResizeObserver` tracks the touch-affordance padding transition continuously
+  instead of waiting a guessed 160ms (and no longer leaves the affordances
+  invisible if the transition never runs), and the touch menu's dismiss handler
+  ignores the event that opened it by identity instead of deferring its own
+  subscription.
+- The drop-in `dist/index.js` build is minified: 83.5kB → 70.8kB gzipped.
+
+
 ### Added
 
 - **Drag and drop editing.** Selected text is a real draggable object, offering
@@ -23,7 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selection and deletion treat it as one thing with no special casing.
 - **Footnotes**: `insertFootnote [text…]` and `renumberFootnotes`. Numbers are
   derived from document order rather than stored, so inserting in the middle
-  renumbers the rest and reorders the list; deleting a marker drops its entry.
+  renumbers the rest and reorders the list. Note that renumbering happens at
+  INSERTION time only — deleting a reference with Backspace currently leaves its
+  entry orphaned in the list and does not renumber the survivors. Tracked in
+  `TODO.md`; `EXTENSIBILITY.md` covers why the fix is a lifecycle change rather
+  than another call to `renumberFootnotes`.
 - An **Insert** menu carrying all three.
 
 - **Localization**, following tosijs-ui's conventions rather than a private
