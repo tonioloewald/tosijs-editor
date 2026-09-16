@@ -1,3 +1,15 @@
+[ ] DELIBERATE SCOPE DECISION, not an oversight (from the 0.4.6 review, B1). Sanitization
+    covers the two paths by which UNTRUSTED content enters: paste and drop, both through
+    insertTransfer(). It does NOT cover `editor.value = html` or initial light-DOM content
+    (tosijs-styled-editor.ts:655, :712) — those are host-supplied and in the host's own
+    trust domain, and sanitizing them would silently alter content a host deliberately
+    authored. The realistic stored-XSS chain (attacker pastes -> host stores `value` ->
+    re-serves) is cut at the paste end.
+    WHAT IS NOT COVERED: documents stored BEFORE this fix already contain whatever was
+    pasted into them. A host upgrading needs to sanitize its existing corpus; the component
+    cannot do that for them. If we ever want to, the seam should be an overridable
+    `sanitize(html)` hook applied in docHTML's setter, opt-in.
+
 [ ] Footnotes are inserted but never maintained. Deleting a reference with Backspace
     leaves the footnote text orphaned in the list and does NOT renumber the survivors
     (measured: refs [1,2] + delete -> refs [2], items 2). renumberFootnotes runs only at
