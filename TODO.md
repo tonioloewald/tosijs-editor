@@ -1,30 +1,16 @@
-[ ] EXTRACT THE SANITIZER AS A MICRO-LIBRARY. Name: `kilpi` (Finnish, shield) - decided
-    with a native speaker, npm name confirmed free.
-    - bare `kilpi`, not `tosijs-kilpi`: nothing in it depends on tosijs, and a prefix
-      would imply it only works inside the framework.
-    - the HTML5 logo is a shield, so the icon can play on that - the name carries a
-      visual identity, which `seula` (sieve, my suggestion) could not. "Shield" also
-      describes the job better: it stands between the document and hostile input.
-    MEASURED, against DOMPurify 3.4.15 in Chrome:
-      size    0.6 kB gzip vs 10.9 kB          (18x)
-      speed   1.08 ms vs 3.38 ms on a 28 kB document   (2-3x)
-      DOMPurify's own 223 published fixtures: 223/223 clean, scored on executable
-        residue (their expected outputs encode an allowlist policy, so string equality
-        is the wrong measure); DOMPurify scores 222/223 on the same probe, its one miss
-        being a false positive of the probe
-      two locally written corpora: 14/14 bypass classes, parity on capability vectors
-    WHAT MUST BE STATED IN ITS README, or it will be adopted wrongly:
-      it is a DENYLIST, which is why it is small and why unknown elements survive. That
-      is correct for a rich-text paste path with a plugin architecture and WRONG as a
-      general-purpose default — a newly dangerous ELEMENT passes us and is blocked by
-      DOMPurify. Scope it as "a small sanitizer for rich-text paste paths in modern
-      browsers, where unknown elements must survive", never as "a smaller DOMPurify".
-      No Trusted Types, no legacy browsers, no hooks.
-    VENDOR DOMPURIFY'S FIXTURES into its test suite. Three adversarial review rounds and
-    33 hand-written vectors missed the low-range-ASCII bypass; the first run of the real
-    corpus found it. Our own imagination is demonstrably not the gate.
-    The editor keeps `editor.sanitize` either way, so this is additive - a host that
-    wants DOMPurify can already drop it in.
+[ ] SWITCH TO kilpi once it is published. The library now exists at ../kilpi (0.1.0,
+    committed, publish-ready) with the sanitizer extracted verbatim, its tests ported, and
+    DOMPurify's 223-fixture corpus vendored as a hard prepublishOnly gate.
+    WHY THIS MATTERS AND IS NOT OPTIONAL: there are currently TWO copies of a security
+    primitive — src/dom-utils.ts and kilpi/src/index.ts. That is exactly the shape that
+    caused review finding M1, where a bypass fix reached one of two copies of the same
+    normalization inside a single file. Two copies across two repos is that failure with a
+    network boundary added, and the drift will be silent.
+    COST TO WEIGH: kilpi would be this package's FIRST runtime dependency (tosijs and
+    tosijs-ui are peers). That is the trade — one dependency against a duplicated security
+    boundary. The duplication is worse.
+    The editor's `sanitize` hook means a host can already supply DOMPurify or anything
+    else, so this switch changes our default, not anyone's options.
 
 [ ] DELIBERATE SCOPE DECISION, not an oversight (from the 0.4.6 review, B1). Sanitization
     covers the two paths by which UNTRUSTED content enters: paste and drop, both through
