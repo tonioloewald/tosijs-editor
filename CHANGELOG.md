@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-09-17
+
+### Changed
+
+- **Sanitization moved to [`tosijs-kilpi`](https://github.com/tonioloewald/kilpi)**,
+  the same code extracted as a standalone library so it is not maintained in two
+  places. No API change: `sanitizeInPlace` and `isSafeNavigationUrl` are still
+  exported from this package, `editor.sanitize` still works the same way, and
+  behaviour is identical.
+
+  The reason it matters is not tidiness. When the sanitizer briefly existed
+  twice, a URL-normalization fix reached one copy and not the other — recorded
+  as M1 in the 0.4.4 review. Across two repositories that drift would not even
+  appear in a diff. kilpi carries DOMPurify's published 223-fixture corpus as a
+  hard publish gate, which this package could not run on its own.
+
+  `tosijs-kilpi` is a real dependency (this package's first — tosijs and
+  tosijs-ui remain peers). It is external in `dist/module.js`, so a consumer who
+  also depends on it directly gets one copy, and bundled into `dist/index.js`,
+  which assumes no installs.
+
+
 ## [0.4.4] - 2026-09-16
 
 First release since 0.4.3 to reach npm. 0.4.4 and 0.4.5 were versioned in the

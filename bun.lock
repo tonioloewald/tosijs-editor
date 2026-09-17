@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "tosi-editable",
+      "dependencies": {
+        "tosijs-kilpi": "^0.1.0",
+      },
       "devDependencies": {
         "bun-types": "^1.3.0",
         "chokidar": "^4.0.3",
@@ -102,6 +105,8 @@
     "tjs-lang": ["tjs-lang@0.13.11", "", { "dependencies": { "acorn": "^8.15.0", "acorn-loose": "^8.5.2", "acorn-walk": "^8.3.4", "tosijs-schema": "^1.5.1" }, "peerDependencies": { "@codemirror/autocomplete": "^6.0.0", "@codemirror/lang-javascript": "^6.0.0", "@codemirror/language": "^6.0.0", "@codemirror/state": "^6.0.0", "@codemirror/view": "^6.0.0" }, "optionalPeers": ["@codemirror/autocomplete", "@codemirror/lang-javascript", "@codemirror/language", "@codemirror/state", "@codemirror/view"], "bin": { "tjs": "src/cli/tjs.ts", "tjsx": "src/cli/tjsx.ts", "tjs-playground": "src/cli/playground.ts", "create-tjs-app": "src/cli/create-app.ts", "ajs-install-vscode": "bin/install-vscode.sh", "ajs-install-cursor": "bin/install-cursor.sh" } }, "sha512-Va2WdD97iKmQc893vJSAeEbhhvrT8jgtAePQsDS+HSF2AYJuFm0dUsds1Zt0VC+llb7OZWYLlBfNlUr85MCQOQ=="],
 
     "tosijs": ["tosijs@1.10.1", "", { "bin": { "tosijs": "dist/cli.mjs" } }, "sha512-5Odprzo2Kup/AMLWAiulnJMC2pccG64518wlGm2nxsZbaRt1WcsBGTHe6FGBusHx9XW9vvKwjb451JHpKSkRpg=="],
+
+    "tosijs-kilpi": ["tosijs-kilpi@0.1.0", "", {}, "sha512-N6vp9tB0jGZuFd2LaSGE6HS2cMbX9Upfr0FmYtIpZmYl+qyxpHpHj0pighlK+A7E9zDJNdNy0ok/+sZ0LlAfTQ=="],
 
     "tosijs-schema": ["tosijs-schema@1.9.0", "", {}, "sha512-+7SOtcHAYzdUF6nGuaCuMP5TbL+r3pmuYUejUFZPOz1YNU6/rMSF+DodQfTvlubD2h2C68wcXVJwg5UzMxBUKw=="],
 

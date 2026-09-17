@@ -104,7 +104,12 @@ export default defineSiteConfig({
     // readable costs consumers nothing at runtime and is the only debuggable
     // copy, since sourcemaps are deliberately not published (they embed
     // dependency source that has tripped GitHub push protection).
-    await $`bun build ./src/index.ts --outfile ${dist}/module.js --target browser --format esm --external tosijs --external tosijs-ui`.quiet()
+    // tosijs-kilpi is external here too: it is a real `dependencies` entry, so
+    // npm installs it for the consumer. Bundling it into module.js as well
+    // would ship two copies of a security primitive to anyone who also depends
+    // on it directly — the duplication this extraction existed to remove.
+    // The IIFE below bundles it, because that build assumes no installs.
+    await $`bun build ./src/index.ts --outfile ${dist}/module.js --target browser --format esm --external tosijs --external tosijs-ui --external tosijs-kilpi`.quiet()
     // index.js is the drop-in <script> build, loaded as-is, so it IS minified:
     // 83.5kB -> 70.8kB gzipped. `bun build` does not minify unless asked.
     await $`bun build ./src/index.ts --outfile ${dist}/index.js --target browser --format iife --minify`.quiet()
