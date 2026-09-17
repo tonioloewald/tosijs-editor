@@ -1,9 +1,10 @@
-[ ] EXTRACT THE SANITIZER AS A MICRO-LIBRARY. Prospective name: `seula` (Finnish, sieve)
-    - bare, not `tosijs-seula`: nothing in it depends on tosijs, and a prefix would imply
-      it only works inside the framework. `tosijs-purify`, `puhdistin` and `vartija` were
-      the alternatives; all seven candidates checked and free on npm.
-    - VERIFY THE FINNISH with a native speaker first. Same caveat as the localization:
-      I can confirm the dictionary sense, not the connotations.
+[ ] EXTRACT THE SANITIZER AS A MICRO-LIBRARY. Name: `kilpi` (Finnish, shield) - decided
+    with a native speaker, npm name confirmed free.
+    - bare `kilpi`, not `tosijs-kilpi`: nothing in it depends on tosijs, and a prefix
+      would imply it only works inside the framework.
+    - the HTML5 logo is a shield, so the icon can play on that - the name carries a
+      visual identity, which `seula` (sieve, my suggestion) could not. "Shield" also
+      describes the job better: it stands between the document and hostile input.
     MEASURED, against DOMPurify 3.4.15 in Chrome:
       size    0.6 kB gzip vs 10.9 kB          (18x)
       speed   1.08 ms vs 3.38 ms on a 28 kB document   (2-3x)
