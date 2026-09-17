@@ -403,13 +403,6 @@ export function caretGeometryAt(
 }
 
 /**
- * Schemes a URL-bearing attribute may use inside the document.
- *
- * `javascript:` is the one that matters — it executes in the embedding page's
- * origin, and `noopener` does not prevent it. `data:` is allowed only for
- * images, because `data:text/html` is a same-origin script vector.
- */
-/**
  * Sanitization lives in `tosijs-kilpi` — the same code, extracted so it is not
  * maintained in two places.
  *

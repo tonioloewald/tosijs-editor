@@ -63,7 +63,13 @@ Live site and docs: <https://editor.tosijs.net>
 npm install tosijs-styled-editor
 ```
 
-Peer dependencies: `tosijs`, `tosijs-ui`
+**Peer dependencies** (you install these): `tosijs`, `tosijs-ui`
+
+**Runtime dependency** (installed automatically):
+[`tosijs-kilpi`](https://github.com/tonioloewald/kilpi) — the sanitizer applied
+to pasted and dropped content. It has no dependencies of its own and is about
+0.8 kB gzipped. The drop-in `dist/index.js` build bundles it; the ESM build
+leaves it external so you get one copy if you also depend on it directly.
 
 ## Usage
 
@@ -121,27 +127,34 @@ The caret is an `<input>` element, so mobile browsers show their keyboard automa
 
 ## Security: what is sanitized, and what is not
 
-Replacing `contentEditable` also means replacing the sanitization the browser
-was doing on your behalf. As of 0.4.4:
+Replacing `contentEditable` also means replacing the sanitization the browser was
+doing on your behalf.
 
 **Sanitized** — content arriving from outside the document, which is the path an
-attacker controls:
+attacker controls: **paste** and **drop**, both through one shared choke point.
 
-- **paste** and **drop** (both go through one shared choke point)
-- inline event handlers (`onerror`, `onload`, …) are removed
-- `script`, `iframe`, `object`, `embed`, `link`, `meta`, `base`, `style`,
-  `form` and the SVG animation elements are removed — in **any** namespace, so
-  `<svg><script>` and `<svg><style>` are caught too
-- `href`/`src`/`xlink:href` are scheme-checked: `http(s)`, `mailto`, `tel` and
-  relative URLs are kept, `javascript:` is dropped, and `data:` is allowed only
-  for raster images (never for a link, never `data:image/svg+xml`)
-- ordinary formatting and **unregistered custom elements survive** — plugin
-  markup is content, not a threat
+The filtering itself is [`tosijs-kilpi`](https://github.com/tonioloewald/kilpi),
+and **[its SECURITY.md is the authoritative policy](https://github.com/tonioloewald/kilpi/blob/main/SECURITY.md)** —
+read it before relying on this. It is deliberately not restated here, because a
+copy of a policy drifts from the policy. The one thing worth repeating, because
+it is a trade rather than a detail:
+
+> kilpi is a **denylist** for elements and attributes and an **allowlist** for URL
+> schemes. That is why unknown elements survive — your plugin markup round-trips
+> intact — and it is also why an element that becomes dangerous in a future
+> browser, and that kilpi has never heard of, would pass through. If protection
+> from the not-yet-known matters more to you than preserving unknown markup, use
+> DOMPurify instead (see the hook below).
 
 **NOT sanitized** — content you supply, which is inside your own trust boundary:
 
 - `editor.value = html`
 - initial light-DOM content
+
+**If you are upgrading from 0.4.3 or earlier:** documents your users created
+before 0.4.4 may already contain a payload that was pasted in, and this component
+cannot fix that for you — setting `value` does not filter. Sanitize your stored
+corpus as part of the upgrade.
 
 **Using a different sanitizer.** `editor.sanitize` is the hook — it receives a
 detached element and mutates it:
@@ -161,14 +174,13 @@ editor.sanitize = (root) => {
 
 It takes an element rather than an HTML string on purpose: a string signature
 would force a serialize-and-reparse round trip, and that round trip is where
-mutation XSS lives. Note the `CUSTOM_ELEMENT_HANDLING` block — DOMPurify
-unwraps unknown custom elements by default, which would discard plugin markup
-the built-in sanitizer preserves.
+mutation XSS lives. Note the `CUSTOM_ELEMENT_HANDLING` block — DOMPurify unwraps
+unknown custom elements by default, which would discard plugin markup kilpi
+preserves.
 
-**If you are upgrading from 0.4.3 or earlier, read this:** documents your users
-created before 0.4.4 may already contain a payload that was pasted in, and the
-component cannot fix that for you — setting `value` does not filter. Sanitize
-your stored corpus as part of the upgrade.
+**Reporting a vulnerability.** If it is in the sanitizer, file it against
+[kilpi](https://github.com/tonioloewald/kilpi/issues) — that is where the code
+lives. Anything else, [this repository](https://github.com/tonioloewald/tosijs-editor/issues).
 
 ## Keyboard Behavior
 

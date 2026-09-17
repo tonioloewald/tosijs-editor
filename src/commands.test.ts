@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
-import { makeCSS, commands, executeCommand } from './commands'
+import { makeCSS, commands, executeCommand, runCommand } from './commands'
 import { Selectable } from './selection'
 import type { EditableContext } from './commands'
 
@@ -439,5 +439,47 @@ describe('links, images and footnotes', () => {
     root.querySelector('.footnote-ref')!.remove()
     executeCommand(ctx, 'renumberFootnotes')
     expect(root.querySelector('ol.footnotes')).toBeNull()
+  })
+})
+
+describe('setLink refuses unsafe URL schemes', () => {
+  // The SEAM, not kilpi's corpus. kilpi proves what isSafeNavigationUrl
+  // decides; this proves that setLink actually asks it and honours the answer.
+  // Without these, dropping the guard leaves the suite green while
+  // `setLink javascript:alert(1)` writes a live href.
+  const linkFor = (url: string): Element | null => {
+    const root = document.createElement('div')
+    root.innerHTML = '<p>hello world</p>'
+    document.body.appendChild(root)
+    const ctx = createContext(root)
+    const text = root.querySelector('p')!.firstChild as Text
+    const start = document.createElement('span')
+    start.className = 'sel-start'
+    const end = document.createElement('span')
+    end.className = 'sel-end caret'
+    text.parentNode!.insertBefore(start, text)
+    text.parentNode!.appendChild(end)
+    // runCommand, not the string form: executeCommand splits on whitespace, so
+    // a URL containing a tab could never reach setLink as one argument through
+    // it. Runtime values go through the structured form for exactly that
+    // reason — which makes this the path a real caller uses.
+    runCommand(ctx, 'setLink', url)
+    const a = root.querySelector('a')
+    root.remove()
+    return a
+  }
+
+  test('an ordinary https URL becomes a link', () => {
+    const a = linkFor('https://example.com')
+    expect(a).not.toBeNull()
+    expect(a!.getAttribute('href')).toBe('https://example.com')
+  })
+
+  test('javascript: is refused outright', () => {
+    expect(linkFor('javascript:alert(1)')).toBeNull()
+  })
+
+  test('and so is the tab-smuggled variant', () => {
+    expect(linkFor('java\tscript:alert(1)')).toBeNull()
   })
 })

@@ -1,16 +1,14 @@
-[ ] SWITCH TO kilpi once it is published. The library now exists at ../kilpi (0.1.0,
-    committed, publish-ready) with the sanitizer extracted verbatim, its tests ported, and
-    DOMPurify's 223-fixture corpus vendored as a hard prepublishOnly gate.
-    WHY THIS MATTERS AND IS NOT OPTIONAL: there are currently TWO copies of a security
-    primitive — src/dom-utils.ts and kilpi/src/index.ts. That is exactly the shape that
-    caused review finding M1, where a bypass fix reached one of two copies of the same
-    normalization inside a single file. Two copies across two repos is that failure with a
-    network boundary added, and the drift will be silent.
-    COST TO WEIGH: kilpi would be this package's FIRST runtime dependency (tosijs and
-    tosijs-ui are peers). That is the trade — one dependency against a duplicated security
-    boundary. The duplication is worse.
-    The editor's `sanitize` hook means a host can already supply DOMPurify or anything
-    else, so this switch changes our default, not anyone's options.
+[x] SWITCH TO kilpi — DONE in 0.4.5. The sanitizer is `tosijs-kilpi`, wired in at
+    src/dom-utils.ts as a re-export so the public API is unchanged, and it is this
+    package's first runtime dependency (tosijs and tosijs-ui remain peers).
+    WORTH KEEPING: it publishes as `tosijs-kilpi`, not the bare `kilpi` — npm rejects
+    that name as too similar to an existing package, and bare `kilpi` is in any case
+    permanently blocked (unpublished 2025-01-09). The repo is still named kilpi. Do not
+    re-litigate the prefix.
+    ALSO: the dependency is `^1.0.0`, and kilpi went 1.0.0 for that reason alone —
+    `^0.1.0` resolves to `>=0.1.0 <0.2.0`, so a 0.2.0 security fix would have reached no
+    installed consumer. For a dependency that IS the XSS defence, a range that blocks
+    propagation is a defect.
 
 [ ] DELIBERATE SCOPE DECISION, not an oversight (from the 0.4.6 review, B1). Sanitization
     covers the two paths by which UNTRUSTED content enters: paste and drop, both through

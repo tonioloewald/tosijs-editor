@@ -1,0 +1,16 @@
+tosijs-styled-editor
+Copyright 2026 Tonio Loewald
+
+The drop-in build (dist/index.js) bundles the following Apache-2.0 works:
+
+  tosijs          — Copyright 2026 Tonio Loewald
+  tosijs-ui       — Copyright 2026 Tonio Loewald
+  tosijs-kilpi    — Copyright 2026 Tonio Loewald
+                    https://github.com/tonioloewald/kilpi
+
+dist/module.js leaves all three external and bundles none of them.
+
+tosijs-kilpi's verification corpus is vendored from DOMPurify
+(Copyright (c) 2015 Mario Heiderich, MPL-2.0 OR Apache-2.0). That corpus is a
+test fixture in kilpi's repository and is not distributed in kilpi's package or
+in this one, so no DOMPurify material is redistributed here.

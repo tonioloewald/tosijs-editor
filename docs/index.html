@@ -98,7 +98,12 @@ is configured in <code>tosijs-editor-site.config.ts</code>.</p>
 <h2>Installation</h2>
 <pre><code class="language-bash">npm install tosijs-styled-editor
 </code></pre>
-<p>Peer dependencies: <code>tosijs</code>, <code>tosijs-ui</code></p>
+<p><strong>Peer dependencies</strong> (you install these): <code>tosijs</code>, <code>tosijs-ui</code></p>
+<p><strong>Runtime dependency</strong> (installed automatically):
+<a href="https://github.com/tonioloewald/kilpi"><code>tosijs-kilpi</code></a> — the sanitizer applied
+to pasted and dropped content. It has no dependencies of its own and is about
+0.8 kB gzipped. The drop-in <code>dist/index.js</code> build bundles it; the ESM build
+leaves it external so you get one copy if you also depend on it directly.</p>
 <h2>Usage</h2>
 <p>Drop it in and it is editable. <code>widgets</code> picks a built-in toolbar preset —
 <code>none</code> (the default), <code>minimal</code>, or <code>default</code> (toolbar + menus), as in the
@@ -142,27 +147,32 @@ for (const widget of defaultToolbar()) {
 </ol>
 <p>The caret is an <code>&lt;input&gt;</code> element, so mobile browsers show their keyboard automatically.</p>
 <h2>Security: what is sanitized, and what is not</h2>
-<p>Replacing <code>contentEditable</code> also means replacing the sanitization the browser
-was doing on your behalf. As of 0.4.4:</p>
+<p>Replacing <code>contentEditable</code> also means replacing the sanitization the browser was
+doing on your behalf.</p>
 <p><strong>Sanitized</strong> — content arriving from outside the document, which is the path an
-attacker controls:</p>
-<ul>
-<li><strong>paste</strong> and <strong>drop</strong> (both go through one shared choke point)</li>
-<li>inline event handlers (<code>onerror</code>, <code>onload</code>, …) are removed</li>
-<li><code>script</code>, <code>iframe</code>, <code>object</code>, <code>embed</code>, <code>link</code>, <code>meta</code>, <code>base</code>, <code>style</code>,
-<code>form</code> and the SVG animation elements are removed — in <strong>any</strong> namespace, so
-<code>&lt;svg&gt;&lt;script&gt;</code> and <code>&lt;svg&gt;&lt;style&gt;</code> are caught too</li>
-<li><code>href</code>/<code>src</code>/<code>xlink:href</code> are scheme-checked: <code>http(s)</code>, <code>mailto</code>, <code>tel</code> and
-relative URLs are kept, <code>javascript:</code> is dropped, and <code>data:</code> is allowed only
-for raster images (never for a link, never <code>data:image/svg+xml</code>)</li>
-<li>ordinary formatting and <strong>unregistered custom elements survive</strong> — plugin
-markup is content, not a threat</li>
-</ul>
+attacker controls: <strong>paste</strong> and <strong>drop</strong>, both through one shared choke point.</p>
+<p>The filtering itself is <a href="https://github.com/tonioloewald/kilpi"><code>tosijs-kilpi</code></a>,
+and <strong><a href="https://github.com/tonioloewald/kilpi/blob/main/SECURITY.md">its SECURITY.md is the authoritative policy</a></strong> —
+read it before relying on this. It is deliberately not restated here, because a
+copy of a policy drifts from the policy. The one thing worth repeating, because
+it is a trade rather than a detail:</p>
+<blockquote>
+<p>kilpi is a <strong>denylist</strong> for elements and attributes and an <strong>allowlist</strong> for URL
+schemes. That is why unknown elements survive — your plugin markup round-trips
+intact — and it is also why an element that becomes dangerous in a future
+browser, and that kilpi has never heard of, would pass through. If protection
+from the not-yet-known matters more to you than preserving unknown markup, use
+DOMPurify instead (see the hook below).</p>
+</blockquote>
 <p><strong>NOT sanitized</strong> — content you supply, which is inside your own trust boundary:</p>
 <ul>
 <li><code>editor.value = html</code></li>
 <li>initial light-DOM content</li>
 </ul>
+<p><strong>If you are upgrading from 0.4.3 or earlier:</strong> documents your users created
+before 0.4.4 may already contain a payload that was pasted in, and this component
+cannot fix that for you — setting <code>value</code> does not filter. Sanitize your stored
+corpus as part of the upgrade.</p>
 <p><strong>Using a different sanitizer.</strong> <code>editor.sanitize</code> is the hook — it receives a
 detached element and mutates it:</p>
 <pre><code class="language-js">editor.sanitize = (root) =&gt; {
@@ -178,13 +188,12 @@ detached element and mutates it:</p>
 </code></pre>
 <p>It takes an element rather than an HTML string on purpose: a string signature
 would force a serialize-and-reparse round trip, and that round trip is where
-mutation XSS lives. Note the <code>CUSTOM_ELEMENT_HANDLING</code> block — DOMPurify
-unwraps unknown custom elements by default, which would discard plugin markup
-the built-in sanitizer preserves.</p>
-<p><strong>If you are upgrading from 0.4.3 or earlier, read this:</strong> documents your users
-created before 0.4.4 may already contain a payload that was pasted in, and the
-component cannot fix that for you — setting <code>value</code> does not filter. Sanitize
-your stored corpus as part of the upgrade.</p>
+mutation XSS lives. Note the <code>CUSTOM_ELEMENT_HANDLING</code> block — DOMPurify unwraps
+unknown custom elements by default, which would discard plugin markup kilpi
+preserves.</p>
+<p><strong>Reporting a vulnerability.</strong> If it is in the sanitizer, file it against
+<a href="https://github.com/tonioloewald/kilpi/issues">kilpi</a> — that is where the code
+lives. Anything else, <a href="https://github.com/tonioloewald/tosijs-editor/issues">this repository</a>.</p>
 <h2>Keyboard Behavior</h2>
 <h3>General editing</h3>
 <table>

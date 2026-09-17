@@ -1,7 +1,7 @@
 {
   "name": "tosijs-styled-editor",
   "version": "0.4.5",
-  "description": "Rich text editor web component — no contentEditable, no browser selection APIs",
+  "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tonioloewald/tosijs-editor.git"
@@ -26,8 +26,10 @@
     "dist",
     "!dist/*.tsbuildinfo",
     "README.md",
+    "SECURITY.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "start": "bun bin/site.ts",
@@ -60,6 +62,6 @@
     "ws": "^8.21.0"
   },
   "dependencies": {
-    "tosijs-kilpi": "^0.1.0"
+    "tosijs-kilpi": "^1.0.0"
   }
 }

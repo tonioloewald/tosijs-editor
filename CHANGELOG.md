@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.5] - 2026-09-17
 
+### Added
+
+- **`SECURITY.md`**, with the one thing it needs to say: a sanitizer bypass
+  belongs to [`tosijs-kilpi`](https://github.com/tonioloewald/kilpi/issues),
+  because that is where the code lives. The README's security section now points
+  at kilpi's policy as authoritative rather than restating it — a copy of a
+  policy drifts from the policy, which is the same failure the extraction
+  removed from the code.
+- **`NOTICE`**, for the three Apache-2.0 works the drop-in `dist/index.js`
+  bundles.
+
 ### Changed
 
 - **Sanitization moved to [`tosijs-kilpi`](https://github.com/tonioloewald/kilpi)**,
@@ -24,7 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hard publish gate, which this package could not run on its own.
 
   `tosijs-kilpi` is a real dependency (this package's first — tosijs and
-  tosijs-ui remain peers). It is external in `dist/module.js`, so a consumer who
+  tosijs-ui remain peers), at `^1.0.0`. kilpi went 1.0.0 for that reason alone:
+  `^0.1.0` resolves to `>=0.1.0 <0.2.0`, so a 0.2.0 security fix would have
+  reached no installed consumer, and for a dependency that *is* the XSS defence
+  a range that blocks propagation is a defect in itself. It is external in `dist/module.js`, so a consumer who
   also depends on it directly gets one copy, and bundled into `dist/index.js`,
   which assumes no installs.
 
