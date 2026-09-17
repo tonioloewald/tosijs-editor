@@ -1,3 +1,11 @@
+[ ] DEV-DEPENDENCY MAJORS HELD BACK DELIBERATELY — release-doctor asks "deliberate, or
+    stale?" on each, so this is the answer. Neither ships to consumers.
+    - prettier ^2 (latest 3.x): upgrading reformats the whole codebase in one commit,
+      which buries real diffs. Do it alone, never alongside a release.
+    - typescript ^5 (latest 7.x): a major with real breakage potential across the
+      selection and command types. Same rule — its own change, its own review.
+    Revisit when either blocks something concrete rather than on version-number anxiety.
+
 [x] SWITCH TO kilpi — DONE in 0.4.5. The sanitizer is `tosijs-kilpi`, wired in at
     src/dom-utils.ts as a re-export so the public API is unchanged, and it is this
     package's first runtime dependency (tosijs and tosijs-ui remain peers).
