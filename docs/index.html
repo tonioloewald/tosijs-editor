@@ -175,7 +175,7 @@ cannot fix that for you — setting <code>value</code> does not filter. Sanitize
 corpus as part of the upgrade.</p>
 <p><strong>Using a different sanitizer.</strong> <code>editor.sanitize</code> is the hook — it receives a
 detached element and mutates it:</p>
-<pre><code class="language-js">editor.sanitize = (root) =&gt; {
+<pre><code class="language-javascript">editor.sanitize = (root) =&gt; {
   DOMPurify.sanitize(root, {
     IN_PLACE: true,
     FORBID_TAGS: [&#39;style&#39;],

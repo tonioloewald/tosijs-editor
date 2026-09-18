@@ -159,7 +159,7 @@ corpus as part of the upgrade.
 **Using a different sanitizer.** `editor.sanitize` is the hook — it receives a
 detached element and mutates it:
 
-```js
+```javascript
 editor.sanitize = (root) => {
   DOMPurify.sanitize(root, {
     IN_PLACE: true,

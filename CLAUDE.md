@@ -68,8 +68,13 @@ There is no bundler config and no `dev.ts`.
   failure. `demo/index.ts` assigns them to `globalThis` to hold them in.
 - **`js`, `ts`, `html`, `css` and `test` fences all EXECUTE** in doc comments and
   markdown. An illustrative CSS block becomes a global `<style>`; a lone `html`
-  block becomes a stray live example. Use a display-only language (`typescript`,
-  `xml`) for anything meant only to be read. (tosijs-ui#146)
+  block becomes a stray live example. Use a display-only language (`javascript`,
+  `typescript`, `xml`) for anything meant only to be read. (tosijs-ui#146)
+  Walked into again in 0.4.5: an illustrative ```js block in README.md showing how
+  to swap in a different sanitizer was EXECUTED on the home page, throwing
+  `ReferenceError: editor is not defined`. The home page is built from README.md
+  (`docPaths`), so README fences are live examples too — that is easy to forget
+  while editing a README as prose. ```javascript renders and does not run.
 - **Adjacent fences form ONE `<tosi-example>`; prose between them starts a new
   one.** Keep a `test` block next to the `html` it drives, or it builds its own
   editor and renders an empty box.
