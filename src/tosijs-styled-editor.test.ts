@@ -510,6 +510,75 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('footnotes maintain themselves', () => {
+    // The bug this element exists to fix: renumberFootnotes was correct all
+    // along, but only ever ran at INSERTION time. Deleting a reference left its
+    // text orphaned in the list and the survivors mis-numbered. Lifecycle is
+    // the missing caller.
+    const editorWithTwoFootnotes = (): TosijsStyledEditor => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one two three</p>'
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      // two markers, in document order
+      const mid = document.createElement('span')
+      mid.className = 'sel-end caret'
+      text.parentNode!.appendChild(mid)
+      el.doCommand('insertFootnote First')
+      el.doCommand('insertFootnote Second')
+      return el
+    }
+
+    const flush = async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    }
+
+    test('two footnotes number 1 and 2', async () => {
+      const el = editorWithTwoFootnotes()
+      await flush()
+      const nums = [...el.parts.doc.querySelectorAll('tosi-footnote a')].map(
+        (a) => a.textContent
+      )
+      expect(nums).toEqual(['1', '2'])
+      expect(el.parts.doc.querySelectorAll('li.footnote').length).toBe(2)
+    })
+
+    test('deleting a reference removes its entry and renumbers — no command run', async () => {
+      const el = editorWithTwoFootnotes()
+      await flush()
+      // remove the FIRST marker the way an edit would, and run nothing else
+      el.parts.doc.querySelector('tosi-footnote')!.remove()
+      await flush()
+
+      expect(el.parts.doc.querySelectorAll('tosi-footnote').length).toBe(1)
+      // the orphan is gone
+      expect(el.parts.doc.querySelectorAll('li.footnote').length).toBe(1)
+      // and the survivor renumbered from 2 to 1
+      expect(el.parts.doc.querySelector('tosi-footnote a')!.textContent).toBe('1')
+      expect(el.parts.doc.querySelector('li.footnote')!.textContent).toContain(
+        'Second'
+      )
+    })
+
+    test('undo restores both without the disconnect eating an entry', async () => {
+      const el = editorWithTwoFootnotes()
+      await flush()
+      el.doCommand('updateUndo new')
+      el.parts.doc.querySelector('tosi-footnote')!.remove()
+      await flush()
+      el.doCommand('updateUndo new')
+
+      el.doCommand('updateUndo undo')
+      await flush()
+      // innerHTML replacement disconnects every marker and reconnects its
+      // replacement; a synchronous reconcile would have deleted entries whose
+      // markers were about to come back.
+      expect(el.parts.doc.querySelectorAll('li.footnote').length).toBe(2)
+    })
+  })
+
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor

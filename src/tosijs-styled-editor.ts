@@ -128,6 +128,7 @@ import {
   sanitizeInPlace,
   isSafeNavigationUrl,
 } from './dom-utils'
+import { defineFootnote } from './footnote'
 import {
   defaultToolbar,
   minimalToolbar,
@@ -3109,6 +3110,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.doCommand(value)
   }
 }
+
+// Register the footnote element alongside the editor: a document LOADED with
+// existing footnote markup must upgrade its markers, not only documents where
+// someone runs insertFootnote.
+defineFootnote()
 
 export const tosijsStyledEditor =
   TosijsStyledEditor.elementCreator() as ElementCreator<TosijsStyledEditor>

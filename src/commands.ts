@@ -10,6 +10,7 @@ import {
   closestSingleParentAncestor,
   isSafeNavigationUrl,
 } from './dom-utils'
+import { defineFootnote, FOOTNOTE_TAG } from './footnote'
 import type { Selectable } from './selection'
 import { spanify } from './selection'
 import {
@@ -153,8 +154,11 @@ function footnoteKey(): string {
  * entry. The stable identity is `data-footnote`, not the number.
  */
 export function renumberFootnotes(root: HTMLElement): void {
+  // Both shapes: `<tosi-footnote>` and the plain `<sup class="footnote-ref">`
+  // that documents saved before 0.4.6 contain. Numbering must not depend on
+  // which era a document came from.
   const refs = Array.from(
-    root.querySelectorAll('.footnote-ref[data-footnote]')
+    root.querySelectorAll(`${FOOTNOTE_TAG}[data-footnote], .footnote-ref[data-footnote]`)
   ).filter((ref) => !ref.closest('.footnotes'))
   let list = root.querySelector('ol.footnotes')
 
@@ -407,7 +411,11 @@ export const commands: Record<string, Command> = {
     if (!ip) return
     const key = footnoteKey()
 
-    const marker = document.createElement('sup')
+    // A custom element, so it maintains its own entry: see src/footnote.ts.
+    // `.footnote-ref` is kept as the class so documents saved before 0.4.6 —
+    // which used a plain <sup> — still renumber correctly.
+    defineFootnote()
+    const marker = document.createElement(FOOTNOTE_TAG)
     marker.className = 'footnote-ref'
     marker.setAttribute('data-footnote', key)
     const link = document.createElement('a')

@@ -30,12 +30,24 @@
     cannot do that for them. If we ever want to, the seam should be an overridable
     `sanitize(html)` hook applied in docHTML's setter, opt-in.
 
-[ ] Footnotes are inserted but never maintained. Deleting a reference with Backspace
-    leaves the footnote text orphaned in the list and does NOT renumber the survivors
-    (measured: refs [1,2] + delete -> refs [2], items 2). renumberFootnotes runs only at
-    insertion time. See EXTENSIBILITY.md — the likely fix is that a footnote becomes a
-    custom element that unregisters itself in disconnectedCallback, rather than a global
-    pass someone has to remember to call.
+[x] Footnotes maintain themselves — DONE. `<tosi-footnote>` (src/footnote.ts) calls
+    renumberFootnotes from connected/disconnectedCallback, so deleting a reference removes
+    its entry and renumbers the survivors with no command run. Verified in Chromium and by
+    falsification: disabling disconnectedCallback makes the test fail.
+    WHAT THIS PROVED, for the plugins-by-default question in EXTENSIBILITY.md:
+      - renumberFootnotes was never wrong. It already removed orphans and derived numbers
+        from document order. The only thing missing was a CALLER. Lifecycle is a better
+        caller than a global document-changed hook: per node, only for nodes that moved,
+        and it fires for edits nobody wrote code for.
+      - Undo is the trap. innerHTML replacement disconnects every marker and reconnects
+        its replacement, so a synchronous reconcile inside disconnectedCallback deletes
+        entries whose markers are about to return. Coalescing to a microtask fixes it and
+        makes the work O(1) per edit instead of O(footnotes).
+      - disconnectedCallback runs DETACHED, so `closest()` finds nothing at the one moment
+        it is needed. Capture the root on connect.
+    Still ATOMIC only. The container case — editable content inside a plugin element,
+    surviving Enter, partial deletion and cross-boundary drag — remains untested, and is
+    what spell-check annotations will actually exercise.
 
 [x] Painted caret — DONE. Overlay lives in the shadow root beside [part="doc"], and its
     geometry comes from caretGeometryAt(): a COLLAPSED RANGE AT A TEXT OFFSET beside the
