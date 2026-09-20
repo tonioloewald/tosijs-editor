@@ -232,7 +232,7 @@ The editor persists neither — it does not know where either store lives. It te
 you what to write, and you decide where:
 
 ```javascript
-editor.onWordAccepted = (word, scope) => {
+editor.handleWordAccepted = (word, scope) => {
   if (scope === 'dictionary') saveToUserDictionary(word)
   else saveWithDocument(word)
 }
@@ -292,7 +292,7 @@ Not implemented, and worth knowing before you build UI on this:
 - **no incremental check** — `checkSpelling()` re-walks the whole document, which
   is right for a button and wrong for check-as-you-type on a long document
 - **persistence is yours** — the editor reports accepted words through
-  `onWordAccepted` but stores nothing; reload the sets yourself
+  `handleWordAccepted` but stores nothing; reload the sets yourself
 
 ## Tracked changes and LLM proofreading
 
@@ -348,14 +348,41 @@ the behaviour is a plugin. An unloaded footnote plugin is benign — you see a
 stray marker. A `<tosi-del>` without its strikethrough renders deleted text as
 ordinary prose, which reads as the opposite of what the document means.
 
+### Tracking live edits
+
+```javascript
+editor.changeAuthor = { id: 'alex', name: 'Alex' }
+editor.trackChanges = true
+```
+
+Typing then lands inside a `<tosi-ins>` and deleting wraps in `<tosi-del>`
+instead of removing.
+
+The whole mechanism is **one predicate**, re-evaluated only when the insertion
+point might have moved: *is the caret already inside an insertion that is mine,
+from this session?* If yes, typing appends to it. If no, a new one opens. There
+is no per-operation bookkeeping, because a continuous run of typing keeps the
+predicate true and it stops being true exactly when it should — a click
+elsewhere, an arrow key, a new line, a different author, a later session.
+
+**Session, not just author.** Reopening a document and typing at the edge of your
+own earlier tracked insertion opens a *new* change. That edit happened at a
+different time and a reviewer may want to treat it separately; without this they
+would silently merge into one change bearing the older timestamp.
+
+Two deletions behave specially, because the pedantic version would be noise:
+
+- text inside **your own current insertion** is really removed — you are
+  un-typing something you just typed, not proposing to delete your own proposal
+- text already inside a `<tosi-del>` is left alone — it is deleted already
+
 ### Not implemented
 
-- **live edit tracking** — recording keystrokes as changes touches keydown,
-  deletion, paste and drop, each with boundary cases. The revision path above is
-  the cheap half: before and after text, one diff, one pass.
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see `EXTENSIBILITY.md`.
+- **paste and drop are not yet tracked.** Typing and deletion are; inserted
+  transfers still land untracked.
 
 ## Keyboard Behavior
 

@@ -675,7 +675,7 @@ describe('TosijsStyledEditor', () => {
         'lessor',
       ])
       const persisted: Array<[string, string]> = []
-      el.onWordAccepted = (word, scope) => persisted.push([word, scope])
+      el.handleWordAccepted = (word, scope) => persisted.push([word, scope])
       await el.checkSpelling()
 
       el.acceptWord('indemnitor', 'document')
@@ -876,6 +876,135 @@ describe('TosijsStyledEditor', () => {
       const reopened = editorWith(html)
       expect(reopened.changes.length).toBe(2)
       expect(reopened.changes[0].author).toBe('model')
+    })
+  })
+
+  describe('live change tracking', () => {
+    // The whole mechanism is one predicate: is the caret already inside an
+    // insertion that is mine, this session? These tests are about when that
+    // predicate flips, because that is the only thing that decides whether a
+    // keystroke extends a change or opens a new one.
+    const typing = (): TosijsStyledEditor => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>hello world</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const p = el.parts.doc.querySelector('p')!
+      p.appendChild(el.selectable.createBounds())
+      return el
+    }
+    const type = (el: TosijsStyledEditor, text: string): void => {
+      for (const ch of text) {
+        el.parts.doc.dispatchEvent(
+          new KeyboardEvent('keypress', { key: ch, bubbles: true, cancelable: true })
+        )
+      }
+    }
+
+    test('a continuous run of typing is ONE insertion', () => {
+      const el = typing()
+      type(el, 'abc')
+      const ins = el.parts.doc.querySelectorAll('tosi-ins')
+      expect(ins.length).toBe(1)
+      expect(ins[0].textContent).toBe('abc')
+      expect(ins[0].getAttribute('data-author')).toBe('alex')
+    })
+
+    test('typing is not tracked when tracking is off', () => {
+      const el = typing()
+      el.trackChanges = false
+      type(el, 'abc')
+      expect(el.parts.doc.querySelectorAll('tosi-ins').length).toBe(0)
+      expect(el.parts.doc.querySelector('p')!.textContent).toContain('abc')
+    })
+
+    test('moving the caret out opens a NEW insertion', () => {
+      const el = typing()
+      type(el, 'ab')
+      // move the caret out of the insertion, the way a click or arrow would
+      const p = el.parts.doc.querySelector('p')!
+      const caret = el.insertionPoint()!
+      p.appendChild(caret)
+      type(el, 'cd')
+      const ins = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      expect(ins.length).toBe(2)
+      expect(ins.map((i) => i.textContent)).toEqual(['ab', 'cd'])
+    })
+
+    test("another author's insertion is not extended", () => {
+      const el = typing()
+      type(el, 'ab')
+      // the same caret, but now someone else is typing
+      el.changeAuthor = { id: 'sam', name: 'Sam' }
+      type(el, 'cd')
+      const ins = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      expect(ins.length).toBe(2)
+      expect(ins[1].getAttribute('data-author')).toBe('sam')
+    })
+
+    test('a later SESSION does not extend an earlier insertion', () => {
+      const first = typing()
+      type(first, 'ab')
+      const html = first.value
+
+      // reopen the same document as the same author, new session
+      const second = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(second)
+      second.parts.doc.innerHTML = html
+      second.changeAuthor = { id: 'alex', name: 'Alex' }
+      second.trackChanges = true
+      // caret inside the EXISTING insertion from last time
+      const existing = second.parts.doc.querySelector('tosi-ins')!
+      existing.appendChild(second.selectable.createBounds())
+      type(second, 'cd')
+
+      const ins = [...second.parts.doc.querySelectorAll('tosi-ins')]
+      expect(ins.length).toBe(2)
+      expect(ins[0].getAttribute('data-session')).not.toBe(second.sessionId)
+      expect(ins[1].getAttribute('data-session')).toBe(second.sessionId)
+    })
+
+    test('deleting a selection wraps it instead of removing it', () => {
+      const el = typing()
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      const span = document.createElement('span')
+      span.className = 'selected'
+      text.parentNode!.insertBefore(span, text)
+      span.appendChild(text)
+
+      el.deleteSelection()
+      const del = el.parts.doc.querySelector('tosi-del')
+      expect(del).not.toBeNull()
+      expect(del!.textContent).toContain('hello world')
+      expect(del!.getAttribute('data-author')).toBe('alex')
+    })
+
+    test('deleting my own uncommitted typing really removes it', () => {
+      const el = typing()
+      type(el, 'abc')
+      const ins = el.parts.doc.querySelector('tosi-ins')!
+      const inner = ins.firstChild as Text
+      const span = document.createElement('span')
+      span.className = 'selected'
+      inner.parentNode!.insertBefore(span, inner)
+      span.appendChild(inner)
+
+      el.deleteSelection()
+      // no deletion mark: un-typing your own proposal is not a proposal
+      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
+      expect(el.parts.doc.textContent).not.toContain('abc')
+    })
+
+    test('tracked edits are ordinary changes — reviewable and resolvable', () => {
+      const el = typing()
+      type(el, 'xyz')
+      expect(el.changes.length).toBe(1)
+      expect(el.changes[0].kind).toBe('insert')
+      expect(el.changes[0].authorName).toBe('Alex')
+      el.rejectChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).not.toContain('xyz')
     })
   })
 

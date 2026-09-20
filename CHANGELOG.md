@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   review is skipped, so a second pass cannot mark up the marks.
   Change marks are styled in the core stylesheet on purpose: a `<tosi-del>`
   without its strikethrough reads as the opposite of what the document means.
+- **Live edit tracking** (`editor.trackChanges = true`). Typing lands inside a
+  `<tosi-ins>`, deleting wraps in `<tosi-del>`. The mechanism is one predicate —
+  is the caret already inside an insertion that is mine, this session? — so a
+  continuous run of typing is one change and there is no per-operation
+  bookkeeping. Session is part of the test, so reopening a document and typing
+  at the edge of your own earlier insertion opens a new change rather than
+  silently merging into one bearing the older timestamp. Un-typing your own
+  uncommitted text really removes it; re-deleting already-deleted text is a
+  no-op.
 
 
 - **Spell checking, which this editor otherwise has none of.** Browsers only

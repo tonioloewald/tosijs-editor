@@ -231,7 +231,7 @@ domains: either every later document inherits one contract&#39;s party names, or
 user re-accepts the same terminology forever.</p>
 <p>The editor persists neither — it does not know where either store lives. It tells
 you what to write, and you decide where:</p>
-<pre><code class="language-javascript">editor.onWordAccepted = (word, scope) =&gt; {
+<pre><code class="language-javascript">editor.handleWordAccepted = (word, scope) =&gt; {
   if (scope === &#39;dictionary&#39;) saveToUserDictionary(word)
   else saveWithDocument(word)
 }
@@ -276,7 +276,7 @@ is no native right-click menu to inherit either</li>
 <li><strong>no incremental check</strong> — <code>checkSpelling()</code> re-walks the whole document, which
 is right for a button and wrong for check-as-you-type on a long document</li>
 <li><strong>persistence is yours</strong> — the editor reports accepted words through
-<code>onWordAccepted</code> but stores nothing; reload the sets yourself</li>
+<code>handleWordAccepted</code> but stores nothing; reload the sets yourself</li>
 </ul>
 <h2>Tracked changes and LLM proofreading</h2>
 <p>Insertions and deletions are <strong>content</strong> — <code>&lt;tosi-ins&gt;</code> and <code>&lt;tosi-del&gt;</code> elements
@@ -319,14 +319,35 @@ separate changes, and a rewritten sentence into confetti.</p>
 the behaviour is a plugin. An unloaded footnote plugin is benign — you see a
 stray marker. A <code>&lt;tosi-del&gt;</code> without its strikethrough renders deleted text as
 ordinary prose, which reads as the opposite of what the document means.</p>
+<h3>Tracking live edits</h3>
+<pre><code class="language-javascript">editor.changeAuthor = { id: &#39;alex&#39;, name: &#39;Alex&#39; }
+editor.trackChanges = true
+</code></pre>
+<p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code> and deleting wraps in <code>&lt;tosi-del&gt;</code>
+instead of removing.</p>
+<p>The whole mechanism is <strong>one predicate</strong>, re-evaluated only when the insertion
+point might have moved: <em>is the caret already inside an insertion that is mine,
+from this session?</em> If yes, typing appends to it. If no, a new one opens. There
+is no per-operation bookkeeping, because a continuous run of typing keeps the
+predicate true and it stops being true exactly when it should — a click
+elsewhere, an arrow key, a new line, a different author, a later session.</p>
+<p><strong>Session, not just author.</strong> Reopening a document and typing at the edge of your
+own earlier tracked insertion opens a <em>new</em> change. That edit happened at a
+different time and a reviewer may want to treat it separately; without this they
+would silently merge into one change bearing the older timestamp.</p>
+<p>Two deletions behave specially, because the pedantic version would be noise:</p>
+<ul>
+<li>text inside <strong>your own current insertion</strong> is really removed — you are
+un-typing something you just typed, not proposing to delete your own proposal</li>
+<li>text already inside a <code>&lt;tosi-del&gt;</code> is left alone — it is deleted already</li>
+</ul>
 <h3>Not implemented</h3>
 <ul>
-<li><strong>live edit tracking</strong> — recording keystrokes as changes touches keydown,
-deletion, paste and drop, each with boundary cases. The revision path above is
-the cheap half: before and after text, one diff, one pass.</li>
 <li><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
 but not collaborative merge. That needs an operation log, which is a larger
 decision — see <code>EXTENSIBILITY.md</code>.</li>
+<li><strong>paste and drop are not yet tracked.</strong> Typing and deletion are; inserted
+transfers still land untracked.</li>
 </ul>
 <h2>Keyboard Behavior</h2>
 <h3>General editing</h3>

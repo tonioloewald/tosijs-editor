@@ -817,6 +817,113 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     return total
   }
 
+  /**
+   * Record live edits as tracked changes.
+   *
+   * The whole mechanism is one predicate, re-evaluated only when the insertion
+   * point might have moved: **is the caret already inside an insertion that is
+   * mine, from this session?** If yes, typing just appends to it. If no, a new
+   * one is opened. Deleting wraps rather than removes.
+   *
+   * That is why this is far cheaper than it looks. There is no per-operation
+   * bookkeeping and no boundary cases to enumerate — a continuous run of typing
+   * stays in one `<tosi-ins>` because the predicate keeps being true, and it
+   * stops being true exactly when it should: a click elsewhere, an arrow key, a
+   * new line, a new session.
+   */
+  trackChanges = false
+
+  /**
+   * Identifies this editing session.
+   *
+   * Session, not just author, because reopening a document and typing at the
+   * edge of your own earlier tracked insertion should open a NEW change — that
+   * edit happened at a different time and a reviewer may want to treat it
+   * separately. Without this, the two would silently merge into one change
+   * bearing the older timestamp.
+   */
+  readonly sessionId = `s-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`
+
+  /** The insertion the caret is in, if it is mine and from this session. */
+  private currentInsertion(): HTMLElement | null {
+    const ip = this.insertionPoint()
+    const ins = ip?.closest(INS_TAG) as HTMLElement | null
+    if (!ins) return null
+    if (ins.getAttribute('data-author') !== this.changeAuthor.id) return null
+    if (ins.getAttribute('data-session') !== this.sessionId) return null
+    return ins
+  }
+
+  /**
+   * Put the caret inside a current insertion, opening one if needed.
+   *
+   * Called before every typed character. When the predicate already holds this
+   * is a no-op, which is the common case and why typing stays cheap.
+   */
+  private enterInsertion(): void {
+    if (!this.trackChanges) return
+    if (this.currentInsertion()) return
+    const ip = this.insertionPoint()
+    if (!ip || ip.closest(DEL_TAG)) return
+    defineChanges()
+    const ins = document.createElement(INS_TAG)
+    ins.setAttribute('data-change', `chg-${Date.now().toString(36)}`)
+    ins.setAttribute('data-author', this.changeAuthor.id)
+    if (this.changeAuthor.name) {
+      ins.setAttribute('data-author-name', this.changeAuthor.name)
+    }
+    ins.setAttribute('data-session', this.sessionId)
+    ins.setAttribute('data-time', new Date().toISOString())
+    ip.before(ins)
+    // Move the caret INTO the insertion, so the next character lands inside it.
+    ins.appendChild(ip)
+  }
+
+  /**
+   * Mark nodes deleted instead of removing them.
+   *
+   * Two exceptions make this feel right rather than pedantic:
+   *  - text inside MY current insertion is really removed. You are un-typing
+   *    something you just typed; proposing a deletion of your own uncommitted
+   *    proposal would be noise.
+   *  - text already inside a `<tosi-del>` is left alone. It is deleted already.
+   *
+   * Returns true when it handled the nodes, so the caller skips its own removal.
+   */
+  private trackDeletion(nodes: Node[]): boolean {
+    if (!this.trackChanges) return false
+    defineChanges()
+    const id = `chg-${Date.now().toString(36)}`
+    for (const node of nodes) {
+      const el =
+        node.nodeType === 3 ? (node as Text).parentElement : (node as Element)
+      if (el?.closest(DEL_TAG)) continue
+      const mine = el?.closest(INS_TAG) as HTMLElement | null
+      if (
+        mine &&
+        mine.getAttribute('data-author') === this.changeAuthor.id &&
+        mine.getAttribute('data-session') === this.sessionId
+      ) {
+        // un-typing my own uncommitted text
+        node.parentNode?.removeChild(node)
+        continue
+      }
+      const del = document.createElement(DEL_TAG)
+      del.setAttribute('data-change', id)
+      del.setAttribute('data-author', this.changeAuthor.id)
+      if (this.changeAuthor.name) {
+        del.setAttribute('data-author-name', this.changeAuthor.name)
+      }
+      del.setAttribute('data-session', this.sessionId)
+      del.setAttribute('data-time', new Date().toISOString())
+      node.parentNode?.insertBefore(del, node)
+      del.appendChild(node)
+    }
+    return true
+  }
+
   /** Every tracked change, in document order. */
   get changes(): TrackedChange[] {
     return changesIn(this.parts.doc)
@@ -884,11 +991,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   userDictionary = new Set<string>()
 
   /**
-   * Fired when a word is accepted, so the host can persist it to whichever
-   * store the scope implies. The editor deliberately does no persistence of its
+   * Called when a word is accepted, so the host can persist it to whichever
+   * store the scope implies.
+   *
+   * `handle`-prefixed, not `on`-prefixed: tosijs's element factory treats
+   * `on<Event>` members as event-handler sugar, so an `onWordAccepted` that is
+   * null at construction becomes a `wordaccepted` listener slot rather than the
+   * callback property this is meant to be (tosijs#22). The editor deliberately does no persistence of its
    * own — it does not know where either scope lives.
    */
-  onWordAccepted:
+  handleWordAccepted:
     | ((word: string, scope: 'document' | 'dictionary') => void)
     | null = null
 
@@ -938,7 +1050,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   acceptWord(word: string, scope: 'document' | 'dictionary' = 'document'): void {
     if (scope === 'dictionary') this.userDictionary.add(word)
     else this.documentWords.add(word)
-    this.onWordAccepted?.(word, scope)
+    this.handleWordAccepted?.(word, scope)
     this.dropMarksFor(word)
   }
 
@@ -1992,6 +2104,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Insert a character at the caret */
   private contentKey(key: string): void {
     if (!this.insertionPoint()) return
+    // Open or stay inside a tracked insertion BEFORE the isolate logic, so the
+    // caret the isolate moves is already the one inside the change.
+    this.enterInsertion()
     this.isolateForTyping(key)
     // The caret may have moved into a fresh isolate, so re-read it
     const ip = this.insertionPoint()
@@ -2139,9 +2254,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (keptCaret && firstTop.parentNode) {
         firstTop.parentNode.insertBefore(keptCaret, firstTop)
       }
-      for (const node of nodes) {
-        const top = topSingleParentAncestor(node)
-        top.parentNode?.removeChild(top)
+      if (this.trackChanges) {
+        // Wrap rather than remove: the reader needs to see what was proposed
+        // for deletion, and by whom, until someone resolves it.
+        this.trackDeletion(nodes.map((node) => topSingleParentAncestor(node)))
+      } else {
+        for (const node of nodes) {
+          const top = topSingleParentAncestor(node)
+          top.parentNode?.removeChild(top)
+        }
       }
       wasAnythingDeleted = true
     }
