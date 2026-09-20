@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Spell checking that an application can actually query.** Browsers
+  spell-check for free and expose nothing — no count, no list, no way to block a
+  submit on unresolved errors. Supply `editor.spellChecker` (a function from
+  words to the subset that is wrong) and the editor does tokenization
+  (`Intl.Segmenter`, so `don't` is one word and `l'objet` is two), marking,
+  `ignoreWord`, and **form validity**: unresolved spelling sets `customError`,
+  so a real form submit is blocked rather than relying on the author to
+  remember to check. No dictionary ships — which words are real is a
+  localization question, and a hunspell dictionary is ~40x the size of this
+  editor.
+  Marks are view state: cleared on every check and stripped from `value`, so
+  they never reach the form value, an undo snapshot, or whatever the host
+  persists. Code, `kbd`, `samp`, `pre` and `spellcheck="false"` subtrees are
+  skipped.
+
+### Fixed
+
+- **Footnotes maintain themselves.** `renumberFootnotes` was always correct —
+  it removed orphans and derived numbers from document order — but only ever ran
+  at insertion time, so deleting a reference left its text orphaned in the list
+  and the survivors mis-numbered. `<tosi-footnote>` now calls it from
+  connected/disconnectedCallback, so a deletion, drag, paste or undo maintains
+  the list with no command run. Documents saved earlier, which used a plain
+  `<sup class="footnote-ref">`, still renumber correctly.
+
+
 ## [0.4.5] - 2026-09-17
 
 ### Added

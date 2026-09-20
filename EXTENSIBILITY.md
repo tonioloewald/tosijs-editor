@@ -220,7 +220,10 @@ measurement-based architecture pays off.
 ## Open questions
 
 - Does a container plugin survive Enter, partial deletion, and cross-boundary drag?
-  (untested, and the main risk in the plugin design)
+  PARTLY ANSWERED by `<tosi-misspelling>` (0.4.6): text inside a container plugin is
+  visible to the editor's traversal, stays editable, and unwrapping leaves no stray
+  text nodes. Enter, partial deletion and cross-boundary drag are still untested —
+  those need real key and pointer events, not a unit test.
 - Do tracked changes want to be content or an operation log — or both, at different
   layers?
 - Does pagination render into multiple page containers, or one container with page

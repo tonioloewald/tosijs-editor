@@ -579,6 +579,120 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('spell checking', () => {
+    // The point is not the squiggle — browsers draw that for free. It is that
+    // the application can ASK, which no contentEditable editor can.
+    const editorWith = (html: string, wrong: string[]): TosijsStyledEditor => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = html
+      const bad = new Set(wrong)
+      el.spellChecker = (words) => new Set(words.filter((w) => bad.has(w)))
+      return el
+    }
+
+    test('marks what the checker rejects, and nothing else', async () => {
+      const el = editorWith('<p>the quick borwn fox</p>', ['borwn'])
+      const errors = await el.checkSpelling()
+      expect(errors.length).toBe(1)
+      expect(errors[0].word).toBe('borwn')
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
+      expect(el.parts.doc.textContent).toBe('the quick borwn fox')
+    })
+
+    test('the query the browser refuses to answer', async () => {
+      const el = editorWith('<p>teh quick borwn fox</p>', ['teh', 'borwn'])
+      await el.checkSpelling()
+      expect(el.spellingErrors.map((e) => e.word)).toEqual(['teh', 'borwn'])
+    })
+
+    test('ignoring a word drops its marks and clears the errors', async () => {
+      // The FORM VALIDITY half of this cannot be asserted here: happy-dom does
+      // not implement attachInternals(), so `this.internals` is undefined and
+      // setValidity is never reached. It is verified in a real browser instead
+      // — see the spelling fence in this file's doc comment.
+      const el = editorWith('<p>borwn fox</p>', ['borwn'])
+      await el.checkSpelling()
+      expect(el.spellingErrors.length).toBe(1)
+
+      el.ignoreWord('borwn')
+      expect(el.spellingErrors.length).toBe(0)
+      expect(el.parts.doc.textContent).toBe('borwn fox')
+
+      // and it stays ignored on the next check
+      await el.checkSpelling()
+      expect(el.spellingErrors.length).toBe(0)
+    })
+
+    test('marks never reach value, the form value, or undo', async () => {
+      const el = editorWith('<p>borwn fox</p>', ['borwn'])
+      await el.checkSpelling()
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
+      // the mark is visible in the document but absent from the serialization
+      expect(el.value).not.toMatch(/tosi-misspelling/)
+      expect(el.value).toContain('borwn fox')
+      // and reading value did not disturb what the user sees
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
+    })
+
+    test('re-checking converges rather than accumulating', async () => {
+      const el = editorWith('<p>borwn borwn</p>', ['borwn'])
+      await el.checkSpelling()
+      await el.checkSpelling()
+      await el.checkSpelling()
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(2)
+      expect(el.parts.doc.textContent).toBe('borwn borwn')
+    })
+
+    test('the checker is asked once per DISTINCT word', async () => {
+      const el = editorWith('<p>a a a b b c</p>', [])
+      const asked: string[][] = []
+      el.spellChecker = (words) => {
+        asked.push(words)
+        return new Set<string>()
+      }
+      await el.checkSpelling()
+      expect(asked.length).toBe(1)
+      expect([...asked[0]].sort()).toEqual(['a', 'b', 'c'])
+    })
+
+    test('code is not spell checked', async () => {
+      const el = editorWith('<p>fix <code>borwn</code> now</p>', ['borwn'])
+      const errors = await el.checkSpelling()
+      expect(errors.length).toBe(0)
+    })
+
+    // THE CONTAINER CASE — the thing EXTENSIBILITY.md flagged as untested.
+    test('text inside a mark is still ordinary editable content', async () => {
+      const el = editorWith('<p>the borwn fox</p>', ['borwn'])
+      await el.checkSpelling()
+      const mark = el.parts.doc.querySelector('tosi-misspelling')!
+
+      // the editor's own traversal sees the word — it is not opaque
+      const walker = document.createTreeWalker(el.parts.doc, NodeFilter.SHOW_TEXT)
+      const texts: string[] = []
+      let n: Node | null
+      while ((n = walker.nextNode())) texts.push((n as Text).data)
+      expect(texts.join('')).toBe('the borwn fox')
+
+      // editing inside it works, and clearing leaves the correction intact
+      const inner = mark.firstChild as Text
+      inner.data = 'brown'
+      el.clearSpelling()
+      expect(el.parts.doc.textContent).toBe('the brown fox')
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(0)
+    })
+
+    test('clearing a mark leaves no stray text nodes behind', async () => {
+      const el = editorWith('<p>the borwn fox</p>', ['borwn'])
+      await el.checkSpelling()
+      el.clearSpelling()
+      const p = el.parts.doc.querySelector('p')!
+      expect(p.childNodes.length).toBe(1)
+      expect(p.firstChild!.nodeType).toBe(3)
+    })
+  })
+
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor

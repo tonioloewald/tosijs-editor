@@ -130,6 +130,14 @@ import {
 } from './dom-utils'
 import { defineFootnote } from './footnote'
 import {
+  checkSpelling as runSpellCheck,
+  clearMisspellings,
+  defineMisspelling,
+  MISSPELLING_TAG,
+  type SpellChecker,
+  type SpellingError,
+} from './spelling'
+import {
   defaultToolbar,
   minimalToolbar,
   defaultMenubar,
@@ -373,7 +381,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ':host .selection-edge.-end': {
       background: 'color-mix(in oklab, red 70%, var(--editor-text))',
     },
-':host .selected': {
+// The squiggle. skip-ink off, because a spelling underline that dodges
+    // descenders reads as a rendering artefact rather than a mark.
+    ':host tosi-misspelling': {
+      textDecoration: 'underline wavy',
+      textDecorationColor: 'color-mix(in oklab, red 70%, var(--editor-text))',
+      textDecorationSkipInk: 'none',
+      textUnderlineOffset: '2px',
+    },
+    ':host .selected': {
       background:
         'color-mix(in oklab, var(--editor-ink) 42%, color-mix(in oklab, white 38%, var(--editor-surface)))',
     },
@@ -643,7 +659,31 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Get doc innerHTML excluding UI affordances */
   private get docHTML(): string {
     this.touchAffordances?.remove()
+    // Spelling marks are VIEW state, not content. Leaving them in would put
+    // `<tosi-misspelling>` into the form value, into every undo snapshot, and
+    // into whatever the host persists — so a document would carry a record of
+    // which words were once flagged, by a dictionary it no longer has.
+    const restore = (
+      Array.from(this.parts.doc.querySelectorAll(MISSPELLING_TAG)) as HTMLElement[]
+    ).map((el) => ({
+      el,
+      parent: el.parentNode!,
+      next: el.nextSibling,
+      children: Array.from(el.childNodes),
+    }))
+    for (const { el, parent } of restore) {
+      while (el.firstChild) parent.insertBefore(el.firstChild, el)
+      el.remove()
+    }
+
     const html = this.parts.doc.innerHTML
+
+    // Put them back exactly where they were, so reading `value` never changes
+    // what the user is looking at.
+    for (const { el, parent, next, children } of restore) {
+      parent.insertBefore(el, next)
+      for (const child of children) el.appendChild(child)
+    }
     if (this.touchAffordances) {
       this.parts.doc.appendChild(this.touchAffordances)
     }
@@ -676,6 +716,100 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** The editable commands — extend this object to add custom commands */
   commands: Record<string, Command> = { ...commands }
+
+  /**
+   * Supply a spell checker and the editor can answer what the browser will not.
+   *
+   * Browsers spell-check for free and expose nothing — no count, no list, no
+   * way to block a submit on unresolved errors. `spellChecker` is the missing
+   * half: you provide "which of these words are wrong", the editor does
+   * tokenization, marking, navigation and validity.
+   *
+   * ```js
+   * editor.spellChecker = (words) => new Set(words.filter(w => !myDictionary.has(w)))
+   * await editor.checkSpelling()
+   * editor.spellingErrors.length     // 3
+   * ```
+   *
+   * No dictionary ships with this component. Which words are real is a
+   * localization question with a different answer per document, and a hunspell
+   * dictionary is ~40x the size of the entire editor.
+   */
+  spellChecker: SpellChecker | null = null
+
+  /** Words the user has chosen to accept, excluded from every later check. */
+  readonly ignoredWords = new Set<string>()
+
+  /**
+   * Re-check the document and mark what the checker rejects.
+   *
+   * Marks are transient view state, not content: they are cleared on every
+   * check and stripped from `value`, so they never reach the form value or an
+   * undo snapshot.
+   */
+  async checkSpelling(): Promise<SpellingError[]> {
+    if (!this.spellChecker) return []
+    defineMisspelling()
+    const errors = await runSpellCheck(
+      this.parts.doc,
+      this.spellChecker,
+      this.ignoredWords
+    )
+    this.applySpellingValidity(errors)
+    return errors
+  }
+
+  /** The current errors, in document order. The query browsers refuse. */
+  get spellingErrors(): SpellingError[] {
+    return Array.from(
+      this.parts.doc.querySelectorAll(MISSPELLING_TAG)
+    ).map((el) => ({ word: el.textContent || '', element: el as HTMLElement }))
+  }
+
+  /** Accept a word, drop its marks, and re-derive validity. */
+  ignoreWord(word: string): void {
+    this.ignoredWords.add(word)
+    for (const el of this.spellingErrors) {
+      if (el.word !== word) continue
+      const parent = el.element.parentNode
+      if (!parent) continue
+      while (el.element.firstChild) {
+        parent.insertBefore(el.element.firstChild, el.element)
+      }
+      el.element.remove()
+    }
+    this.parts.doc.normalize()
+    this.applySpellingValidity(this.spellingErrors)
+  }
+
+  /** Remove every mark without changing the text. */
+  clearSpelling(): void {
+    clearMisspellings(this.parts.doc)
+    this.applySpellingValidity([])
+  }
+
+  /**
+   * Unresolved spelling makes the field invalid.
+   *
+   * This is the payoff, and it is the thing `contentEditable` cannot do: the
+   * component is `formAssociated`, so an unresolved error can block a real form
+   * submit instead of relying on the author to remember to check.
+   */
+  private applySpellingValidity(errors: SpellingError[]): void {
+    if (!this.internals) return
+    if (errors.length === 0) {
+      this.internals.setValidity({})
+      return
+    }
+    const first = errors[0]
+    this.internals.setValidity(
+      { customError: true },
+      errors.length === 1
+        ? `"${first.word}" may be misspelled`
+        : `${errors.length} words may be misspelled, starting with "${first.word}"`,
+      first.element
+    )
+  }
 
   /**
    * Sanitizer applied to pasted and dropped content, before it enters the
