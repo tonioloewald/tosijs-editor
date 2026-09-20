@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tracked changes, and an LLM proofreading round-trip.** Insertions and
+  deletions are content (`<tosi-ins>` / `<tosi-del>` with author and timestamp),
+  not an operation log, so a tracked document still serializes and round-trips.
+  `reviseWith(fn, author)` sends each text node out as plain text, diffs the
+  response at word level, and applies the result as tracked changes;
+  `acceptChanges(id)` / `rejectChanges(id)` resolve them one at a time or all at
+  once.
+  The response is used as TEXT and never parsed as HTML, so a model returning
+  markup produces literal characters rather than elements — a stronger guarantee
+  than sanitizing, since there is no parse step to attack. Text already under
+  review is skipped, so a second pass cannot mark up the marks.
+  Change marks are styled in the core stylesheet on purpose: a `<tosi-del>`
+  without its strikethrough reads as the opposite of what the document means.
+
+
 - **Spell checking, which this editor otherwise has none of.** Browsers only
   spell-check editing hosts (`textarea`, `input`, `contenteditable`), and nothing
   here is one — so replacing `contentEditable` removed browser spell checking

@@ -759,6 +759,126 @@ describe('TosijsStyledEditor', () => {
     })
   })
 
+  describe('tracked changes', () => {
+    const editorWith = (html: string): TosijsStyledEditor => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = html
+      return el
+    }
+    const llm = { id: 'model', name: 'Proofreader' }
+
+    test('a revision that changes nothing touches nothing', async () => {
+      const el = editorWith('<p>the quick brown fox</p>')
+      const before = el.value
+      const n = await el.reviseWith((t) => t, llm)
+      expect(n).toBe(0)
+      expect(el.value).toBe(before)
+      expect(el.changes.length).toBe(0)
+    })
+
+    test('a word swap becomes one deletion and one insertion', async () => {
+      const el = editorWith('<p>the quick brown fox</p>')
+      const n = await el.reviseWith((t) => t.replace('quick', 'nimble'), llm)
+      expect(n).toBe(2)
+
+      const kinds = el.changes.map((c) => c.kind).sort()
+      expect(kinds).toEqual(['delete', 'insert'])
+      expect(el.changes.every((c) => c.author === 'model')).toBe(true)
+      expect(el.changes.every((c) => c.authorName === 'Proofreader')).toBe(true)
+      // both readings are present in the document until someone decides
+      expect(el.parts.doc.textContent).toContain('quick')
+      expect(el.parts.doc.textContent).toContain('nimble')
+    })
+
+    test('accepting takes the revision, rejecting keeps the original', async () => {
+      const revise = (t: string) => t.replace('quick', 'nimble')
+
+      const accepted = editorWith('<p>the quick brown fox</p>')
+      await accepted.reviseWith(revise, llm)
+      accepted.acceptChanges()
+      expect(accepted.parts.doc.querySelector('p')!.textContent).toBe(
+        'the nimble brown fox'
+      )
+      expect(accepted.changes.length).toBe(0)
+
+      const rejected = editorWith('<p>the quick brown fox</p>')
+      await rejected.reviseWith(revise, llm)
+      rejected.rejectChanges()
+      expect(rejected.parts.doc.querySelector('p')!.textContent).toBe(
+        'the quick brown fox'
+      )
+      expect(rejected.changes.length).toBe(0)
+    })
+
+    test('changes are resolved one at a time, by id', async () => {
+      const el = editorWith('<p>teh quick borwn fox</p>')
+      await el.reviseWith(
+        (t) => t.replace('teh', 'the').replace('borwn', 'brown'),
+        llm
+      )
+      expect(el.changes.length).toBe(4)
+
+      // accept the first correction only
+      const firstInsert = el.changes.find(
+        (c) => c.kind === 'insert' && c.text.includes('the')
+      )!
+      el.acceptChanges(firstInsert.id)
+      const firstDelete = el.changes.find(
+        (c) => c.kind === 'delete' && c.text.includes('teh')
+      )!
+      el.acceptChanges(firstDelete.id)
+
+      // the other correction is still pending
+      expect(el.changes.length).toBe(2)
+      expect(el.parts.doc.textContent).toContain('the quick')
+      expect(el.parts.doc.textContent).toContain('borwn')
+    })
+
+    test('what a model returns is TEXT, never markup', async () => {
+      const el = editorWith('<p>hello world</p>')
+      await el.reviseWith(() => 'hello <img src=x onerror="boom()"> world', llm)
+      // no element was created from the response
+      expect(el.parts.doc.querySelector('img')).toBeNull()
+      expect(el.value).not.toMatch(/<img/)
+      // the characters survive as literal text, visible for review
+      expect(el.parts.doc.textContent).toContain('<img')
+    })
+
+    test('text already under review is not revised again', async () => {
+      const el = editorWith('<p>the quick brown fox</p>')
+      await el.reviseWith((t) => t.replace('quick', 'nimble'), llm)
+      const after = el.changes.length
+      // a second pass must not mark up the marks
+      await el.reviseWith((t) => t.replace('nimble', 'swift'), llm)
+      expect(el.changes.length).toBe(after)
+    })
+
+    test('tracked text inside a mark is still editable content', async () => {
+      const el = editorWith('<p>the quick brown fox</p>')
+      await el.reviseWith((t) => t.replace('quick', 'nimble'), llm)
+      const ins = el.parts.doc.querySelector('tosi-ins')!
+      // a reviewer can adjust a proposal before accepting it
+      ;(ins.firstChild as Text).data = ' agile'
+      el.acceptChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe(
+        'the agile brown fox'
+      )
+    })
+
+    test('changes survive serialization — a tracked document is a document', async () => {
+      const el = editorWith('<p>the quick brown fox</p>')
+      await el.reviseWith((t) => t.replace('quick', 'nimble'), llm)
+      const html = el.value
+      expect(html).toMatch(/tosi-ins/)
+      expect(html).toMatch(/data-author="model"/)
+
+      const reopened = editorWith(html)
+      expect(reopened.changes.length).toBe(2)
+      expect(reopened.changes[0].author).toBe('model')
+    })
+  })
+
   describe('selectedBlocks', () => {
     test('returns empty array when nothing selected', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor

@@ -294,6 +294,69 @@ Not implemented, and worth knowing before you build UI on this:
 - **persistence is yours** — the editor reports accepted words through
   `onWordAccepted` but stores nothing; reload the sets yourself
 
+## Tracked changes and LLM proofreading
+
+Insertions and deletions are **content** — `<tosi-ins>` and `<tosi-del>` elements
+carrying author and timestamp — not an operation log. A tracked document is still
+a document: it serializes, round-trips, and can be read by something that has
+never heard of this component.
+
+```javascript
+editor.changeAuthor = { id: 'alex', name: 'Alex' }
+
+await editor.reviseWith(async (text) => {
+  const res = await fetch('/api/proofread', { method: 'POST', body: text })
+  return (await res.json()).text
+}, { id: 'gpt-x', name: 'Proofreader' })
+
+editor.changes                    // [{ id, kind, author, authorName, time, text, element }]
+editor.acceptChanges(id)          // take this one
+editor.rejectChanges(id)          // keep the original
+editor.acceptChanges()            // all of them
+```
+
+Both readings stay in the document until someone decides. A reviewer can put the
+caret inside a proposed insertion and adjust it before accepting — the text
+inside a change mark is ordinary editable content.
+
+### What crosses the boundary
+
+**Out goes plain text**, one text node at a time. Formatting is deliberately not
+sent: a model asked to preserve markup will sometimes not, and a reviewer should
+be reviewing prose rather than diffing HTML. Marks *inside* a block — a link, a
+bold run — survive because each text node is revised in place. What the model
+never sees, it cannot damage.
+
+**Back comes text, and only text.** The response is inserted as text nodes inside
+change marks and is never parsed as HTML, so a model that returns `<script>`
+produces those literal characters, visible for review. That is a stronger
+guarantee than sanitizing the response would be — there is no parse step to
+attack — which is why this path does not go through `editor.sanitize`.
+
+Text already under review is skipped, so a second pass cannot mark up the marks.
+
+### Why word-level
+
+The diff is word-level because the unit has to be something a reviewer can
+meaningfully accept or reject. A character diff turns `teh → the` into three
+separate changes, and a rewritten sentence into confetti.
+
+### Styling is correctness here
+
+`<tosi-ins>` and `<tosi-del>` are styled in the **core** stylesheet even though
+the behaviour is a plugin. An unloaded footnote plugin is benign — you see a
+stray marker. A `<tosi-del>` without its strikethrough renders deleted text as
+ordinary prose, which reads as the opposite of what the document means.
+
+### Not implemented
+
+- **live edit tracking** — recording keystrokes as changes touches keydown,
+  deletion, paste and drop, each with boundary cases. The revision path above is
+  the cheap half: before and after text, one diff, one pass.
+- **no merge story.** Changes-as-content gets attribution, review and round-trip,
+  but not collaborative merge. That needs an operation log, which is a larger
+  decision — see `EXTENSIBILITY.md`.
+
 ## Keyboard Behavior
 
 ### General editing

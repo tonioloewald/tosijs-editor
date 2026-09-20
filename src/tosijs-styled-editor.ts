@@ -130,6 +130,17 @@ import {
 } from './dom-utils'
 import { defineFootnote } from './footnote'
 import {
+  acceptChange,
+  applyRevision,
+  changesIn,
+  defineChanges,
+  rejectChange,
+  DEL_TAG,
+  INS_TAG,
+  type ChangeAuthor,
+  type TrackedChange,
+} from './changes'
+import {
   checkSpelling as runSpellCheck,
   clearMisspellings,
   defineMisspelling,
@@ -383,6 +394,21 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
 // The squiggle. skip-ink off, because a spelling underline that dodges
     // descenders reads as a rendering artefact rather than a mark.
+    // Change marks are styled in CORE even though the behaviour is a plugin. A
+    // `<tosi-del>` without its strikethrough renders deleted text as ordinary
+    // prose — the opposite of what the document says — so this is correctness,
+    // not decoration.
+    ':host tosi-ins': {
+      textDecoration: 'underline',
+      textDecorationColor: 'color-mix(in oklab, green 60%, var(--editor-text))',
+      background: 'color-mix(in oklab, green 12%, transparent)',
+    },
+    ':host tosi-del': {
+      textDecoration: 'line-through',
+      textDecorationColor: 'color-mix(in oklab, red 60%, var(--editor-text))',
+      background: 'color-mix(in oklab, red 12%, transparent)',
+      opacity: '0.75',
+    },
     ':host tosi-misspelling': {
       textDecoration: 'underline wavy',
       textDecorationColor: 'color-mix(in oklab, red 70%, var(--editor-text))',
@@ -716,6 +742,105 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** The editable commands — extend this object to add custom commands */
   commands: Record<string, Command> = { ...commands }
+
+  /**
+   * Who authored edits produced by `reviseWith` — a person, or a model.
+   */
+  changeAuthor: ChangeAuthor = { id: 'user', name: 'You' }
+
+  /**
+   * Send prose out for revision and bring the result back as tracked changes.
+   *
+   * This is the LLM-proofreader path, and it is deliberately the SIMPLE half of
+   * change tracking: we have the before text and the after text, so a word-level
+   * diff produces the marks in one pass. Recording live keystrokes as changes is
+   * the expensive half and is not this.
+   *
+   * ```js
+   * await editor.reviseWith(async (text) => {
+   *   const res = await fetch('/api/proofread', { method: 'POST', body: text })
+   *   return (await res.json()).text
+   * }, { id: 'gpt', name: 'Proofreader' })
+   * ```
+   *
+   * WHAT GOES OUT is plain text, one block at a time. Formatting is deliberately
+   * not sent: a model asked to preserve markup will sometimes not, and a
+   * reviewer should be reviewing prose rather than diffing HTML. Marks inside a
+   * block (a link, a bold run) are preserved because each text node is revised
+   * in place — what the model never sees, it cannot damage.
+   *
+   * WHAT COMES BACK is untrusted. Only its TEXT is used — it is inserted as text
+   * nodes inside change marks, never parsed as HTML — so a model that returns
+   * `<script>` produces the literal characters, not an element. That is a
+   * stronger guarantee than sanitizing would be, and it is why this does not go
+   * through `sanitize`.
+   *
+   * Returns the number of changes introduced.
+   */
+  async reviseWith(
+    revise: (text: string) => string | Promise<string>,
+    author: ChangeAuthor = this.changeAuthor
+  ): Promise<number> {
+    defineChanges()
+    // Snapshot the nodes first: revising replaces them, which would invalidate
+    // a live walk halfway through.
+    const nodes: Text[] = []
+    const walker = document.createTreeWalker(this.parts.doc, NodeFilter.SHOW_TEXT)
+    let node: Node | null
+    while ((node = walker.nextNode())) {
+      const text = node as Text
+      if (!text.data.trim()) continue
+      const parent = text.parentElement
+      if (!parent) continue
+      // Never revise our own chrome, or text already under review.
+      if (
+        parent.closest(
+          `.not-selectable, .do-not-spanify, code, kbd, samp, pre, ${INS_TAG}, ${DEL_TAG}`
+        )
+      ) {
+        continue
+      }
+      nodes.push(text)
+    }
+
+    let total = 0
+    for (const text of nodes) {
+      if (!text.isConnected) continue
+      const revised = await revise(text.data)
+      if (typeof revised !== 'string') continue
+      total += applyRevision(text, revised, author)
+    }
+    if (total > 0) {
+      this.normalize()
+      this.updateUndo('new', 'revise')
+    }
+    return total
+  }
+
+  /** Every tracked change, in document order. */
+  get changes(): TrackedChange[] {
+    return changesIn(this.parts.doc)
+  }
+
+  /** Accept one change by id, or every change when given none. */
+  acceptChanges(id?: string): void {
+    const targets = this.changes.filter((c) => !id || c.id === id)
+    for (const change of targets) acceptChange(change.element)
+    if (targets.length) {
+      this.normalize()
+      this.updateUndo('new', 'accept-changes')
+    }
+  }
+
+  /** Reject one change by id, or every change when given none. */
+  rejectChanges(id?: string): void {
+    const targets = this.changes.filter((c) => !id || c.id === id)
+    for (const change of targets) rejectChange(change.element)
+    if (targets.length) {
+      this.normalize()
+      this.updateUndo('new', 'reject-changes')
+    }
+  }
 
   /**
    * Supply a spell checker and the editor can answer what the browser will not.

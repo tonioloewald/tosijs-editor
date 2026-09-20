@@ -132,11 +132,21 @@ instead of) snapshots. That is the single most expensive architectural decision 
 document, and it is load-bearing for collaborative editing too — one decision gates
 both features.
 
-An alternative worth weighing before committing: represent tracked changes *as content*
-(`<tosi-ins>` / `<tosi-del>` elements carrying author and timestamp), which fits the
-web-component substrate, survives serialization, and degrades gracefully. That gets
-visible change marks without an operation log — but it does not give a merge story, so
-it does not get collaboration.
+DECIDED (0.4.6): changes are **content** — `<tosi-ins>` / `<tosi-del>` carrying author
+and timestamp. It fits the substrate, survives serialization, and a tracked document is
+still a document. It does NOT give a merge story; collaboration still needs an operation
+log, and that decision is deliberately deferred rather than made by accident.
+
+Two things the implementation taught:
+
+- **The LLM round-trip is the cheap half.** With before-text and after-text you diff and
+  apply in one pass. Recording live keystrokes as changes is the expensive half — it
+  touches keydown, deletion, paste and drop, each with boundary cases — and is still
+  unbuilt. The natural build order is the reverse of the intuitive one.
+- **Degradation is asymmetric.** An unloaded footnote plugin is benign. An unloaded
+  `<tosi-del>` renders deleted text as ordinary prose, i.e. the opposite of what the
+  document means. So its styling belongs in CORE even though the behaviour is a plugin —
+  the first case where a plugin's CSS is correctness rather than appearance.
 
 ### Conditional content
 
