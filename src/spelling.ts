@@ -1,11 +1,17 @@
 /**
  * Spell checking — the part the browser will not tell you.
  *
- * Browsers spell-check `contentEditable` for free, and expose **nothing**: there
- * is no API to ask whether the field contains unresolved errors, how many, or
- * which words. So an application cannot block a submit on them, show a count,
- * gate a review step, or make the field genuinely invalid. That gap is the
- * reason this exists — not the underlining, which the browser already does.
+ * Two facts, and the second is the one that is easy to get wrong.
+ *
+ * A contentEditable editor gets browser spell checking for free and can query
+ * **nothing** about it: no count, no list, no way to block a submit on
+ * unresolved errors. That is the well-known half.
+ *
+ * The other half is that THIS editor gets no browser spell checking at all.
+ * Browsers only check editing hosts — `<textarea>`, `<input>`, `contenteditable`
+ * — and nothing here is one. So replacing contentEditable did not leave us with
+ * an unqueryable layer to improve on; it left us with no layer. There is also,
+ * for the same reason, no native right-click suggestion menu to inherit.
  *
  * WHAT THIS DOES NOT DO: ship a dictionary. A hunspell dictionary is ~1 MB
  * against a ~24 kB editor, and "which words are real" is a localization problem

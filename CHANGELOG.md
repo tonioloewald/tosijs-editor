@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Spell checking that an application can actually query.** Browsers
-  spell-check for free and expose nothing — no count, no list, no way to block a
-  submit on unresolved errors. Supply `editor.spellChecker` (a function from
+- **Spell checking, which this editor otherwise has none of.** Browsers only
+  spell-check editing hosts (`textarea`, `input`, `contenteditable`), and nothing
+  here is one — so replacing `contentEditable` removed browser spell checking
+  entirely rather than leaving an unqueryable version of it. A contentEditable
+  editor has the opposite problem: checking it cannot query — no count, no list,
+  no way to block a submit on unresolved errors. This addresses both. Supply `editor.spellChecker` (a function from
   words to the subset that is wrong) and the editor does tokenization
   (`Intl.Segmenter`, so `don't` is one word and `l'objet` is two), marking,
   `ignoreWord`, and **form validity**: unresolved spelling sets `customError`,
