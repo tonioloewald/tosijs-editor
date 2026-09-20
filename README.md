@@ -182,6 +182,118 @@ preserves.
 [kilpi](https://github.com/tonioloewald/kilpi/issues) — that is where the code
 lives. Anything else, [this repository](https://github.com/tonioloewald/tosijs-editor/issues).
 
+## Spell checking
+
+This editor has **no browser spell checking at all**. Browsers only check editing
+hosts — `textarea`, `input`, `contenteditable` — and nothing here is one. That is
+a cost of replacing `contentEditable`, and worth knowing before you assume
+squiggles will appear on their own.
+
+In exchange you get the thing a `contentEditable` editor cannot have: an
+application that can *ask*.
+
+```javascript
+editor.spellChecker = (words) => new Set(words.filter((w) => !dictionary.has(w)))
+await editor.checkSpelling()
+
+editor.spellingErrors          // [{ word, element }, …] in document order
+editor.validity.customError    // true — a real form submit is blocked
+editor.clearSpelling()         // remove every mark, change no text
+```
+
+### Resolution is the workflow
+
+In a jargon-heavy domain — contracts, medicine, anything with terms of art — the
+usual answer to an unknown word is *"that is a real word"*, not *"I mistyped"*.
+So accepting has to be as cheap as correcting, and every flagged word has to end
+up resolved one way or the other.
+
+That is what the validity is for. **The field stays invalid until every flagged
+word is corrected or accepted**, so a real form submit is blocked rather than
+relying on anyone to remember to look.
+
+Accepting has two scopes, because they have different lifetimes:
+
+```javascript
+editor.acceptWord('indemnitor', 'document')    // this document only
+editor.acceptWord('lessor', 'dictionary')      // everywhere, for this user
+```
+
+- **`documentWords`** — a contract's defined terms and party names. Persist with
+  the document; it is part of the document's meaning, the same way a footnote is.
+- **`userDictionary`** — a firm's terms of art. Persist with the user, not the
+  document.
+
+Collapsing those into one list is what makes a spell checker unusable in these
+domains: either every later document inherits one contract's party names, or the
+user re-accepts the same terminology forever.
+
+The editor persists neither — it does not know where either store lives. It tells
+you what to write, and you decide where:
+
+```javascript
+editor.onWordAccepted = (word, scope) => {
+  if (scope === 'dictionary') saveToUserDictionary(word)
+  else saveWithDocument(word)
+}
+```
+
+Load them back by assigning the sets before checking.
+
+Accepting jargon does not launder a real typo: with `indemnitor` and `lessor`
+accepted, `borwn` stays flagged and the field stays invalid.
+
+No dictionary ships with this component. Which words are real is a localization
+question with a different answer per document, and a hunspell dictionary is
+roughly forty times the size of the whole editor.
+
+### Wiring a real checker
+
+The checker is `(distinctWords) => the subset that is wrong`, sync or async, so
+any off-the-shelf engine fits behind it. With a hunspell-style library:
+
+```javascript
+import nspell from 'nspell'
+
+const spell = nspell(await loadAffix(), await loadDictionary())
+editor.spellChecker = (words) => new Set(words.filter((w) => !spell.correct(w)))
+```
+
+Or against a service, which is the case the batching exists for:
+
+```javascript
+editor.spellChecker = async (words) => {
+  const res = await fetch('/api/spell', {
+    method: 'POST',
+    body: JSON.stringify(words),
+  })
+  return new Set(await res.json())
+}
+```
+
+The editor asks about **distinct** words, once per check — so a 10,000-word
+document with a 2,000-word vocabulary is one call carrying 2,000 entries, not
+10,000 lookups and not one request per word.
+
+### What it does, and does not, do
+
+Tokenization uses `Intl.Segmenter` word segmentation, so `don't` is one word and
+`l'objet` is two — neither of which splitting on whitespace gives you. `code`,
+`kbd`, `samp`, `pre` and any `spellcheck="false"` subtree are skipped.
+
+Marks are **view state**: cleared on every check and stripped from `value`, so
+they never reach the form value, an undo snapshot, or whatever you persist. A
+document should not carry a record of which words some dictionary once disliked.
+
+Not implemented, and worth knowing before you build UI on this:
+
+- **no suggestions** — the checker reports *wrong*, not *did you mean*, and there
+  is no native right-click menu to inherit either
+- **no incremental check** — `checkSpelling()` re-walks the whole document, which
+  is right for a button and wrong for check-as-you-type on a long document
+- **persistence is yours** — the editor reports accepted words through
+  `onWordAccepted` but stores nothing; reload the sets yourself
+
 ## Keyboard Behavior
 
 ### General editing

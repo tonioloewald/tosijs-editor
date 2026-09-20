@@ -194,6 +194,90 @@ preserves.</p>
 <p><strong>Reporting a vulnerability.</strong> If it is in the sanitizer, file it against
 <a href="https://github.com/tonioloewald/kilpi/issues">kilpi</a> — that is where the code
 lives. Anything else, <a href="https://github.com/tonioloewald/tosijs-editor/issues">this repository</a>.</p>
+<h2>Spell checking</h2>
+<p>This editor has <strong>no browser spell checking at all</strong>. Browsers only check editing
+hosts — <code>textarea</code>, <code>input</code>, <code>contenteditable</code> — and nothing here is one. That is
+a cost of replacing <code>contentEditable</code>, and worth knowing before you assume
+squiggles will appear on their own.</p>
+<p>In exchange you get the thing a <code>contentEditable</code> editor cannot have: an
+application that can <em>ask</em>.</p>
+<pre><code class="language-javascript">editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !dictionary.has(w)))
+await editor.checkSpelling()
+
+editor.spellingErrors          // [{ word, element }, …] in document order
+editor.validity.customError    // true — a real form submit is blocked
+editor.clearSpelling()         // remove every mark, change no text
+</code></pre>
+<h3>Resolution is the workflow</h3>
+<p>In a jargon-heavy domain — contracts, medicine, anything with terms of art — the
+usual answer to an unknown word is <em>&quot;that is a real word&quot;</em>, not <em>&quot;I mistyped&quot;</em>.
+So accepting has to be as cheap as correcting, and every flagged word has to end
+up resolved one way or the other.</p>
+<p>That is what the validity is for. <strong>The field stays invalid until every flagged
+word is corrected or accepted</strong>, so a real form submit is blocked rather than
+relying on anyone to remember to look.</p>
+<p>Accepting has two scopes, because they have different lifetimes:</p>
+<pre><code class="language-javascript">editor.acceptWord(&#39;indemnitor&#39;, &#39;document&#39;)    // this document only
+editor.acceptWord(&#39;lessor&#39;, &#39;dictionary&#39;)      // everywhere, for this user
+</code></pre>
+<ul>
+<li><strong><code>documentWords</code></strong> — a contract&#39;s defined terms and party names. Persist with
+the document; it is part of the document&#39;s meaning, the same way a footnote is.</li>
+<li><strong><code>userDictionary</code></strong> — a firm&#39;s terms of art. Persist with the user, not the
+document.</li>
+</ul>
+<p>Collapsing those into one list is what makes a spell checker unusable in these
+domains: either every later document inherits one contract&#39;s party names, or the
+user re-accepts the same terminology forever.</p>
+<p>The editor persists neither — it does not know where either store lives. It tells
+you what to write, and you decide where:</p>
+<pre><code class="language-javascript">editor.onWordAccepted = (word, scope) =&gt; {
+  if (scope === &#39;dictionary&#39;) saveToUserDictionary(word)
+  else saveWithDocument(word)
+}
+</code></pre>
+<p>Load them back by assigning the sets before checking.</p>
+<p>Accepting jargon does not launder a real typo: with <code>indemnitor</code> and <code>lessor</code>
+accepted, <code>borwn</code> stays flagged and the field stays invalid.</p>
+<p>No dictionary ships with this component. Which words are real is a localization
+question with a different answer per document, and a hunspell dictionary is
+roughly forty times the size of the whole editor.</p>
+<h3>Wiring a real checker</h3>
+<p>The checker is <code>(distinctWords) =&gt; the subset that is wrong</code>, sync or async, so
+any off-the-shelf engine fits behind it. With a hunspell-style library:</p>
+<pre><code class="language-javascript">import nspell from &#39;nspell&#39;
+
+const spell = nspell(await loadAffix(), await loadDictionary())
+editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !spell.correct(w)))
+</code></pre>
+<p>Or against a service, which is the case the batching exists for:</p>
+<pre><code class="language-javascript">editor.spellChecker = async (words) =&gt; {
+  const res = await fetch(&#39;/api/spell&#39;, {
+    method: &#39;POST&#39;,
+    body: JSON.stringify(words),
+  })
+  return new Set(await res.json())
+}
+</code></pre>
+<p>The editor asks about <strong>distinct</strong> words, once per check — so a 10,000-word
+document with a 2,000-word vocabulary is one call carrying 2,000 entries, not
+10,000 lookups and not one request per word.</p>
+<h3>What it does, and does not, do</h3>
+<p>Tokenization uses <code>Intl.Segmenter</code> word segmentation, so <code>don&#39;t</code> is one word and
+<code>l&#39;objet</code> is two — neither of which splitting on whitespace gives you. <code>code</code>,
+<code>kbd</code>, <code>samp</code>, <code>pre</code> and any <code>spellcheck=&quot;false&quot;</code> subtree are skipped.</p>
+<p>Marks are <strong>view state</strong>: cleared on every check and stripped from <code>value</code>, so
+they never reach the form value, an undo snapshot, or whatever you persist. A
+document should not carry a record of which words some dictionary once disliked.</p>
+<p>Not implemented, and worth knowing before you build UI on this:</p>
+<ul>
+<li><strong>no suggestions</strong> — the checker reports <em>wrong</em>, not <em>did you mean</em>, and there
+is no native right-click menu to inherit either</li>
+<li><strong>no incremental check</strong> — <code>checkSpelling()</code> re-walks the whole document, which
+is right for a button and wrong for check-as-you-type on a long document</li>
+<li><strong>persistence is yours</strong> — the editor reports accepted words through
+<code>onWordAccepted</code> but stores nothing; reload the sets yourself</li>
+</ul>
 <h2>Keyboard Behavior</h2>
 <h3>General editing</h3>
 <table>

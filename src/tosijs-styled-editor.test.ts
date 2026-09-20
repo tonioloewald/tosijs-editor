@@ -635,6 +635,72 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
     })
 
+    // Accepting is the OTHER half of the workflow, and in a jargon-heavy domain
+    // it is the common half: the usual answer to an unknown word is "that is a
+    // real word", not "I mistyped". The two scopes exist because they have
+    // different lifetimes - a contract's defined terms belong to that document,
+    // a firm's terms of art belong to the user.
+    test('document scope accepts a word here only', async () => {
+      const el = editorWith('<p>indemnitor pays</p>', ['indemnitor'])
+      await el.checkSpelling()
+      expect(el.spellingErrors.length).toBe(1)
+
+      el.acceptWord('indemnitor', 'document')
+      expect(el.spellingErrors.length).toBe(0)
+      expect(el.documentWords.has('indemnitor')).toBe(true)
+      expect(el.userDictionary.has('indemnitor')).toBe(false)
+
+      await el.checkSpelling()
+      expect(el.spellingErrors.length).toBe(0)
+    })
+
+    test('dictionary scope accepts it everywhere', async () => {
+      const el = editorWith('<p>indemnitor pays</p>', ['indemnitor'])
+      await el.checkSpelling()
+      el.acceptWord('indemnitor', 'dictionary')
+
+      expect(el.userDictionary.has('indemnitor')).toBe(true)
+      expect(el.documentWords.has('indemnitor')).toBe(false)
+
+      // a different document, same user dictionary
+      const other = editorWith('<p>the indemnitor again</p>', ['indemnitor'])
+      other.userDictionary = el.userDictionary
+      await other.checkSpelling()
+      expect(other.spellingErrors.length).toBe(0)
+    })
+
+    test('the host is told what to persist, and where', async () => {
+      const el = editorWith('<p>indemnitor and lessor</p>', [
+        'indemnitor',
+        'lessor',
+      ])
+      const persisted: Array<[string, string]> = []
+      el.onWordAccepted = (word, scope) => persisted.push([word, scope])
+      await el.checkSpelling()
+
+      el.acceptWord('indemnitor', 'document')
+      el.acceptWord('lessor', 'dictionary')
+      expect(persisted).toEqual([
+        ['indemnitor', 'document'],
+        ['lessor', 'dictionary'],
+      ])
+    })
+
+    test('accepting one word leaves the others unresolved', async () => {
+      const el = editorWith('<p>indemnitor borwn lessor</p>', [
+        'indemnitor',
+        'borwn',
+        'lessor',
+      ])
+      await el.checkSpelling()
+      expect(el.spellingErrors.length).toBe(3)
+
+      el.acceptWord('indemnitor', 'document')
+      el.acceptWord('lessor', 'dictionary')
+      // the actual typo is still flagged - accepting jargon must not launder it
+      expect(el.spellingErrors.map((e) => e.word)).toEqual(['borwn'])
+    })
+
     test('re-checking converges rather than accumulating', async () => {
       const el = editorWith('<p>borwn borwn</p>', ['borwn'])
       await el.checkSpelling()

@@ -737,8 +737,40 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    */
   spellChecker: SpellChecker | null = null
 
-  /** Words the user has chosen to accept, excluded from every later check. */
-  readonly ignoredWords = new Set<string>()
+  /**
+   * Words accepted for THIS DOCUMENT only.
+   *
+   * Two scopes exist because they have different lifetimes, and collapsing them
+   * into one set is the mistake that makes a spell checker unusable in a
+   * jargon-heavy domain. A contract full of defined terms needs *this* document
+   * to accept them; it does not need every later document to inherit them.
+   *
+   * Persist this with the document — it is part of the document's meaning, the
+   * same way a footnote is.
+   */
+  documentWords = new Set<string>()
+
+  /**
+   * Words in the user's or organisation's dictionary, across all documents.
+   *
+   * Persist this with the USER, not the document. A firm's terms of art belong
+   * here; one contract's party names do not.
+   */
+  userDictionary = new Set<string>()
+
+  /**
+   * Fired when a word is accepted, so the host can persist it to whichever
+   * store the scope implies. The editor deliberately does no persistence of its
+   * own — it does not know where either scope lives.
+   */
+  onWordAccepted:
+    | ((word: string, scope: 'document' | 'dictionary') => void)
+    | null = null
+
+  /** Everything currently accepted, from either scope. */
+  private get acceptedWords(): Set<string> {
+    return new Set([...this.documentWords, ...this.userDictionary])
+  }
 
   /**
    * Re-check the document and mark what the checker rejects.
@@ -753,7 +785,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const errors = await runSpellCheck(
       this.parts.doc,
       this.spellChecker,
-      this.ignoredWords
+      this.acceptedWords
     )
     this.applySpellingValidity(errors)
     return errors
@@ -766,9 +798,31 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ).map((el) => ({ word: el.textContent || '', element: el as HTMLElement }))
   }
 
-  /** Accept a word, drop its marks, and re-derive validity. */
+  /**
+   * Accept a word and drop its marks.
+   *
+   * `scope: 'document'` accepts it here only; `'dictionary'` accepts it
+   * everywhere. This is the resolution half of the workflow — in a jargon-heavy
+   * domain the normal outcome for an unknown word is "this is a real word",
+   * not "I mistyped", so accepting has to be as cheap as correcting.
+   *
+   * Until every flagged word is corrected or accepted, the field stays invalid.
+   * That is the forcing function: unresolved spelling blocks a real form
+   * submit, rather than relying on anyone to remember to look.
+   */
+  acceptWord(word: string, scope: 'document' | 'dictionary' = 'document'): void {
+    if (scope === 'dictionary') this.userDictionary.add(word)
+    else this.documentWords.add(word)
+    this.onWordAccepted?.(word, scope)
+    this.dropMarksFor(word)
+  }
+
+  /** @deprecated use `acceptWord(word)` — kept so existing callers still work. */
   ignoreWord(word: string): void {
-    this.ignoredWords.add(word)
+    this.acceptWord(word, 'document')
+  }
+
+  private dropMarksFor(word: string): void {
     for (const el of this.spellingErrors) {
       if (el.word !== word) continue
       const parent = el.element.parentNode
