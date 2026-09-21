@@ -151,13 +151,35 @@ export type DiffOp =
   | { op: 'insert'; text: string }
   | { op: 'delete'; text: string }
 
+/**
+ * Above this many tokens on either side, fall back to replace-the-whole-thing.
+ *
+ * The LCS table is (n+1)x(m+1) numbers, and one side of this diff is a REMOTE
+ * RESPONSE — whatever the proofreader returned. Measured: 8k tokens is 429 ms
+ * and +366 MB; 16k (a 78 kB text node) is 1.7 s and +1.2 GB, synchronously on
+ * the main thread. The asymmetric case is worse and cheaper to trigger: a
+ * 200-word paragraph against a 200k-word response is +226 MB PER TEXT NODE.
+ * 4000 tokens is a very long paragraph and costs about 128 MB worst case.
+ *
+ * Past the cap the change is still correct, just coarser: one deletion and one
+ * insertion rather than a word-level diff. Degrading the review experience
+ * beats freezing the tab.
+ */
+export const MAX_DIFF_TOKENS = 4000
+
 export function diffWords(before: string, after: string): DiffOp[] {
   const a = tokenize(before)
   const b = tokenize(after)
 
+  if (a.length > MAX_DIFF_TOKENS || b.length > MAX_DIFF_TOKENS) {
+    const ops: DiffOp[] = []
+    if (before) ops.push({ op: 'delete', text: before })
+    if (after) ops.push({ op: 'insert', text: after })
+    return ops
+  }
+
   // LCS table. Documents proofread a paragraph at a time, so this stays small;
-  // a whole-document pass should be chunked by the caller rather than handed
-  // here as one string.
+  // anything larger took the bail-out above.
   const n = a.length
   const m = b.length
   const lcs: number[][] = Array.from({ length: n + 1 }, () =>

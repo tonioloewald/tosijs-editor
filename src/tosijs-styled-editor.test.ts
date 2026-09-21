@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import { TosijsStyledEditor, tosijsStyledEditor } from './tosijs-styled-editor'
-import { changeId } from './changes'
+import { changeId, diffWords, MAX_DIFF_TOKENS } from './changes'
 
 describe('TosijsStyledEditor', () => {
   let container: HTMLElement
@@ -608,10 +608,11 @@ describe('TosijsStyledEditor', () => {
     })
 
     test('ignoring a word drops its marks and clears the errors', async () => {
-      // The FORM VALIDITY half of this cannot be asserted here: happy-dom does
-      // not implement attachInternals(), so `this.internals` is undefined and
-      // setValidity is never reached. It is verified in a real browser instead
-      // — see the spelling fence in this file's doc comment.
+      // The form-validity half is asserted separately, with a recording
+      // `internals` stub — see 'an unresolved misspelling makes the field
+      // invalid'. (This comment used to claim verification by a browser fence
+      // that did not exist, which is worse than no coverage: it stops the next
+      // reader looking.)
       const el = editorWith('<p>borwn fox</p>', ['borwn'])
       await el.checkSpelling()
       expect(el.spellingErrors.length).toBe(1)
@@ -634,6 +635,78 @@ describe('TosijsStyledEditor', () => {
       expect(el.value).toContain('borwn fox')
       // and reading value did not disturb what the user sees
       expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
+    })
+
+    // happy-dom ships no attachInternals(), so `this.internals` is undefined
+    // and the ENTIRE payoff of formAssociated — an unresolved spelling error
+    // blocking a real form submit — went unasserted, with a comment claiming
+    // a browser check that does not exist. `internals` is a public optional
+    // field on the tosijs base, so a recording stub makes it assertable here.
+    interface ValidityCall {
+      flags: ValidityStateFlags
+      message?: string
+    }
+    const withInternals = (el: TosijsStyledEditor): ValidityCall[] => {
+      const calls: ValidityCall[] = []
+      el.internals = {
+        setValidity: (flags: ValidityStateFlags, message?: string) => {
+          calls.push({ flags, message })
+        },
+        setFormValue: () => {},
+      } as unknown as ElementInternals
+      return calls
+    }
+
+    test('an unresolved misspelling makes the field invalid', async () => {
+      const el = editorWith('<p>borwn fox</p>', ['borwn'])
+      const calls = withInternals(el)
+      await el.checkSpelling()
+      const last = calls[calls.length - 1]
+      expect(last.flags.customError).toBe(true)
+      expect(last.message).toContain('borwn')
+    })
+
+    test('accepting the word clears the invalidity', async () => {
+      const el = editorWith('<p>indemnitor pays</p>', ['indemnitor'])
+      const calls = withInternals(el)
+      await el.checkSpelling()
+      el.acceptWord('indemnitor', 'dictionary')
+      expect(calls[calls.length - 1].flags.customError).toBeFalsy()
+    })
+
+    test('replacing the document does not leave a stale spelling error', async () => {
+      // The message named a word that was no longer in the document and was
+      // anchored to a detached node, with no way for the user to see why the
+      // form would not submit. undo, redo, `value =` and form reset all go
+      // through the same setter, so all four were affected.
+      const el = editorWith('<p>borwn fox</p>', ['borwn'])
+      const calls = withInternals(el)
+      await el.checkSpelling()
+      expect(calls[calls.length - 1].flags.customError).toBe(true)
+
+      el.value = '<p>brown fox</p>'
+      expect(calls[calls.length - 1].flags.customError).toBeFalsy()
+      expect(el.spellingErrors.length).toBe(0)
+    })
+
+    test('a second check does not mark up a document that moved on', async () => {
+      // The checker is awaited, so the document can change underneath it.
+      // Nothing that crosses the await is a live node reference; the hits are
+      // re-derived against the document as it is when the answer arrives.
+      const el = editorWith('<p>alpha here</p>', [])
+      let release: (v: Set<string>) => void = () => {}
+      el.spellChecker = () =>
+        new Promise<Set<string>>((resolve) => {
+          release = resolve
+        })
+      const pending = el.checkSpelling()
+      el.parts.doc.innerHTML = '<p>beta here</p>'
+      release(new Set(['beta']))
+      const errors = await pending
+
+      // marked against the CURRENT document, not the one we walked before
+      expect(errors.map((e) => e.word)).toEqual(['beta'])
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('beta here')
     })
 
     // A CARET INSIDE A WORD is the commonest thing a caret does, and the
@@ -1355,6 +1428,49 @@ describe('TosijsStyledEditor', () => {
       expect(p.querySelectorAll('*').length).toBe(
         p.querySelectorAll('.sel-start, .sel-end').length
       )
+    })
+
+    test('a failing proofreader does not leave the document outside undo', async () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one bad</p><p>two bad</p>'
+      const formValues: string[] = []
+      el.internals = {
+        setValidity: () => {},
+        setFormValue: (v: string) => {
+          formValues.push(v)
+        },
+      } as unknown as ElementInternals
+
+      let calls = 0
+      await expect(
+        el.reviseWith((text) => {
+          calls++
+          if (calls > 1) throw new Error('proofreader died')
+          return text.replace('bad', 'good')
+        })
+      ).rejects.toThrow('proofreader died')
+
+      // what WAS applied before the failure is real, so it has to be
+      // recorded: the form value must reflect the half-revised document, not
+      // the pre-revise HTML.
+      expect(formValues.length).toBeGreaterThan(0)
+      expect(formValues[formValues.length - 1]).toContain('good')
+    })
+
+    test('a huge proofreader response does not build a huge LCS table', () => {
+      // One side of this diff is a REMOTE RESPONSE. 16k tokens measured at
+      // 1.7s / +1.2GB synchronously on the main thread. Past the cap the diff
+      // degrades to one delete + one insert, which is coarser but correct.
+      const shared = 'the quick brown fox jumps over the lazy dog'
+      // under the cap the shared prefix survives as a `same` run
+      expect(diffWords(shared, shared + ' extra').map((o) => o.op)).toContain(
+        'same'
+      )
+      // over it, no `same` at all — proof the table was never built
+      const huge = shared + ' ' + 'x '.repeat(MAX_DIFF_TOKENS + 10)
+      const ops = diffWords(shared, huge)
+      expect(ops.map((o) => o.op)).toEqual(['delete', 'insert'])
     })
 
     test('a caret inside a word does not fragment what the proofreader sees', async () => {

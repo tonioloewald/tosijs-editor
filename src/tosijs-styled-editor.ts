@@ -739,6 +739,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (this.touchAffordances) {
       this.parts.doc.appendChild(this.touchAffordances)
     }
+    // Replacing the document wipes every spelling mark, so a customError set
+    // by an earlier check now names a word that is not there and points at a
+    // detached node — and the field stays invalid with no way for the user to
+    // see why. This setter is the single choke point for undo, redo,
+    // `value =` and form reset, so re-deriving here covers all four.
+    this.syncSpellingValidity()
   }
 
   get value(): string {
@@ -825,15 +831,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
 
     let total = 0
-    for (const text of nodes) {
-      if (!text.isConnected) continue
-      const revised = await revise(text.data)
-      if (typeof revised !== 'string') continue
-      total += applyRevision(text, revised, author)
-    }
-    if (total > 0) {
-      this.normalize()
-      this.updateUndo('new', 'revise')
+    try {
+      for (const text of nodes) {
+        if (!text.isConnected) continue
+        const revised = await revise(text.data)
+        if (typeof revised !== 'string') continue
+        total += applyRevision(text, revised, author)
+      }
+    } finally {
+      // A callback that throws or rejects half way used to escape past this,
+      // leaving the document PARTLY revised, outside the undo stack, with
+      // setFormValue still holding the pre-revise HTML. Whatever was applied
+      // before the failure is real and has to be recorded.
+      if (total > 0) {
+        this.normalize()
+        this.updateUndo('new', 'revise')
+      }
     }
     return total
   }
@@ -1216,6 +1229,20 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * component is `formAssociated`, so an unresolved error can block a real form
    * submit instead of relying on the author to remember to check.
    */
+  /**
+   * Re-derive validity from the marks actually in the document.
+   *
+   * The invariant is that the message a form shows matches what the user can
+   * SEE. Anything that adds, drops or wipes marks calls this. Newly typed
+   * words are not checked until the next `checkSpelling()` — an incremental
+   * checker is a separate job (TODO.md) — so this keeps validity honest
+   * rather than pretending to be live.
+   */
+  private syncSpellingValidity(): void {
+    if (!this.spellChecker && !this.internals) return
+    this.applySpellingValidity(this.spellingErrors)
+  }
+
   private applySpellingValidity(errors: SpellingError[]): void {
     if (!this.internals) return
     if (errors.length === 0) {
@@ -2735,6 +2762,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
     this.reasonForLastUndo = reason
 
+    this.syncSpellingValidity()
     const html = this.docHTML
 
     switch (command) {
