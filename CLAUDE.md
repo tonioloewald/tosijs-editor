@@ -38,9 +38,11 @@ bun run format                  # eslint --fix + prettier (see caveat below)
 **There is deliberately no `build` script.** `bun build` is a Bun builtin, so a
 script by that name makes `bun build` and `bun run build` different commands.
 
-`bun run format` is declared in package.json but **eslint and prettier are not in
-devDependencies and there is no eslint config in the repo** — expect it to fail or
-auto-fetch. Don't assume it ran.
+`bun run format` is `prettier --write .` and prettier IS a devDependency, so it runs.
+There is no eslint config; `bun run lint` is `bun run typecheck`, i.e. `tsc --noEmit
+--noUnusedLocals --noUnusedParameters`. **Run `bun run typecheck`** — there was no
+script by that name until 0.5.0, release-doctor reported it as a skip, and it
+immediately caught a filter written against a field name that does not exist.
 
 ## Build System
 
@@ -91,9 +93,15 @@ Four layers, each depending only on the ones above it.
 
 ### `src/dom-utils.ts` — leaf-node traversal
 
-Pure, dependency-free functions: `firstLeafNode`, `lastLeafNode`, `nextLeafNode`,
-`previousLeafNode`, `leafNodes`, `siblingOrder`, `isBefore`, `topSingleParentAncestor`,
-`closestSingleParentAncestor`, `allowSelection`.
+Pure functions with one runtime dependency: `firstLeafNode`, `lastLeafNode`,
+`nextLeafNode`, `previousLeafNode`, `leafNodes`, `siblingOrder`, `isBefore`,
+`topSingleParentAncestor`, `closestSingleParentAncestor`, `allowSelection`, plus the
+geometry primitives `characterAtPoint` and `caretGeometryAt`.
+
+The sanitizer used to live here and now does not: `sanitizeInPlace` and
+`isSafeNavigationUrl` are **re-exported from `tosijs-kilpi`**, a sibling package of
+ours (18x smaller than DOMPurify, parity on its 223-payload fixture set). Bug reports
+about sanitization belong in that repo, not this one.
 
 **Leaf nodes** (nodes with no children) are the fundamental unit — nearly every editor
 operation is expressed as navigation between leaf nodes, not as offsets into text.
@@ -219,7 +227,7 @@ back to the module-level `commands` when a context omits it. `TosijsStyledEditor
 passes its per-instance `this.commands`, so assigning `editor.commands.myCommand = fn`
 (or overriding a built-in) takes effect on the next `doCommand()`.
 
-### `src/tosijs-styled-editor.ts` — the web component (~2400 lines)
+### `src/tosijs-styled-editor.ts` — the web component (~3700 lines)
 
 `TosijsStyledEditor extends Component` (tosijs), `formAssociated`, shadow parts
 `menubar` / `toolbar` / `doc`. Everything event-driven lives here: keydown/keypress,
@@ -231,8 +239,21 @@ Content initialization order in `connectedCallback`: existing `doc.innerHTML`, e
 pre-set `value`, else non-slotted light-DOM children.
 
 `docHTML` (private getter/setter) is the single choke point for reading/writing document
-HTML — it detaches and re-attaches the touch-affordance elements so UI chrome never leaks
-into `value`, undo snapshots, or the form value.
+HTML. It detaches and re-attaches the touch-affordance elements, and it unwraps and
+restores the `<tosi-misspelling>` marks, so neither leaks into `value`, undo snapshots,
+or the form value.
+
+**The mark restore runs LAST-TO-FIRST, and that is load-bearing.** A mark's saved
+anchor is very often the next mark — marks become direct siblings as soon as anything
+calls `normalize()`, which collapses the empty text nodes `Range.insertNode` leaves
+between them. Restoring forwards reaches an anchor that is still detached,
+`insertBefore` throws `NotFoundError` mid-loop, and every remaining mark stays unwrapped
+permanently. Because `updateUndo()` reads this getter first thing on keypress, that one
+throw also silently lost the undo snapshot and the form value.
+
+**Selection markers still DO leak into `value`.** `docHTML` serves both `value` and the
+undo stack, and undo wants the caret back — so splitting them is an open item
+(`TODO.md`), not an oversight.
 
 **Undo is full-HTML snapshots**, not operations: `updateUndo(command?, reason?)` where
 command is `'init' | 'new' | 'undo' | 'redo' | undefined` (undefined coalesces into the
@@ -243,6 +264,45 @@ is one undo step. It also drives the toolbar's disabled states and
 **Keyboard shortcuts are data, not code**: `handleShortcut` builds a `ctrl+<key>` string
 and looks up `[data-shortcut="..."]` in the toolbar, then runs that element's `value`
 attribute as a command. Adding a shortcut means adding a toolbar button, not a keymap entry.
+
+### `src/changes.ts`, `src/spelling.ts`, `src/footnote.ts` — the plugin layer
+
+Added in 0.5.0. All three follow one rule: **a feature is a custom element, and its
+state is written in the document, not held by an instance.** An unregistered element
+still round-trips through `innerHTML`, so a document edited by a build that lacks the
+plugin does not lose the marks — which is what makes these safe to put in content.
+
+| Tag                  | Module        | Kind                                    |
+| -------------------- | ------------- | --------------------------------------- |
+| `<tosi-ins>`         | `changes.ts`  | container — text inside stays editable  |
+| `<tosi-del>`         | `changes.ts`  | container                               |
+| `<tosi-misspelling>` | `spelling.ts` | container, VIEW state, stripped by `docHTML` |
+| `<tosi-footnote>`    | `footnote.ts` | renumbers from its own lifecycle        |
+
+Three things that are easy to undo by accident:
+
+- **Change-mark CSS lives in CORE, not the plugin.** An unloaded footnote plugin is
+  benign; an unstyled `<tosi-del>` renders deleted text as ordinary prose, i.e. the
+  opposite of what the document means. Its styling is correctness, not appearance.
+- **Every destructive path goes through `removeNode()` or `deleteEdgeCharacter()`.**
+  `trackDeletion` once had a single call site and six other paths deleted raw, so
+  content left the document with no `<tosi-del>` and no entry in `changes`. Never write
+  a bare `removeChild` in a deletion path; a tracking gate that fails open is worse
+  than no gate. Deletions that would MERGE blocks are refused while tracking, because a
+  change mark wraps content and a paragraph break is not content.
+- **A whole-block deletion marks the block's CONTENTS, never the block.**
+  `<tosi-del><p>…</p></tosi-del>` lands at document top level and then `block()` answers
+  `tosi-del` for everything inside it, mis-targeting `setBlockType`, `selectedBlocks`
+  and Enter handling.
+
+**Anything that reads the document as LANGUAGE must call `Selectable.withoutBounds()`.**
+The bounds markers are real elements, so they split the text node they sit in: with the
+caret after `br` in `the brown fox`, a plain `createTreeWalker` walk yields `the br` and
+`own fox`. A spell checker asked about that flags a correctly-spelled word and blocks a
+form submit; a proofreader gets two fragments, one ending mid-word. There is no blur
+handler anywhere, so one click leaves a marker in the text indefinitely. `withoutBounds`
+is synchronous on purpose — let no live node reference cross an `await`, or a document
+that changed during a network call gets marked up from a walk of the old one.
 
 ### `src/table-utils.ts` — grid tables
 
@@ -264,6 +324,24 @@ to `slot="menubar"`.
 `test-setup.ts`, which constructs a happy-dom `Window` and copies an **explicit
 allowlist** of globals (`windowProps`) onto `globalThis`. If a test fails with
 `X is not defined`, add `X` to that list rather than working around it.
+
+**There are three test lanes, and passing in one is not passing in another.**
+`bun test` (happy-dom) is the bulk; the doc system executes ```test fences in doc
+comments and markdown as in-page browser tests, which is the project's only
+layout-capable check; and some things are verifiable in neither and must be driven by
+hand via `bun start`. Do not write "verified in a real browser" in a comment without
+pointing at the fence that does it — a comment that claims coverage which does not
+exist is worse than no coverage, because it stops the next reader looking.
+
+happy-dom implements neither `attachInternals()` nor the `Touch` constructor. For
+`internals`, assign a recording stub — it is a public optional field on the tosijs
+`Component` — rather than leaving the form-association behaviour unasserted; see
+`withInternals` in the spelling tests.
+
+**A passing test is not evidence until you have made it fail.** Break the thing under
+test and confirm that specific test goes red. In the 0.5.0 review remediation, four
+tests written against confirmed, reproduced bugs passed against the UNFIXED code and
+had to be rewritten — they asserted a condition the bug did not actually violate.
 
 happy-dom has no layout: every rect is zero. Geometry-based paths (click-to-character
 hit testing, vertical arrow movement, affordance positioning) therefore need a stub, and

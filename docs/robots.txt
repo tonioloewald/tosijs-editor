@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://editor.tosijs.net/sitemap.xml

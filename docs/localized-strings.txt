@@ -1,0 +1,63 @@
+en	fi
+ADD A COLUMN PER LANGUAGE. Row 1 is ignored by the parser — notes go here.	
+English	Suomi
+🇬🇧	🇫🇮
+Bold	Lihavointi
+Italic	Kursivointi
+Underline	Alleviivaus
+Align Left	Tasaa vasemmalle
+Center	Keskitä
+Align Right	Tasaa oikealle
+Justify	Tasaa molemmat reunat
+Indent	Kasvata sisennystä
+Outdent	Pienennä sisennystä
+Bulleted List	Luettelomerkit
+Numbered List	Numeroitu luettelo
+No List	Ei luetteloa
+Undo	Kumoa
+Redo	Tee uudelleen
+Toggle Debug	Virheenjäljitys
+Style	Tyyli
+Align	Tasaus
+Font	Fontti
+Size	Koko
+Spacing	Riviväli
+Table	Taulukko
+Title	Otsikko
+Heading	Väliotsikko
+Subheading	Alaotsikko
+Minor Heading	Pieni otsikko
+Body	Leipäteksti
+Code Block	Koodilohko
+Blockquote	Lainaus
+Left	Vasen
+Right	Oikea
+Single	Yksinkertainen
+Double	Kaksinkertainen
+Sans-serif	Pääteviivaton
+Serif	Päätteellinen
+Monospace	Tasalevyinen
+Arial	"
+Helvetica	"
+Georgia	"
+Insert Row Before	Lisää rivi ylle
+Insert Row After	Lisää rivi alle
+Insert Column Before	Lisää sarake vasemmalle
+Insert Column After	Lisää sarake oikealle
+Delete Row	Poista rivi
+Delete Column	Poista sarake
+2 Columns	2 saraketta
+3 Columns	3 saraketta
+4 Columns	4 saraketta
+5 Columns	5 saraketta
+Highlight	Korostus
+Insert Table	Lisää taulukko
+Toggle Header Row	Otsikkorivi päälle/pois
+Times New Roman	"
+1.5	"
+10	"
+12	"
+14	"
+18	"
+24	"
+36	"

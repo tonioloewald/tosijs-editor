@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
+       a 4s safety-net timeout), because an undefined custom element is
+       display:inline, so the pre-rendered page stacked as bare text and hydration
+       reflowed the whole thing. The cost was a blank screen for as long as the
+       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
+       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
+       out as though the chrome were there, so hydration only ADDS the chrome and
+       nothing moves. Paint immediately; don't hide readable content. -->
+  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
+       than hiding it, a dark-mode reader would otherwise get a flash of the light
+       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
+       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
+       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
+       light default, exactly as before. -->
+  <script>
+    try {
+      var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
+      var t = p.theme || 'system'
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('darkmode')
+      if (p.highContrast) document.documentElement.classList.add('high-contrast')
+    } catch (e) {}
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="../doc-system.css?v=0.4.5" data-tosi-doc-system />
+  <title>&lt;tosijs-styled-editor&gt;</title>
+  <meta name="description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <link rel="canonical" href="https://editor.tosijs.net/tosijs-styled-editor/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="tosijs-styled-editor" />
+  <meta property="og:title" content="&lt;tosijs-styled-editor&gt;" />
+  <meta property="og:description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
+  <meta property="og:url" content="https://editor.tosijs.net/tosijs-styled-editor/" />
+  <meta property="og:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"\u003ctosijs-styled-editor>","description":"\u003ctosijs-styled-editor> is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs.","url":"https://editor.tosijs.net/tosijs-styled-editor/","inLanguage":"en","image":"https://editor.tosijs.net/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://editor.tosijs.net"}}</script>
+  <link rel="icon" href="../tosijs-editor.svg" />
+<style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
+</head>
+<body>
+  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
+  <article class="doc-content">
+<h1><code>&lt;tosijs-styled-editor&gt;</code></h1>
+<p><code>&lt;tosijs-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
+<code>contentEditable</code>, <code>execCommand</code>, or browser selection/range APIs.</p>
+<p>Instead, it manages selection and editing entirely through DOM manipulation,
+giving full control over editing behavior.</p>
+<h2>Usage</h2>
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;
+  &lt;p&gt;Edit this text! Use the 🌐 menu to switch the interface to Suomi.&lt;/p&gt;
+  &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
+&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<pre><code class="language-css">tosijs-styled-editor {
+  --editor-ink: #27488c;
+}
+</code></pre>
+<pre><code class="language-test">// Runs in a real browser against the example above. That matters here: click
+// position is resolved by measuring character spans with getBoundingClientRect,
+// and happy-dom has no layout — every rect is zero — so a unit test can only
+// assert against stubbed geometry. Both bugs below shipped past a green suite.
+const editor = await waitFor(&#39;tosijs-styled-editor&#39;)
+const doc = editor.parts.doc
+const paragraph = doc.querySelector(&#39;p&#39;)
+
+function clickAt(x, y, detail = 1) {
+  for (const type of [&#39;mousemove&#39;, &#39;mousedown&#39;, &#39;mouseup&#39;]) {
+    paragraph.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail })
+    )
+  }
+}
+
+test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
+  // One test: both steps drive the same editor, and test() bodies run concurrently.
+  const box = paragraph.getBoundingClientRect()
+
+  // Clicking the dead space right of a line puts the caret at the END of it.
+  clickAt(box.right + 200, box.top + box.height / 2)
+  const caret = doc.querySelector(&#39;.sel-end&#39;)
+  expect(caret).not.toBe(null)
+  const rest = document.createRange()
+  rest.setStartAfter(caret)
+  rest.setEnd(paragraph, paragraph.childNodes.length)
+  expect(rest.toString().replace(/\s+/g, &#39;&#39;)).toBe(&#39;&#39;)
+
+  // Double-click selects a word and leaves the caret at the end of it.
+  // Assert the BEHAVIOUR (what text is selected), not the element count: word
+  // selection used to spanify, so a word was many `.selected` char spans and
+  // `length &gt; 1` held incidentally. It is now one wrapper span, and that
+  // assertion went red while the feature was perfectly correct.
+  clickAt(box.left + 12, box.top + box.height / 2)
+  clickAt(box.left + 12, box.top + box.height / 2, 2)
+  const selected = [...doc.querySelectorAll(&#39;.selected&#39;)]
+  const selectedText = selected.map((el) =&gt; el.textContent).join(&#39;&#39;)
+  expect(selectedText.length).toBeGreaterThan(0)
+  // a word, not a fragment of one and not the whole line
+  expect(/^\S+$/.test(selectedText.trim())).toBe(true)
+  expect(paragraph.textContent.includes(selectedText.trim())).toBe(true)
+  // and nothing is spanified any more — measurement must not rewrite the doc
+  expect(doc.querySelectorAll(&#39;.spanified, .spanified-word&#39;).length).toBe(0)
+  const held = doc.querySelector(&#39;.sel-end&#39;)
+  const stranded = selected.filter(
+    (el) =&gt; held.compareDocumentPosition(el) &amp; Node.DOCUMENT_POSITION_FOLLOWING
+  )
+  expect(stranded.length).toBe(0)
+})
+</code></pre>
+<h2>How It Works</h2>
+<p>The editor uses three layers:</p>
+<ol>
+<li><strong>DOM utilities</strong> — leaf-node traversal (every operation works with text nodes)</li>
+<li><strong>Selection</strong> — custom selection, hit-tested by MEASURING with Ranges rather
+than by rewriting the document</li>
+<li><strong>Commands</strong> — extensible command system for formatting</li>
+</ol>
+<p>The caret and selection edges are painted in the shadow root, positioned from a
+collapsed Range beside the bound markers. The markers themselves are spans
+styled <code>display: contents</code>, so they generate no box and cannot disturb the line
+they sit in. The mobile keyboard is raised by the caret OVERLAY, which is an
+<code>&lt;input part=&quot;caret&quot;&gt;</code> in the shadow root and is the selection&#39;s focus target —
+it sits outside the text flow, so it raises a keyboard without breaking shaping.</p>
+<h2>Commands</h2>
+<p>Commands are invoked via <code>doCommand(commandString)</code>:</p>
+<ul>
+<li><code>setText font-weight bold</code> — style selected characters</li>
+<li><code>setBlockType h1</code> — change block type</li>
+<li><code>setBlocks text-align center</code> — style selected blocks</li>
+<li><code>updateUndo undo</code> / <code>updateUndo redo</code> — undo/redo</li>
+</ul>
+<p>Multiple commands can be chained with semicolons:
+<code>setText font-weight bold; setText font-style italic</code></p>
+
+  </article>
+  <nav class="doc-nav" aria-label="Documentation">
+  <ul>
+    <li><a class="doc-link" href="../">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link current" href="../tosijs-styled-editor/" aria-current="page">&lt;tosijs-styled-editor&gt;</a></li>
+    <li><a class="doc-link" href="../right-to-left/">Right-to-Left Text</a></li>
+  </ul>
+  </nav>
+
+  </tosi-doc-system>
+  <script type="module" src="../hydrate.js?v=0.4.5"></script>
+</body>
+</html>

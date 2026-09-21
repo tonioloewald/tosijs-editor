@@ -355,8 +355,11 @@ editor.changeAuthor = { id: 'alex', name: 'Alex' }
 editor.trackChanges = true
 ```
 
-Typing then lands inside a `<tosi-ins>` and deleting wraps in `<tosi-del>`
-instead of removing.
+Typing then lands inside a `<tosi-ins>`, and **every** deletion wraps in
+`<tosi-del>` instead of removing — caret Backspace and Delete, a selection
+delete, a cut, inside a list, inside a table cell. Nothing leaves the document
+without a mark and an entry in `changes`, which is the only property that makes
+`rejectChanges()` mean anything.
 
 The whole mechanism is **one predicate**, re-evaluated only when the insertion
 point might have moved: *is the caret already inside an insertion that is mine,
@@ -384,9 +387,19 @@ Two deletions behave specially, because the pedantic version would be noise:
 
 ### Not implemented
 
+- **no line-break tracking.** A change mark wraps content, and a paragraph break
+  is not content. So while `trackChanges` is on, deletions that would *merge*
+  blocks are **refused** rather than performed: Backspace at the start of a
+  paragraph, Delete at the end of one, and Backspace out of a list item all do
+  nothing. Refusing is deliberate — the alternative is silently restructuring
+  the document with nothing in `changes` to show for it, which is the failure
+  mode this feature exists to prevent. Text deletion inside a block is
+  unaffected.
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
-  decision — see `EXTENSIBILITY.md`.
+  decision — see
+  [EXTENSIBILITY.md](https://github.com/tonioloewald/tosijs-editor/blob/master/EXTENSIBILITY.md)
+  (a repo document; it is not in the npm tarball).
 ### Resolved changes leave nothing behind
 
 Accepting or rejecting a change **evaporates the mark entirely** — no wrapper, no
@@ -421,7 +434,18 @@ part of the review.
 | **Shift+Click**  | Extends selection to click position |
 | **Double-click** | Selects word                        |
 | **Triple-click** | Selects block                       |
-| **Click-drag**   | Selects character range             |
+| **Click-drag**   | Selects words, sticky at boundaries |
+
+**Click-drag is sticky at word boundaries.** Snapping engages only once the drag
+leaves the word it began in — in practice, as soon as you cross a space. Inside
+that first word you keep character precision, so pulling `fix` out of `prefix`
+still works; cross into another word and both ends snap, including the anchor,
+because a selection that spans words but starts mid-word is almost never what was
+meant. Punctuation comes along only when the pointer reaches it, and a selection
+never ends in a trailing space you did not ask for. Sticky within a block only —
+a double-click drag is already word-granular, and a cross-block selection has
+larger units than words. `stickySelectionBounds(text, anchor, head)` is exported
+if you want the rule without the editor.
 
 ### Inside a table cell
 

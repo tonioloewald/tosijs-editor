@@ -1197,11 +1197,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.dropMarksFor(word)
   }
 
-  /** @deprecated use `acceptWord(word)` — kept so existing callers still work. */
-  ignoreWord(word: string): void {
-    this.acceptWord(word, 'document')
-  }
-
   private dropMarksFor(word: string): void {
     for (const el of this.spellingErrors) {
       if (el.word !== word) continue

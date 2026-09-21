@@ -155,7 +155,7 @@ function footnoteKey(): string {
  */
 export function renumberFootnotes(root: HTMLElement): void {
   // Both shapes: `<tosi-footnote>` and the plain `<sup class="footnote-ref">`
-  // that documents saved before 0.4.6 contain. Numbering must not depend on
+  // that documents saved before 0.4.4 contain. Numbering must not depend on
   // which era a document came from.
   const refs = Array.from(
     root.querySelectorAll(`${FOOTNOTE_TAG}[data-footnote], .footnote-ref[data-footnote]`)
@@ -412,7 +412,7 @@ export const commands: Record<string, Command> = {
     const key = footnoteKey()
 
     // A custom element, so it maintains its own entry: see src/footnote.ts.
-    // `.footnote-ref` is kept as the class so documents saved before 0.4.6 —
+    // `.footnote-ref` is kept as the class so documents saved before 0.4.4 —
     // which used a plain <sup> — still renumber correctly.
     defineFootnote()
     const marker = document.createElement(FOOTNOTE_TAG)

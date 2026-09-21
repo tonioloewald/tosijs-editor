@@ -46,9 +46,11 @@ after inserting:  refs [1, 2]   items 2
 after deleting:   refs [2]      items 2   <- orphaned text, survivor still numbered 2
 ```
 
-`renumberFootnotes` runs at insertion time and nothing re-runs it. So today the
-question "would the plugin architecture handle footnotes" has the awkward answer that
-it does not fully handle the footnotes that are already shipped.
+`renumberFootnotes` ran at insertion time and nothing re-ran it, so for a while the
+question "would the plugin architecture handle footnotes" had the awkward answer that
+it did not fully handle the footnotes that were already shipped. `<tosi-footnote>`
+closed that in 0.5.0 by driving `renumberFootnotes` from the element's own lifecycle —
+which is the point the worked example was there to make.
 
 ## Web components as the plugin substrate
 
@@ -132,7 +134,7 @@ instead of) snapshots. That is the single most expensive architectural decision 
 document, and it is load-bearing for collaborative editing too — one decision gates
 both features.
 
-DECIDED (0.4.6): changes are **content** — `<tosi-ins>` / `<tosi-del>` carrying author
+DECIDED (0.5.0): changes are **content** — `<tosi-ins>` / `<tosi-del>` carrying author
 and timestamp. It fits the substrate, survives serialization, and a tracked document is
 still a document. It does NOT give a merge story; collaboration still needs an operation
 log, and that decision is deliberately deferred rather than made by accident.
@@ -141,8 +143,10 @@ Two things the implementation taught:
 
 - **The LLM round-trip is the cheap half.** With before-text and after-text you diff and
   apply in one pass. Recording live keystrokes as changes is the expensive half — it
-  touches keydown, deletion, paste and drop, each with boundary cases — and is still
-  unbuilt. The natural build order is the reverse of the intuitive one.
+  touches keydown, deletion, paste and drop, each with boundary cases. Both shipped in
+  0.5.0, and the estimate held: the expensive half is where the release's blockers were,
+  because the tracking gate has to be consulted on EVERY destructive path and it had
+  been wired into one. The natural build order is the reverse of the intuitive one.
 - **Degradation is asymmetric.** An unloaded footnote plugin is benign. An unloaded
   `<tosi-del>` renders deleted text as ordinary prose, i.e. the opposite of what the
   document means. So its styling belongs in CORE even though the behaviour is a plugin —
@@ -230,7 +234,7 @@ measurement-based architecture pays off.
 ## Open questions
 
 - Does a container plugin survive Enter, partial deletion, and cross-boundary drag?
-  PARTLY ANSWERED by `<tosi-misspelling>` (0.4.6): text inside a container plugin is
+  PARTLY ANSWERED by `<tosi-misspelling>` (0.5.0): text inside a container plugin is
   visible to the editor's traversal, stays editable, and unwrapping leaves no stray
   text nodes. Enter, partial deletion and cross-boundary drag are still untested —
   those need real key and pointer events, not a unit test.

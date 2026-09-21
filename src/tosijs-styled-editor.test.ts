@@ -607,7 +607,7 @@ describe('TosijsStyledEditor', () => {
       expect(el.spellingErrors.map((e) => e.word)).toEqual(['teh', 'borwn'])
     })
 
-    test('ignoring a word drops its marks and clears the errors', async () => {
+    test('accepting a word drops its marks and clears the errors', async () => {
       // The form-validity half is asserted separately, with a recording
       // `internals` stub — see 'an unresolved misspelling makes the field
       // invalid'. (This comment used to claim verification by a browser fence
@@ -617,11 +617,11 @@ describe('TosijsStyledEditor', () => {
       await el.checkSpelling()
       expect(el.spellingErrors.length).toBe(1)
 
-      el.ignoreWord('borwn')
+      el.acceptWord('borwn')
       expect(el.spellingErrors.length).toBe(0)
       expect(el.parts.doc.textContent).toBe('borwn fox')
 
-      // and it stays ignored on the next check
+      // and it stays accepted on the next check
       await el.checkSpelling()
       expect(el.spellingErrors.length).toBe(0)
     })

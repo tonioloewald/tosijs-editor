@@ -40,7 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Change marks are styled in the core stylesheet on purpose: a `<tosi-del>`
   without its strikethrough reads as the opposite of what the document means.
 - **Live edit tracking** (`editor.trackChanges = true`). Typing lands inside a
-  `<tosi-ins>`, deleting wraps in `<tosi-del>`. The mechanism is one predicate —
+  `<tosi-ins>`, and every deletion wraps in `<tosi-del>` — caret Backspace and
+  Delete, selection deletes, cut, inside lists, inside table cells. Deletions
+  that would MERGE blocks (Backspace at the start of a paragraph, Delete at the
+  end of one, Backspace out of a list item) are refused instead: a change mark
+  wraps content and a paragraph break is not content, so the honest answer
+  until line-break tracking exists is to decline rather than restructure the
+  document with nothing in `changes` to show for it. The mechanism is one predicate —
   is the caret already inside an insertion that is mine, this session? — so a
   continuous run of typing is one change and there is no per-operation
   bookkeeping. Session is part of the test, so reopening a document and typing
@@ -65,9 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no way to block a submit on unresolved errors. This addresses both. Supply `editor.spellChecker` (a function from
   words to the subset that is wrong) and the editor does tokenization
   (`Intl.Segmenter`, so `don't` is one word and `l'objet` is two), marking,
-  `ignoreWord`, and **form validity**: unresolved spelling sets `customError`,
-  so a real form submit is blocked rather than relying on the author to
-  remember to check. No dictionary ships — which words are real is a
+  and **form validity**: unresolved spelling sets `customError`, so a real form
+  submit is blocked rather than relying on the author to remember to check.
+  Resolution is `acceptWord(word, scope)` — `'document'` for a contract's
+  defined terms, `'dictionary'` for a firm's terms of art, exposed as
+  `documentWords` and `userDictionary`, with `handleWordAccepted(word, scope)`
+  to persist the latter. In a jargon-heavy domain the normal answer to an
+  unknown word is "that is a real word", not "I mistyped", so accepting has to
+  be as cheap as correcting. No dictionary ships — which words are real is a
   localization question, and a hunspell dictionary is ~40x the size of this
   editor.
   Marks are view state: cleared on every check and stripped from `value`, so

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
+       a 4s safety-net timeout), because an undefined custom element is
+       display:inline, so the pre-rendered page stacked as bare text and hydration
+       reflowed the whole thing. The cost was a blank screen for as long as the
+       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
+       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
+       out as though the chrome were there, so hydration only ADDS the chrome and
+       nothing moves. Paint immediately; don't hide readable content. -->
+  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
+       than hiding it, a dark-mode reader would otherwise get a flash of the light
+       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
+       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
+       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
+       light default, exactly as before. -->
+  <script>
+    try {
+      var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
+      var t = p.theme || 'system'
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('darkmode')
+      if (p.highContrast) document.documentElement.classList.add('high-contrast')
+    } catch (e) {}
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="doc-system.css?v=0.4.5" data-tosi-doc-system />
+  <title>A Rich Text Editor Component — tosijs-styled-editor</title>
+  <meta name="description" content="A pure web-component. What it does not use" />
+  <link rel="canonical" href="https://editor.tosijs.net/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="tosijs-styled-editor" />
+  <meta property="og:title" content="A Rich Text Editor Component — tosijs-styled-editor" />
+  <meta property="og:description" content="A pure web-component. What it does not use" />
+  <meta property="og:url" content="https://editor.tosijs.net/" />
+  <meta property="og:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://editor.tosijs.net/tosijs-editor.svg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"A Rich Text Editor Component","description":"A pure web-component. What it does not use","url":"https://editor.tosijs.net/","inLanguage":"en","image":"https://editor.tosijs.net/tosijs-editor.svg","isPartOf":{"@type":"WebSite","name":"tosijs-styled-editor","url":"https://editor.tosijs.net"}}</script>
+  <link rel="icon" href="tosijs-editor.svg" />
+<style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
+</head>
+<body>
+  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <article class="doc-content">
+<!--{ "pin": "top" }-->
+
+<h1>A Rich Text Editor Component</h1>
+<pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;
+  &lt;h2&gt;Try it&lt;/h2&gt;
+  &lt;p&gt;This is a live editor. Click anywhere to place the cursor and start typing,
+  then use the menus and toolbar above to format what you write. The 🇬🇧 menu
+  switches the interface to Suomi.&lt;/p&gt;
+  &lt;p&gt;Double-click selects a word, triple-click selects a block, and clicking past
+  the end of a line puts the cursor at the end of that line.&lt;/p&gt;
+  &lt;ul&gt;
+    &lt;li&gt;Select these two items&lt;/li&gt;
+    &lt;li&gt;Press the numbered-list button to renumber them&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<pre><code class="language-css">tosijs-styled-editor {
+  --editor-ink: #27488c;
+}
+</code></pre>
+<p>A pure web-component. What it does <strong>not</strong> use:</p>
+<ul>
+<li>No <code>document.execCommand</code></li>
+<li>No <code>contentEditable</code></li>
+<li>No <code>getSelection</code>, no browser selection model, no <code>execCommand</code>-era APIs</li>
+</ul>
+<p>Range is used, but only as a <strong>measuring tape</strong> — <code>getBoundingClientRect()</code> to
+ask the layout engine where a character is. It is never a selection model, and
+nothing is handed back to the browser to edit.</p>
+<p>What you get instead:</p>
+<ul>
+<li>Fully styleable selections</li>
+<li>Exact control over editing behavior</li>
+<li>Exact control over cursor behavior</li>
+<li>Touch-friendly selection</li>
+</ul>
+<h2>Development</h2>
+<pre><code class="language-bash">bun install
+bun run tls     # once — locally-trusted dev certs (needs mkcert)
+bun start       # dev server + doc site on https://localhost:8789
+bun test        # unit tests
+bun run lint    # typecheck, including unused locals/params
+bun run format  # Prettier
+bun run make    # full build (NOT `bun run build` — `bun build` is a Bun builtin)
+</code></pre>
+<p><code>bin/site.ts</code> is the only build/dev entry; it wraps tosijs-ui&#39;s doc system and
+is configured in <code>tosijs-editor-site.config.ts</code>.</p>
+<p>Live site and docs: <a href="https://editor.tosijs.net">https://editor.tosijs.net</a></p>
+<h2>Installation</h2>
+<pre><code class="language-bash">npm install tosijs-styled-editor
+</code></pre>
+<p><strong>Peer dependencies</strong> (you install these): <code>tosijs</code>, <code>tosijs-ui</code></p>
+<p><strong>Runtime dependency</strong> (installed automatically):
+<a href="https://github.com/tonioloewald/kilpi"><code>tosijs-kilpi</code></a> — the sanitizer applied
+to pasted and dropped content. It has no dependencies of its own and is about
+0.8 kB gzipped. The drop-in <code>dist/index.js</code> build bundles it; the ESM build
+leaves it external so you get one copy if you also depend on it directly.</p>
+<h2>Usage</h2>
+<p>Drop it in and it is editable. <code>widgets</code> picks a built-in toolbar preset —
+<code>none</code> (the default), <code>minimal</code>, or <code>default</code> (toolbar + menus), as in the
+example above.</p>
+<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
+  &lt;p&gt;Edit this text!&lt;/p&gt;
+  &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
+&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<p>The whole chrome is mixed from one custom property, so re-theming is a single
+value:</p>
+<pre><code class="language-xml">&lt;style&gt;
+  tosijs-styled-editor { --editor-ink: #27488c; }
+&lt;/style&gt;
+</code></pre>
+<h3>Setting up toolbars and menus</h3>
+<pre><code class="language-typescript">import { tosijsStyledEditor, type TosijsStyledEditor } from &#39;tosijs-styled-editor&#39;
+import { defaultToolbar, defaultMenubar } from &#39;tosijs-styled-editor&#39;
+
+const editor = tosijsStyledEditor() as TosijsStyledEditor
+editor.value = &#39;&lt;p&gt;Hello world&lt;/p&gt;&#39;
+document.body.appendChild(editor)
+
+// Add menus (slot=&quot;menubar&quot;)
+for (const menu of defaultMenubar(editor)) {
+  editor.appendChild(menu)
+}
+
+// Add toolbar buttons (slot=&quot;toolbar&quot;)
+for (const widget of defaultToolbar()) {
+  widget.setAttribute(&#39;slot&#39;, &#39;toolbar&#39;)
+  editor.appendChild(widget)
+}
+</code></pre>
+<h2>How It Works</h2>
+<p>The editor uses three layers:</p>
+<ol>
+<li><strong>DOM utilities</strong> (<code>dom-utils.ts</code>) — leaf-node traversal; nearly all operations work with leaf nodes</li>
+<li><strong>Selection</strong> (<code>selection.ts</code>) — a custom selection model. Character positions are found by MEASURING with a Range, which does not touch the document; wrapping characters in spans to measure them changes the thing being measured (it breaks shaping, so cursive scripts come apart and lines re-wrap)</li>
+<li><strong>Commands</strong> (<code>commands.ts</code>) — extensible command system for formatting and editing</li>
+</ol>
+<p>The caret is an <code>&lt;input&gt;</code> element, so mobile browsers show their keyboard automatically.</p>
+<h2>Security: what is sanitized, and what is not</h2>
+<p>Replacing <code>contentEditable</code> also means replacing the sanitization the browser was
+doing on your behalf.</p>
+<p><strong>Sanitized</strong> — content arriving from outside the document, which is the path an
+attacker controls: <strong>paste</strong> and <strong>drop</strong>, both through one shared choke point.</p>
+<p>The filtering itself is <a href="https://github.com/tonioloewald/kilpi"><code>tosijs-kilpi</code></a>,
+and <strong><a href="https://github.com/tonioloewald/kilpi/blob/main/SECURITY.md">its SECURITY.md is the authoritative policy</a></strong> —
+read it before relying on this. It is deliberately not restated here, because a
+copy of a policy drifts from the policy. The one thing worth repeating, because
+it is a trade rather than a detail:</p>
+<blockquote>
+<p>kilpi is a <strong>denylist</strong> for elements and attributes and an <strong>allowlist</strong> for URL
+schemes. That is why unknown elements survive — your plugin markup round-trips
+intact — and it is also why an element that becomes dangerous in a future
+browser, and that kilpi has never heard of, would pass through. If protection
+from the not-yet-known matters more to you than preserving unknown markup, use
+DOMPurify instead (see the hook below).</p>
+</blockquote>
+<p><strong>NOT sanitized</strong> — content you supply, which is inside your own trust boundary:</p>
+<ul>
+<li><code>editor.value = html</code></li>
+<li>initial light-DOM content</li>
+</ul>
+<p><strong>If you are upgrading from 0.4.3 or earlier:</strong> documents your users created
+before 0.4.4 may already contain a payload that was pasted in, and this component
+cannot fix that for you — setting <code>value</code> does not filter. Sanitize your stored
+corpus as part of the upgrade.</p>
+<p><strong>Using a different sanitizer.</strong> <code>editor.sanitize</code> is the hook — it receives a
+detached element and mutates it:</p>
+<pre><code class="language-javascript">editor.sanitize = (root) =&gt; {
+  DOMPurify.sanitize(root, {
+    IN_PLACE: true,
+    FORBID_TAGS: [&#39;style&#39;],
+    CUSTOM_ELEMENT_HANDLING: {
+      tagNameCheck: /^[a-z][a-z0-9]*-[a-z0-9-]*$/,
+      attributeNameCheck: /^data-|^slot$|^dir$/,
+    },
+  })
+}
+</code></pre>
+<p>It takes an element rather than an HTML string on purpose: a string signature
+would force a serialize-and-reparse round trip, and that round trip is where
+mutation XSS lives. Note the <code>CUSTOM_ELEMENT_HANDLING</code> block — DOMPurify unwraps
+unknown custom elements by default, which would discard plugin markup kilpi
+preserves.</p>
+<p><strong>Reporting a vulnerability.</strong> If it is in the sanitizer, file it against
+<a href="https://github.com/tonioloewald/kilpi/issues">kilpi</a> — that is where the code
+lives. Anything else, <a href="https://github.com/tonioloewald/tosijs-editor/issues">this repository</a>.</p>
+<h2>Spell checking</h2>
+<p>This editor has <strong>no browser spell checking at all</strong>. Browsers only check editing
+hosts — <code>textarea</code>, <code>input</code>, <code>contenteditable</code> — and nothing here is one. That is
+a cost of replacing <code>contentEditable</code>, and worth knowing before you assume
+squiggles will appear on their own.</p>
+<p>In exchange you get the thing a <code>contentEditable</code> editor cannot have: an
+application that can <em>ask</em>.</p>
+<pre><code class="language-javascript">editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !dictionary.has(w)))
+await editor.checkSpelling()
+
+editor.spellingErrors          // [{ word, element }, …] in document order
+editor.validity.customError    // true — a real form submit is blocked
+editor.clearSpelling()         // remove every mark, change no text
+</code></pre>
+<h3>Resolution is the workflow</h3>
+<p>In a jargon-heavy domain — contracts, medicine, anything with terms of art — the
+usual answer to an unknown word is <em>&quot;that is a real word&quot;</em>, not <em>&quot;I mistyped&quot;</em>.
+So accepting has to be as cheap as correcting, and every flagged word has to end
+up resolved one way or the other.</p>
+<p>That is what the validity is for. <strong>The field stays invalid until every flagged
+word is corrected or accepted</strong>, so a real form submit is blocked rather than
+relying on anyone to remember to look.</p>
+<p>Accepting has two scopes, because they have different lifetimes:</p>
+<pre><code class="language-javascript">editor.acceptWord(&#39;indemnitor&#39;, &#39;document&#39;)    // this document only
+editor.acceptWord(&#39;lessor&#39;, &#39;dictionary&#39;)      // everywhere, for this user
+</code></pre>
+<ul>
+<li><strong><code>documentWords</code></strong> — a contract&#39;s defined terms and party names. Persist with
+the document; it is part of the document&#39;s meaning, the same way a footnote is.</li>
+<li><strong><code>userDictionary</code></strong> — a firm&#39;s terms of art. Persist with the user, not the
+document.</li>
+</ul>
+<p>Collapsing those into one list is what makes a spell checker unusable in these
+domains: either every later document inherits one contract&#39;s party names, or the
+user re-accepts the same terminology forever.</p>
+<p>The editor persists neither — it does not know where either store lives. It tells
+you what to write, and you decide where:</p>
+<pre><code class="language-javascript">editor.handleWordAccepted = (word, scope) =&gt; {
+  if (scope === &#39;dictionary&#39;) saveToUserDictionary(word)
+  else saveWithDocument(word)
+}
+</code></pre>
+<p>Load them back by assigning the sets before checking.</p>
+<p>Accepting jargon does not launder a real typo: with <code>indemnitor</code> and <code>lessor</code>
+accepted, <code>borwn</code> stays flagged and the field stays invalid.</p>
+<p>No dictionary ships with this component. Which words are real is a localization
+question with a different answer per document, and a hunspell dictionary is
+roughly forty times the size of the whole editor.</p>
+<h3>Wiring a real checker</h3>
+<p>The checker is <code>(distinctWords) =&gt; the subset that is wrong</code>, sync or async, so
+any off-the-shelf engine fits behind it. With a hunspell-style library:</p>
+<pre><code class="language-javascript">import nspell from &#39;nspell&#39;
+
+const spell = nspell(await loadAffix(), await loadDictionary())
+editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !spell.correct(w)))
+</code></pre>
+<p>Or against a service, which is the case the batching exists for:</p>
+<pre><code class="language-javascript">editor.spellChecker = async (words) =&gt; {
+  const res = await fetch(&#39;/api/spell&#39;, {
+    method: &#39;POST&#39;,
+    body: JSON.stringify(words),
+  })
+  return new Set(await res.json())
+}
+</code></pre>
+<p>The editor asks about <strong>distinct</strong> words, once per check — so a 10,000-word
+document with a 2,000-word vocabulary is one call carrying 2,000 entries, not
+10,000 lookups and not one request per word.</p>
+<h3>What it does, and does not, do</h3>
+<p>Tokenization uses <code>Intl.Segmenter</code> word segmentation, so <code>don&#39;t</code> is one word and
+<code>l&#39;objet</code> is two — neither of which splitting on whitespace gives you. <code>code</code>,
+<code>kbd</code>, <code>samp</code>, <code>pre</code> and any <code>spellcheck=&quot;false&quot;</code> subtree are skipped.</p>
+<p>Marks are <strong>view state</strong>: cleared on every check and stripped from <code>value</code>, so
+they never reach the form value, an undo snapshot, or whatever you persist. A
+document should not carry a record of which words some dictionary once disliked.</p>
+<p>Not implemented, and worth knowing before you build UI on this:</p>
+<ul>
+<li><strong>no suggestions</strong> — the checker reports <em>wrong</em>, not <em>did you mean</em>, and there
+is no native right-click menu to inherit either</li>
+<li><strong>no incremental check</strong> — <code>checkSpelling()</code> re-walks the whole document, which
+is right for a button and wrong for check-as-you-type on a long document</li>
+<li><strong>persistence is yours</strong> — the editor reports accepted words through
+<code>handleWordAccepted</code> but stores nothing; reload the sets yourself</li>
+</ul>
+<h2>Tracked changes and LLM proofreading</h2>
+<p>Insertions and deletions are <strong>content</strong> — <code>&lt;tosi-ins&gt;</code> and <code>&lt;tosi-del&gt;</code> elements
+carrying author and timestamp — not an operation log. A tracked document is still
+a document: it serializes, round-trips, and can be read by something that has
+never heard of this component.</p>
+<pre><code class="language-javascript">editor.changeAuthor = { id: &#39;alex&#39;, name: &#39;Alex&#39; }
+
+await editor.reviseWith(async (text) =&gt; {
+  const res = await fetch(&#39;/api/proofread&#39;, { method: &#39;POST&#39;, body: text })
+  return (await res.json()).text
+}, { id: &#39;gpt-x&#39;, name: &#39;Proofreader&#39; })
+
+editor.changes                    // [{ id, kind, author, authorName, time, text, element }]
+editor.acceptChanges(id)          // take this one
+editor.rejectChanges(id)          // keep the original
+editor.acceptChanges()            // all of them
+</code></pre>
+<p>Both readings stay in the document until someone decides. A reviewer can put the
+caret inside a proposed insertion and adjust it before accepting — the text
+inside a change mark is ordinary editable content.</p>
+<h3>What crosses the boundary</h3>
+<p><strong>Out goes plain text</strong>, one text node at a time. Formatting is deliberately not
+sent: a model asked to preserve markup will sometimes not, and a reviewer should
+be reviewing prose rather than diffing HTML. Marks <em>inside</em> a block — a link, a
+bold run — survive because each text node is revised in place. What the model
+never sees, it cannot damage.</p>
+<p><strong>Back comes text, and only text.</strong> The response is inserted as text nodes inside
+change marks and is never parsed as HTML, so a model that returns <code>&lt;script&gt;</code>
+produces those literal characters, visible for review. That is a stronger
+guarantee than sanitizing the response would be — there is no parse step to
+attack — which is why this path does not go through <code>editor.sanitize</code>.</p>
+<p>Text already under review is skipped, so a second pass cannot mark up the marks.</p>
+<h3>Why word-level</h3>
+<p>The diff is word-level because the unit has to be something a reviewer can
+meaningfully accept or reject. A character diff turns <code>teh → the</code> into three
+separate changes, and a rewritten sentence into confetti.</p>
+<h3>Styling is correctness here</h3>
+<p><code>&lt;tosi-ins&gt;</code> and <code>&lt;tosi-del&gt;</code> are styled in the <strong>core</strong> stylesheet even though
+the behaviour is a plugin. An unloaded footnote plugin is benign — you see a
+stray marker. A <code>&lt;tosi-del&gt;</code> without its strikethrough renders deleted text as
+ordinary prose, which reads as the opposite of what the document means.</p>
+<h3>Tracking live edits</h3>
+<pre><code class="language-javascript">editor.changeAuthor = { id: &#39;alex&#39;, name: &#39;Alex&#39; }
+editor.trackChanges = true
+</code></pre>
+<p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code>, and <strong>every</strong> deletion wraps in
+<code>&lt;tosi-del&gt;</code> instead of removing — caret Backspace and Delete, a selection
+delete, a cut, inside a list, inside a table cell. Nothing leaves the document
+without a mark and an entry in <code>changes</code>, which is the only property that makes
+<code>rejectChanges()</code> mean anything.</p>
+<p>The whole mechanism is <strong>one predicate</strong>, re-evaluated only when the insertion
+point might have moved: <em>is the caret already inside an insertion that is mine,
+from this session?</em> If yes, typing appends to it. If no, a new one opens. There
+is no per-operation bookkeeping, because a continuous run of typing keeps the
+predicate true and it stops being true exactly when it should — a click
+elsewhere, an arrow key, a new line, a different author, a later session.</p>
+<p><strong>Session, not just author.</strong> Reopening a document and typing at the edge of your
+own earlier tracked insertion opens a <em>new</em> change. That edit happened at a
+different time and a reviewer may want to treat it separately; without this they
+would silently merge into one change bearing the older timestamp.</p>
+<p><strong>Cut and paste are tracked too.</strong> A cut wraps in <code>&lt;tosi-del&gt;</code> like any other
+deletion. A paste is <strong>one</strong> change rather than one per word — you did not build
+it a keystroke at a time, and a reviewer wants to accept or reject the paste, not
+its individual words — so it gets its own mark even mid-typing-run. Pasted
+content is still sanitized before it is marked.</p>
+<p>Two deletions behave specially, because the pedantic version would be noise:</p>
+<ul>
+<li>text inside <strong>your own current insertion</strong> is really removed — you are
+un-typing something you just typed, not proposing to delete your own proposal</li>
+<li>text already inside a <code>&lt;tosi-del&gt;</code> is left alone — it is deleted already</li>
+</ul>
+<h3>Not implemented</h3>
+<ul>
+<li><strong>no line-break tracking.</strong> A change mark wraps content, and a paragraph break
+is not content. So while <code>trackChanges</code> is on, deletions that would <em>merge</em>
+blocks are <strong>refused</strong> rather than performed: Backspace at the start of a
+paragraph, Delete at the end of one, and Backspace out of a list item all do
+nothing. Refusing is deliberate — the alternative is silently restructuring
+the document with nothing in <code>changes</code> to show for it, which is the failure
+mode this feature exists to prevent. Text deletion inside a block is
+unaffected.</li>
+<li><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
+but not collaborative merge. That needs an operation log, which is a larger
+decision — see
+<a href="https://github.com/tonioloewald/tosijs-editor/blob/master/EXTENSIBILITY.md">EXTENSIBILITY.md</a>
+(a repo document; it is not in the npm tarball).</li>
+</ul>
+<h3>Resolved changes leave nothing behind</h3>
+<p>Accepting or rejecting a change <strong>evaporates the mark entirely</strong> — no wrapper, no
+<code>data-change</code>, no attribution residue, and the text is re-normalized rather than
+left fragmented. A document does not accumulate its own history.</p>
+<p>That is deliberate. Undo, and whatever version store the document lives in,
+already record past states; a document that carries every resolved edit becomes
+unreadable, larger than its content, and awkward to share with anyone who was not
+part of the review.</p>
+<h2>Keyboard Behavior</h2>
+<h3>General editing</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Typing</strong></td>
+<td>Inserts character at caret; replaces selection if any</td>
+</tr>
+<tr>
+<td><strong>Backspace</strong></td>
+<td>Deletes character before caret, or deletes selection</td>
+</tr>
+<tr>
+<td><strong>Delete</strong></td>
+<td>Deletes character after caret, or deletes selection</td>
+</tr>
+<tr>
+<td><strong>Enter</strong></td>
+<td>Splits the current block at the caret</td>
+</tr>
+<tr>
+<td><strong>ArrowLeft / ArrowRight</strong></td>
+<td>Moves caret one character</td>
+</tr>
+<tr>
+<td><strong>ArrowUp / ArrowDown</strong></td>
+<td>Moves caret one visual line, maintaining horizontal position</td>
+</tr>
+<tr>
+<td><strong>Alt+ArrowLeft / Alt+ArrowRight</strong></td>
+<td>Moves caret one word</td>
+</tr>
+<tr>
+<td><strong>Shift+Arrow</strong></td>
+<td>Extends selection</td>
+</tr>
+</tbody></table>
+<h3>Mouse selection</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Selects</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Click</strong></td>
+<td>Places caret at character position</td>
+</tr>
+<tr>
+<td><strong>Shift+Click</strong></td>
+<td>Extends selection to click position</td>
+</tr>
+<tr>
+<td><strong>Double-click</strong></td>
+<td>Selects word</td>
+</tr>
+<tr>
+<td><strong>Triple-click</strong></td>
+<td>Selects block</td>
+</tr>
+<tr>
+<td><strong>Click-drag</strong></td>
+<td>Selects words, sticky at boundaries</td>
+</tr>
+</tbody></table>
+<p><strong>Click-drag is sticky at word boundaries.</strong> Snapping engages only once the drag
+leaves the word it began in — in practice, as soon as you cross a space. Inside
+that first word you keep character precision, so pulling <code>fix</code> out of <code>prefix</code>
+still works; cross into another word and both ends snap, including the anchor,
+because a selection that spans words but starts mid-word is almost never what was
+meant. Punctuation comes along only when the pointer reaches it, and a selection
+never ends in a trailing space you did not ask for. Sticky within a block only —
+a double-click drag is already word-granular, and a cross-block selection has
+larger units than words. <code>stickySelectionBounds(text, anchor, head)</code> is exported
+if you want the rule without the editor.</p>
+<h3>Inside a table cell</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Tab</strong></td>
+<td>Move to next cell; at last cell, creates a new row</td>
+</tr>
+<tr>
+<td><strong>Shift+Tab</strong></td>
+<td>Move to previous cell</td>
+</tr>
+<tr>
+<td><strong>ArrowDown</strong></td>
+<td>Move to cell below; at last row, exit table downward</td>
+</tr>
+<tr>
+<td><strong>ArrowUp</strong></td>
+<td>Move to cell above; at first row, exit table upward</td>
+</tr>
+<tr>
+<td><strong>Shift+Enter</strong></td>
+<td>Move to cell below (same column); at last row, creates a new row</td>
+</tr>
+<tr>
+<td><strong>Shift+ArrowDown</strong></td>
+<td>Same as Shift+Enter</td>
+</tr>
+<tr>
+<td><strong>Enter</strong></td>
+<td>Insert line break (<code>&lt;br&gt;</code>) within the cell</td>
+</tr>
+<tr>
+<td><strong>Backspace / Delete</strong></td>
+<td>Delete within cell only (won&#39;t escape the cell)</td>
+</tr>
+</tbody></table>
+<h3>Inside a list item (<code>&lt;ul&gt;/&lt;ol&gt;</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Enter</strong></td>
+<td>Split into a new list item; if item is empty, exit the list as a <code>&lt;p&gt;</code></td>
+</tr>
+<tr>
+<td><strong>Backspace</strong></td>
+<td>Delete within item; at start, merge with previous item or exit list</td>
+</tr>
+<tr>
+<td><strong>Delete</strong></td>
+<td>Delete within item; at end, merge with next item</td>
+</tr>
+</tbody></table>
+<h3>Keyboard shortcuts</h3>
+<p>Shortcuts are defined by toolbar buttons via <code>data-shortcut</code> attributes. The default toolbar provides:</p>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ctrl/Cmd+B</strong></td>
+<td>Bold</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+I</strong></td>
+<td>Italic</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+U</strong></td>
+<td>Underline</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+Z</strong></td>
+<td>Undo</td>
+</tr>
+<tr>
+<td><strong>Ctrl/Cmd+Y</strong></td>
+<td>Redo</td>
+</tr>
+</tbody></table>
+<h2>Commands</h2>
+<p>Commands are invoked via <code>editor.doCommand(commandString)</code>. Multiple commands
+can be chained with semicolons.</p>
+<h3>Character styling — <code>setText</code></h3>
+<p>Applies CSS to selected characters:</p>
+<pre><code>setText font-weight bold
+setText font-style italic
+setText text-decoration underline
+setText background-color rgba(255,255,64,0.5)
+setText font-family Helvetica
+setText font-size 18px
+</code></pre>
+<p>Use <code>+</code> for spaces in values: <code>setText font-family Times+New+Roman</code></p>
+<h3>Block type — <code>setBlockType</code></h3>
+<p>Changes the element type of selected blocks:</p>
+<pre><code>setBlockType h1
+setBlockType p
+setBlockType pre
+setBlockType blockquote
+</code></pre>
+<h3>Block styling — <code>setBlocks</code></h3>
+<p>Applies CSS to selected blocks:</p>
+<pre><code>setBlocks text-align center
+setBlocks margin-left 40px
+setBlocks line-height 2.5
+</code></pre>
+<h3>Drag and drop</h3>
+<p>Selected text becomes a real draggable object — the selection is marked on
+elements, which is exactly what HTML5 drag and drop wants, so dragging works
+between windows, between browsers, and to and from the desktop with no extra
+machinery.</p>
+<p>Every drag offers <strong>both representations</strong>, and the receiver picks:</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>what it gets</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>text/html</code></td>
+<td>the styled markup</td>
+</tr>
+<tr>
+<td><code>text/plain</code></td>
+<td>clean text</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>Move within the editor, Alt to copy.</strong></li>
+<li><strong>Leaving the editor is always a copy.</strong> The source is only deleted by this
+editor&#39;s own drop handler, so text dragged into another app is never removed
+from a document you can no longer see.</li>
+<li><strong>The drop indicator IS the caret.</strong> Since the editor owns its caret, the
+thing showing where text will land is the thing that receives it.</li>
+<li>Dropped <strong>image files</strong> are read in as data URIs; dropped HTML goes through
+the same <code>pastemode</code> normalisation as a paste, so dropping and pasting the
+same content produce the same document.</li>
+</ul>
+<p>The editor declares <code>data-drop=&quot;text/html;text/plain;Files;image/*&quot;</code> and each
+selected element <code>data-drag=&quot;text/html;text/plain&quot;</code>, matching the conventions
+<code>tosijs-ui</code>&#39;s drag library uses to mark compatible drop zones.</p>
+<h3>Links, images and footnotes</h3>
+<pre><code>setLink https://example.com          # wraps the selection; opens in a new tab
+setLink https://example.com _self    # same tab
+setLink https://example.com pane     # a named target
+removeLink                           # unwrap, keeping the text
+insertImage https://host/cat.png A cat
+insertFootnote optional initial text
+renumberFootnotes                    # recompute after editing by hand
+</code></pre>
+<p>Links default to <code>target=&quot;_blank&quot;</code> and get <code>rel=&quot;noopener&quot;</code> with it — without
+that, the opened page receives a live <code>window.opener</code> reference back to yours.
+Pass <code>_self</code> to clear both.</p>
+<p>Footnote <strong>numbers are never stored</strong>; they are derived from document order, so
+inserting one in the middle renumbers the rest and reorders the list to match.
+Deleting a marker drops its entry on the next renumber, and deleting the last
+one removes the list. The stable identity is <code>data-footnote</code>, not the number.</p>
+<p>Inside the editor a link is text you are editing, so clicking it places the
+caret rather than navigating. Ctrl/Cmd-click follows it.</p>
+<h3>Table commands</h3>
+<pre><code>insertTable 3              # 3 columns, 2 rows (1 header)
+insertTable 4 5 1          # 4 columns, 5 rows, 1 header row
+insertTableRow after       # Insert row after current
+insertTableRow before      # Insert row before current
+insertTableCol after       # Insert column after current
+insertTableCol before      # Insert column before current
+deleteTableRow             # Delete current row
+deleteTableCol             # Delete current column
+toggleHeaderRow            # Toggle header styling on current row
+</code></pre>
+<p>Column widths can be resized by dragging cell borders.</p>
+<h3>Other commands</h3>
+<pre><code>updateUndo undo
+updateUndo redo
+setDebug                   # Toggle debug visualization
+annotate note              # Insert annotation at caret
+</code></pre>
+<h2>Tables</h2>
+<p>Tables use CSS Grid layout instead of <code>&lt;table&gt;</code> elements:</p>
+<pre><code class="language-xml">&lt;ul class=&quot;editor-table&quot; style=&quot;grid-template-columns: 1fr 1fr 1fr&quot;&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Name&lt;/li&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Role&lt;/li&gt;
+  &lt;li class=&quot;table-header&quot;&gt;Location&lt;/li&gt;
+  &lt;li&gt;Alice&lt;/li&gt;
+  &lt;li&gt;Engineer&lt;/li&gt;
+  &lt;li&gt;New York&lt;/li&gt;
+&lt;/ul&gt;
+</code></pre>
+<h2>Extending the editor</h2>
+<p>Add custom commands by extending <code>editor.commands</code>:</p>
+<pre><code class="language-typescript">editor.commands.myCommand = (ctx, ...args) =&gt; {
+  // ctx provides: root, selectable, commands, find(), findAll(),
+  //   selectedLeafNodes(), selectedBlocks(), insertionPoint(),
+  //   block(), normalize(), focus(), updateUndo()
+  const nodes = ctx.selectedLeafNodes()
+  // ... manipulate nodes ...
+  ctx.updateUndo(&#39;new&#39;)
+}
+
+editor.doCommand(&#39;myCommand arg1 arg2&#39;)
+</code></pre>
+<h2>Localization</h2>
+<p>Add <code>localized</code> and the built-in widgets translate themselves, with a flag-only
+language picker in the menubar:</p>
+<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;&lt;/tosijs-styled-editor&gt;
+</code></pre>
+<p>Strings live in one tab-separated table, <code>localized-strings.tsv</code>. <strong>To add a
+language, add a column</strong> — nothing else changes:</p>
+<pre><code>en	fi
+(row 1 is ignored — notes go here)
+English	Suomi
+🇬🇧	🇫🇮
+Bold	Lihavointi
+Italic	Kursivointi
+</code></pre>
+<p>Row 0 is the locale codes, row 2 the language names, row 3 the flag emoji, and
+every row after that is one string. <strong>Column 0 is both the lookup key and the
+English text</strong>, so a missing cell or a missing row falls back to English rather
+than showing a key — you can ship a half-translated column safely. A <code>&quot;</code> cell
+means &quot;same as English&quot;, which is what proper nouns and numerals use.</p>
+<p>Load it once at startup:</p>
+<pre><code class="language-typescript">import { initLocalization } from &#39;tosijs-ui&#39;
+
+initLocalization(await (await fetch(&#39;/localized-strings.txt&#39;)).text())
+</code></pre>
+<p>A doc site built on <code>tosijs-ui/site</code> does this for you — pass the table as
+<code>localizedStrings</code> in the site config.</p>
+<p>Under the hood this is tosijs-ui&#39;s convention, not a private one: buttons carry
+<code>data-tosi-localized</code> (a JSON map of attribute to key, re-applied on locale
+change), menus set <code>localized</code>, and menu labels are <code>&lt;tosi-localized&gt;</code> elements.
+Custom widgets you add follow the same rules and get translated too.</p>
+<h2>Component API</h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>value</code></td>
+<td><code>string</code></td>
+<td>Get/set the editor content as HTML</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td><code>boolean</code></td>
+<td>Enable/disable editing</td>
+</tr>
+<tr>
+<td><code>pastemode</code></td>
+<td><code>&#39;merge&#39; | &#39;remove&#39; | &#39;preserve&#39; | &#39;paragraphs&#39;</code></td>
+<td>How pasted HTML is handled</td>
+</tr>
+<tr>
+<td><code>commands</code></td>
+<td><code>object</code></td>
+<td>Command registry (extend to add custom commands)</td>
+</tr>
+<tr>
+<td><code>widgets</code></td>
+<td><code>&#39;none&#39; | &#39;minimal&#39; | &#39;default&#39;</code></td>
+<td>Attribute — built-in toolbar preset</td>
+</tr>
+<tr>
+<td><code>localized</code></td>
+<td><code>boolean</code></td>
+<td>Attribute — translate the built-in widgets and show a language picker</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>doCommand(str)</code></td>
+<td>Execute a command string</td>
+</tr>
+<tr>
+<td><code>focus()</code></td>
+<td>Focus the caret</td>
+</tr>
+</tbody></table>
+<h2>License</h2>
+<p>Apache-2.0</p>
+
+  </article>
+  <nav class="doc-nav" aria-label="Documentation">
+  <ul>
+    <li><a class="doc-link current" href="./" aria-current="page">A Rich Text Editor Component</a></li>
+    <li><a class="doc-link" href="tosijs-styled-editor/">&lt;tosijs-styled-editor&gt;</a></li>
+    <li><a class="doc-link" href="right-to-left/">Right-to-Left Text</a></li>
+  </ul>
+  </nav>
+
+  </tosi-doc-system>
+  <script type="module" src="hydrate.js?v=0.4.5"></script>
+</body>
+</html>
