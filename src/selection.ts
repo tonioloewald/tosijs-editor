@@ -789,6 +789,86 @@ export class Selectable {
     this.onBoundsChanged?.()
   }
 
+  /**
+   * How many characters of `block`'s text precede `node`.
+   *
+   * The bounds markers hold no text, so this is a position the document's
+   * STRUCTURE cannot invalidate — which is what makes it safe to hand to code
+   * that is about to restructure the nodes.
+   */
+  private textOffsetOf(block: Element, node: Node): number {
+    let total = 0
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+    let current: Node | null
+    while ((current = walker.nextNode())) {
+      if (
+        node.compareDocumentPosition(current) &
+        Node.DOCUMENT_POSITION_PRECEDING
+      ) {
+        total += (current as Text).data.length
+      }
+    }
+    return total
+  }
+
+  /**
+   * Run `fn` over a document whose text is NOT split by the bounds markers.
+   *
+   * The markers are real elements sitting between two characters, so they cut
+   * the text node in half. Any code that walks text nodes and reads them as
+   * LANGUAGE sees the halves: with the caret after `br` in `the brown fox`, a
+   * plain `createTreeWalker` walk yields `the br` and `own fox`. A spell
+   * checker asked about that flags `br`; a proofreader asked to rewrite it
+   * gets two fragments, one ending mid-word, and rewrites them independently.
+   *
+   * This is not a rare state. There is no blur handler anywhere, so the marker
+   * left behind by one click stays in the text indefinitely — and a caret
+   * inside a word is the single commonest thing a caret does.
+   *
+   * Position is remembered as a LOGICAL OFFSET into the block's text rather
+   * than as a node, because `fn` is expected to restructure the nodes (that is
+   * usually the point of calling this). If `fn` changes the text itself, the
+   * offset lands as close as the new text allows.
+   *
+   * Synchronous by design: holding the caret out of the document across an
+   * `await` would make it vanish during a network call and lets a click add a
+   * second pair of markers. Callers that need to await should suspend around
+   * each synchronous phase and let no node reference cross the boundary.
+   */
+  withoutBounds<T>(fn: () => T): T {
+    const markers = this.findAll('.sel-start, .sel-end') as HTMLElement[]
+    if (markers.length === 0) return fn()
+
+    const saved = markers.map((el) => {
+      const block = this.topLevelAncestor(el)
+      return {
+        el,
+        block,
+        offset: block ? this.textOffsetOf(block, el) : 0,
+      }
+    })
+    for (const { el } of saved) el.remove()
+    this.normalize()
+
+    try {
+      return fn()
+    } finally {
+      for (const { el, block, offset } of saved) {
+        if (!block?.isConnected) continue
+        // Recompute per marker: putting the first one back splits a text node
+        // and invalidates any index taken before it.
+        const pos = this.textIndexOf(block).locate(offset)
+        if (!pos) continue
+        const range = document.createRange()
+        range.setStart(pos.node, Math.min(pos.offset, pos.node.length))
+        range.collapse(true)
+        range.insertNode(el)
+      }
+      this.normalize()
+      this.onBoundsChanged?.()
+    }
+  }
+
   /** Restore bounds to match the current .selected elements */
   resetBounds(): this {
     const selected = this.findAll('.selected')

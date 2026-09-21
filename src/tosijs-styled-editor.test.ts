@@ -635,6 +635,119 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(1)
     })
 
+    // A CARET INSIDE A WORD is the commonest thing a caret does, and the
+    // markers are real elements, so they split the text node. There is no blur
+    // handler anywhere: one click leaves a marker in the text indefinitely.
+    const caretAfter = (el: TosijsStyledEditor, chars: number): void => {
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      const marker = document.createElement('span')
+      marker.className = 'sel-end caret'
+      const range = document.createRange()
+      range.setStart(text, chars)
+      range.collapse(true)
+      range.insertNode(marker)
+      // the precondition: the word really is split across two text nodes
+      expect(p.childNodes.length).toBeGreaterThan(1)
+    }
+
+    test('a caret inside a word does not make that word misspelled', async () => {
+      const el = editorWith('<p>the brown fox</p>', [])
+      const asked: string[][] = []
+      el.spellChecker = (words) => {
+        asked.push([...words])
+        // a checker that knows only real words: anything else is "wrong"
+        const real = new Set(['the', 'brown', 'fox'])
+        return new Set(words.filter((w) => !real.has(w)))
+      }
+      caretAfter(el, 6) // "the br|own fox"
+
+      const errors = await el.checkSpelling()
+      expect(asked[0].sort()).toEqual(['brown', 'fox', 'the'])
+      expect(errors.map((e) => e.word)).toEqual([])
+    })
+
+    test('the caret survives the check it did not break', async () => {
+      const el = editorWith('<p>the brown fox</p>', ['brown'])
+      caretAfter(el, 6)
+      await el.checkSpelling()
+      // still exactly one caret, still inside the word, text intact
+      expect(el.parts.doc.querySelectorAll('.sel-end').length).toBe(1)
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('the brown fox')
+      expect(el.spellingErrors.map((e) => e.word)).toEqual(['brown'])
+    })
+
+    test('deleted text is not spell checked', async () => {
+      // Flagging a typo inside a <tosi-del> makes it unfixable: the word is
+      // on its way out, and the only way to clear the flag would be to accept
+      // the typo into the dictionary.
+      const el = editorWith('<p><tosi-del>teh</tosi-del>the fox</p>', ['teh'])
+      const errors = await el.checkSpelling()
+      expect(errors.map((e) => e.word)).toEqual([])
+    })
+
+    // ADJACENT marks are the routine case, not an exotic one. Range.insertNode
+    // leaves an empty text node between two marks, and any normalize() — which
+    // Selectable runs on nearly every edit path — collapses it, leaving the
+    // marks as direct siblings. Reading `value` then has to put back a mark
+    // whose saved anchor is ANOTHER mark that is itself still unwrapped.
+    test('two ADJACENT marks survive a read of value', async () => {
+      const el = editorWith('<p>teh borwn fox</p>', ['teh', 'borwn'])
+      await el.checkSpelling()
+      // delete the space between them, as one Backspace would
+      const p = el.parts.doc.querySelector('p')!
+      const marks0 = [...p.querySelectorAll('tosi-misspelling')]
+      marks0[0].nextSibling!.remove()
+      el.parts.doc.normalize()
+      // the precondition this test is ABOUT: they are now direct siblings
+      expect(marks0[0].nextSibling).toBe(marks0[1])
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(2)
+
+      const html = el.value
+      expect(html).not.toMatch(/tosi-misspelling/)
+      expect(html).toContain('tehborwn fox')
+      // the marks are still there, still in the right order, still wrapping
+      // the right words — reading a value must not edit the document
+      const marks = [...el.parts.doc.querySelectorAll('tosi-misspelling')]
+      expect(marks.map((m) => m.textContent)).toEqual(['teh', 'borwn'])
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('tehborwn fox')
+    })
+
+    test('a run of marks with no spaces between them survives', async () => {
+      // CJK segments without spaces, so every mark abuts the next with no
+      // separating text node at all.
+      const el = editorWith('<p>東京都庁前駅</p>', ['東京', '都庁', '前駅'])
+      await el.checkSpelling()
+      // Segmenter splits this with no spaces, so Range.insertNode leaves only
+      // EMPTY text nodes between the marks — and normalize() collapses those,
+      // which is how marks become true siblings without anyone editing.
+      el.parts.doc.normalize()
+      const marks = [...el.parts.doc.querySelectorAll('tosi-misspelling')]
+      expect(marks[0].nextSibling).toBe(marks[1])
+      const before = marks.length
+      expect(before).toBeGreaterThan(1)
+
+      expect(() => el.value).not.toThrow()
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(
+        before
+      )
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('東京都庁前駅')
+    })
+
+    test('typing in a document with adjacent marks still records undo', async () => {
+      // updateUndo() reads docHTML as its first act, inside the keypress
+      // listener — which swallows exceptions. A throw there loses the undo
+      // snapshot and the form value silently, on an ordinary keystroke.
+      const el = editorWith('<p>東京都庁前駅</p>', ['東京', '都庁'])
+      await el.checkSpelling()
+      el.parts.doc.normalize()
+
+      const before = el.value
+      expect(() => el.updateUndo('new')).not.toThrow()
+      expect(el.value).toBe(before)
+      expect(el.parts.doc.querySelectorAll('tosi-misspelling').length).toBe(2)
+    })
+
     // Accepting is the OTHER half of the workflow, and in a jargon-heavy domain
     // it is the common half: the usual answer to an unknown word is "that is a
     // real word", not "I mistyped". The two scopes exist because they have
@@ -1079,6 +1192,28 @@ describe('TosijsStyledEditor', () => {
       expect(p.querySelectorAll('*').length).toBe(
         p.querySelectorAll('.sel-start, .sel-end').length
       )
+    })
+
+    test('a caret inside a word does not fragment what the proofreader sees', async () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>The quick brown fox jumps.</p>'
+      const p = el.parts.doc.querySelector('p')!
+      const marker = document.createElement('span')
+      marker.className = 'sel-end caret'
+      const range = document.createRange()
+      range.setStart(p.firstChild as Text, 12) // "The quick br|own fox jumps."
+      range.collapse(true)
+      range.insertNode(marker)
+      expect(p.childNodes.length).toBeGreaterThan(1)
+
+      const sent: string[] = []
+      await el.reviseWith((text) => {
+        sent.push(text)
+        return text
+      })
+      // ONE whole sentence, not two fragments split mid-word
+      expect(sent).toEqual(['The quick brown fox jumps.'])
     })
 
     test('tracked edits are ordinary changes — reviewable and resolvable', () => {

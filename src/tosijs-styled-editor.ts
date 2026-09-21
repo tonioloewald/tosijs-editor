@@ -142,6 +142,7 @@ import {
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
+  isProseText,
   clearMisspellings,
   defineMisspelling,
   MISSPELLING_TAG,
@@ -706,8 +707,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Put them back exactly where they were, so reading `value` never changes
     // what the user is looking at.
-    for (const { el, parent, next, children } of restore) {
-      parent.insertBefore(el, next)
+    //
+    // REVERSE ORDER IS LOAD-BEARING. A mark's saved anchor is very often the
+    // NEXT mark: marks become adjacent siblings as soon as anything calls
+    // normalize(), which collapses the empty text nodes `Range.insertNode`
+    // leaves between them — and `Selectable.normalize()` runs on nearly every
+    // edit path. Restoring forwards reaches an anchor that is still detached,
+    // `insertBefore` throws NotFoundError mid-loop, and every remaining mark
+    // stays unwrapped permanently. Since `updateUndo()` reads this getter
+    // first thing on keypress, that one throw also skips the undo snapshot and
+    // `setFormValue`, and the listener swallows it. Going last-to-first, every
+    // anchor is back in the tree before anything points at it.
+    for (const { el, parent, next, children } of restore.reverse()) {
+      // Belt and braces: never throw out of a getter for VIEW state. If an
+      // anchor somehow did not come back, put the mark at the end rather than
+      // losing every later one.
+      parent.insertBefore(el, next && next.parentNode === parent ? next : null)
       for (const child of children) el.appendChild(child)
     }
     if (this.touchAffordances) {
@@ -782,6 +797,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     author: ChangeAuthor = this.changeAuthor
   ): Promise<number> {
     defineChanges()
+    // Take the selection markers OUT and leave them out. They split the text
+    // nodes they sit in, so a caret inside a word would send the proofreader
+    // two fragments — `The quick br` and `own fox jumps.` — to be rewritten
+    // independently. Unlike spell checking we do not put them back: this
+    // rewrites the prose the caret was pointing into, so there is no honest
+    // position to restore it to. The host can re-place the caret afterwards.
+    this.selectable.removeBounds()
+    this.normalize()
+
     // Snapshot the nodes first: revising replaces them, which would invalidate
     // a live walk halfway through.
     const nodes: Text[] = []
@@ -790,16 +814,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     while ((node = walker.nextNode())) {
       const text = node as Text
       if (!text.data.trim()) continue
-      const parent = text.parentElement
-      if (!parent) continue
-      // Never revise our own chrome, or text already under review.
-      if (
-        parent.closest(
-          `.not-selectable, .do-not-spanify, code, kbd, samp, pre, ${INS_TAG}, ${DEL_TAG}`
-        )
-      ) {
-        continue
-      }
+      // Never revise our own chrome or code, anything the author opted out
+      // of, or text already under review. The base exclusions are shared with
+      // spell checking rather than restated — the two copies had already
+      // drifted in opposite directions, so a subtree marked
+      // `spellcheck="false"` was still being shipped to the LLM.
+      if (!isProseText(text, `${INS_TAG}, ${DEL_TAG}`)) continue
       nodes.push(text)
     }
 
@@ -1035,7 +1055,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const errors = await runSpellCheck(
       this.parts.doc,
       this.spellChecker,
-      this.acceptedWords
+      this.acceptedWords,
+      // Both synchronous phases run with the selection markers out of the
+      // text. Without this a caret parked inside a word splits it, and the
+      // checker is asked about half a word — which it duly reports as
+      // misspelled, blocking a form submit on a correctly-spelled word.
+      (fn) => this.selectable.withoutBounds(fn)
     )
     this.applySpellingValidity(errors)
     return errors

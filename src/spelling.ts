@@ -82,14 +82,33 @@ interface WordHit {
   end: number
 }
 
-function isCheckableText(node: Node): boolean {
+/**
+ * Text nobody should be reading as prose, whoever is asking.
+ *
+ * Our own chrome, source code, and anything the author explicitly opted out
+ * of. Every consumer needs all of these; they differ only in what they add,
+ * which is why this is a shared base and not two hand-maintained copies that
+ * drift in opposite directions.
+ */
+export const NON_PROSE_SELECTOR =
+  '.not-selectable, .do-not-spanify, code, kbd, samp, pre, [spellcheck="false"]'
+
+/** A text node whose content is prose, per `extra` exclusions on top of the base. */
+export function isProseText(node: Node, extra = ''): boolean {
   if (node.nodeType !== 3) return false
   const parent = (node as Text).parentElement
   if (!parent) return false
-  // Chrome of ours, code, and anything the author excluded.
-  return !parent.closest(
-    '.not-selectable, .do-not-spanify, code, kbd, samp, pre, [spellcheck="false"]'
-  )
+  return !parent.closest(extra ? `${NON_PROSE_SELECTOR}, ${extra}` : NON_PROSE_SELECTOR)
+}
+
+function isCheckableText(node: Node): boolean {
+  // Text that has been DELETED under change tracking is excluded: a
+  // `<tosi-del>` holds prose the author has already removed, so flagging a
+  // typo inside it makes the typo unfixable — the only way to clear the flag
+  // would be to accept the typo into the dictionary — and blocks a form
+  // submit on text that is on its way out. `<tosi-ins>` is deliberately NOT
+  // excluded: newly typed text is exactly what most needs checking.
+  return isProseText(node, 'tosi-del')
 }
 
 /**
@@ -181,24 +200,42 @@ function markHits(hits: WordHit[]): HTMLElement[] {
 export async function checkSpelling(
   root: Element,
   checker: SpellChecker,
-  ignored: Set<string> = new Set()
+  ignored: Set<string> = new Set(),
+  /**
+   * Runs a synchronous phase over text the selection markers are not splitting
+   * (`Selectable.withoutBounds`). Defaults to running the phase as-is, so
+   * `spelling.ts` stays usable on a plain element with no editor attached.
+   */
+  stabilize: <T>(fn: () => T) => T = (fn) => fn()
 ): Promise<SpellingError[]> {
   defineMisspelling()
-  clearMisspellings(root)
 
-  const hits = wordsIn(root)
-  if (hits.length === 0) return []
-
-  // Ask once per DISTINCT word. A long document is mostly repetition, and the
-  // checker may be a network call.
-  const distinct = [...new Set(hits.map((h) => h.word))].filter(
-    (w) => !ignored.has(w)
-  )
+  // PHASE 1, synchronous. Only STRINGS leave it: the hits reference live text
+  // nodes, and anything can happen to those while we await the checker — the
+  // user types, another check runs, undo replaces the document. Re-deriving
+  // after the await is cheap next to a network call and is the only way the
+  // offsets can still mean anything.
+  const distinct = stabilize(() => {
+    clearMisspellings(root)
+    const found = wordsIn(root)
+    return [...new Set(found.map((h) => h.word))].filter((w) => !ignored.has(w))
+  })
   if (distinct.length === 0) return []
 
   const wrong = await checker(distinct)
   if (!wrong || wrong.size === 0) return []
 
+  // PHASE 2, synchronous, against the document as it is NOW.
+  return stabilize(() => markWrongWords(root, wrong, ignored))
+}
+
+function markWrongWords(
+  root: Element,
+  wrong: Set<string>,
+  ignored: Set<string>
+): SpellingError[] {
+  clearMisspellings(root)
+  const hits = wordsIn(root)
   const bad = hits.filter((h) => wrong.has(h.word) && !ignored.has(h.word))
   if (bad.length === 0) return []
 
