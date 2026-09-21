@@ -401,6 +401,16 @@ Two deletions behave specially, because the pedantic version would be noise:
   document with nothing in `changes` to show for it, which is the failure this
   feature exists to prevent. Text deletion inside a block or a cell is
   unaffected and fully tracked.
+
+  A refusal fires a cancelable **`structural-edit-refused`** event carrying
+  `detail.reason`, so the key is not simply dead — show a note, or call
+  `preventDefault()` on it to allow the edit:
+
+  ```javascript
+  editor.addEventListener('structural-edit-refused', (e) => {
+    toast(`Not tracked yet: ${e.detail.reason}. Turn off tracking to do this.`)
+  })
+  ```
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see

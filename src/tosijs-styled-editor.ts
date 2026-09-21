@@ -975,10 +975,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    *
    * Returns true when it handled the nodes, so the caller skips its own removal.
    */
-  private trackDeletion(nodes: Node[]): boolean {
+  private trackDeletion(nodes: Node[], gestureId?: string): boolean {
     if (!this.trackChanges) return false
     defineChanges()
-    const id = changeId()
+    // One GESTURE is one change. `trackDeletion` hoists this above its loop
+    // for exactly that reason — but routing every path through a per-node
+    // `removeNode` lost the batch, so deleting one `<p>the <b>quick</b>
+    // brown</p>` minted three ids and `acceptChanges(middleId)` left
+    // `"the  brown"`, a document neither party proposed. Callers that are one
+    // gesture pass their own id down.
+    const id = gestureId ?? changeId()
     for (const node of nodes) {
       const el =
         node.nodeType === 3 ? (node as Text).parentElement : (node as Element)
@@ -1081,8 +1087,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * `rejectChanges()` to bring it back. A tracking gate that fails OPEN on the
    * commonest gesture in the editor is worse than no gate.
    */
-  private removeNode(node: Node): void {
-    if (!this.trackDeletion([node])) node.parentNode?.removeChild(node)
+  private removeNode(node: Node, gestureId?: string): void {
+    if (!this.trackDeletion([node], gestureId)) node.parentNode?.removeChild(node)
   }
 
   /**
@@ -1092,7 +1098,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * node to wrap — so split it out of the run first. `splitText` is exact
    * here; the caller has already established there is more than one character.
    */
-  private deleteEdgeCharacter(text: Text, end: 'start' | 'end'): void {
+  private deleteEdgeCharacter(
+    text: Text,
+    end: 'start' | 'end',
+    gestureId?: string
+  ): void {
     if (!this.trackChanges) {
       text.data = end === 'end' ? text.data.slice(0, -1) : text.data.slice(1)
       return
@@ -1105,7 +1115,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (text.parentElement?.closest(DEL_TAG)) return
     const char = end === 'end' ? text.splitText(text.data.length - 1) : text
     if (end === 'start') char.splitText(1)
-    this.trackDeletion([char])
+    this.trackDeletion([char], gestureId)
   }
 
   /**
@@ -1119,6 +1129,27 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    */
   private get refusesStructuralDelete(): boolean {
     return this.trackChanges
+  }
+
+  /**
+   * Decline a structural edit, and SAY SO.
+   *
+   * The refusal is right, but it was the only refusal in this codebase that
+   * made no sound — `commands.ts` complains when it declines, and this did
+   * not. `preventDefault()` has already run by the time we get here, so from
+   * the user's side the key is simply dead, with no signal at any layer for a
+   * host to explain it. Cancelable so a host can decide to allow it, and
+   * `detail.reason` names which edit was refused.
+   */
+  private refuseStructural(reason: string): boolean {
+    const evt = new CustomEvent('structural-edit-refused', {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      detail: { reason, author: this.changeAuthor },
+    })
+    // A host that calls preventDefault() is overriding the refusal.
+    return this.dispatchEvent(evt)
   }
 
   /** Every tracked change, in document order. */
@@ -2016,7 +2047,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!list) return
     // Merging a list item into its neighbour, or promoting it out of the list,
     // deletes a paragraph break. See `refusesStructuralDelete`.
-    if (this.refusesStructuralDelete) return
+    if (this.refusesStructuralDelete && this.refuseStructural('remove-list-item')) {
+      return
+    }
 
     const prevLi = li.previousElementSibling
     if (prevLi && prevLi.tagName === 'LI') {
@@ -2417,7 +2450,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         this.refusesStructuralDelete &&
         deletionBlock &&
         caretBlock &&
-        deletionBlock !== caretBlock
+        deletionBlock !== caretBlock &&
+        this.refuseStructural('merge-blocks-backward')
       ) {
         return
       }
@@ -2463,7 +2497,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         this.refusesStructuralDelete &&
         deletionBlock &&
         caretBlock &&
-        deletionBlock !== caretBlock
+        deletionBlock !== caretBlock &&
+        this.refuseStructural('merge-blocks-forward')
       ) {
         return
       }
@@ -2496,6 +2531,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   deleteSelection(): boolean {
     const blocks = this.selectedBlocks()
     let wasAnythingDeleted = false
+    // One selection delete is ONE change, however many nodes and blocks it
+    // spans. A reviewer accepts or rejects the deletion, not its fragments.
+    const gesture = this.trackChanges ? changeId() : undefined
 
     // Remove completely selected blocks (not first or last).
     // This ran BEFORE any trackChanges check, so an interior paragraph in a
@@ -2508,8 +2546,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         !block.classList.contains('first-block') &&
         !block.classList.contains('last-block')
       ) {
-        this.removeNode(block)
-        if (this.trackChanges) wasAnythingDeleted = true
+        this.removeNode(block, gesture)
+        // Unconditionally. The `if (this.trackChanges)` here left the DEFAULT
+        // path still returning false after removing an interior block, so the
+        // keydown handler fell through to backspace() and ate an extra
+        // character on top of the deletion — which is the defect the comment
+        // above describes. Pre-existing, not a remediation regression, and it
+        // needs an exact-block-boundary selection across 3+ blocks.
+        wasAnythingDeleted = true
       }
     }
 
@@ -2527,7 +2571,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
       // Wrap rather than remove when tracking: the reader needs to see what
       // was proposed for deletion, and by whom, until someone resolves it.
-      for (const node of nodes) this.removeNode(topSingleParentAncestor(node))
+      for (const node of nodes) {
+        this.removeNode(topSingleParentAncestor(node), gesture)
+      }
       wasAnythingDeleted = true
     }
 
@@ -2552,7 +2598,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         (!caret || !block.contains(caret)) &&
         blockIsEmpty(block)
       ) {
-        this.removeNode(block)
+        this.removeNode(block, gesture)
       }
     }
 

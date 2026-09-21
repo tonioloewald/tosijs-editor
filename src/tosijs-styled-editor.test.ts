@@ -1307,6 +1307,53 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    test('one delete gesture is ONE change, however many nodes it spans', () => {
+      // README warns that finer granularity turns a rewritten sentence into
+      // confetti, and the paste path already upholds that. Delete must too:
+      // three ids for one paragraph means acceptChanges(middleId) can leave
+      // text neither party proposed, reachable through the documented API.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>the <b>quick</b> brown</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const p = el.parts.doc.querySelector('p')!
+      for (const node of [...p.childNodes]) {
+        const span = document.createElement('span')
+        span.className = 'selected'
+        p.insertBefore(span, node)
+        span.appendChild(node)
+      }
+      el.deleteSelection()
+
+      const ids = el.changes.filter((c) => c.kind === 'delete').map((c) => c.id)
+      expect(ids.length).toBeGreaterThan(1)
+      expect(new Set(ids).size).toBe(1)
+    })
+
+    test('a refused structural edit is observable', () => {
+      // preventDefault() has already run by the time the refusal happens, so
+      // without a signal the key is simply dead and no host can explain why.
+      const el = typing()
+      const seen: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        seen.push((e as CustomEvent).detail.reason)
+      })
+      const p = el.parts.doc.querySelector('p')!
+      el.parts.doc.insertBefore(document.createElement('p'), p)
+      el.parts.doc.firstElementChild!.textContent = 'before'
+      const range = document.createRange()
+      range.setStart(p.firstChild as Text, 0)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+
+      press(el, 'Backspace')
+      expect(seen).toContain('merge-blocks-backward')
+      // and the blocks really were not merged
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+    })
+
     // --- regressions introduced by the B3 remediation (a0e2c43) -------------
     // Every one of these shipped green. The original B3 test asserted only
     // that textContent was unchanged, which a DEAD KEY satisfies just as well

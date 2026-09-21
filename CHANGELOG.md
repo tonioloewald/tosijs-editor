@@ -49,9 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   out of a list item) and table Delete Row / Delete Column. A change mark wraps
   content and structure is not content, so the honest answer until structural
   tracking exists is to decline rather than restructure the document with
-  nothing in `changes` to show for it. A custom command deletes through
+  nothing in `changes` to show for it. A refusal fires a cancelable
+  `structural-edit-refused` event carrying `detail.reason`, so a host can
+  explain the dead keystroke or override it. A custom command deletes through
   `ctx.removeNode(node)` and checks `ctx.tracksChanges()` before restructuring
-  — see EXTENSIBILITY.md. The mechanism is one predicate —
+  — see EXTENSIBILITY.md.
+  One delete gesture is **one** change however many nodes and blocks it spans,
+  matching paste. The mechanism is one predicate —
   is the caret already inside an insertion that is mine, this session? — so a
   continuous run of typing is one change and there is no per-operation
   bookkeeping. Session is part of the test, so reopening a document and typing
