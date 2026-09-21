@@ -46,7 +46,10 @@ function characters(text: string): string[] {
  * the TEXT, so they can be computed from it directly and the document left
  * alone. Falls back to a whitespace split where Intl.Segmenter is missing.
  */
-function wordBoundsAt(text: string, offset: number): { start: number; end: number } {
+function wordBoundsAt(
+  text: string,
+  offset: number
+): { start: number; end: number } {
   const Segmenter = (Intl as { Segmenter?: typeof Intl.Segmenter }).Segmenter
   if (Segmenter) {
     const segmenter = new Segmenter(undefined, { granularity: 'word' })
@@ -344,7 +347,6 @@ export class Selectable {
     this.root.normalize()
     this.onBoundsChanged?.()
   }
-
 
   /**
    * The block's whole text, with the map back to the nodes that hold it.
@@ -802,8 +804,7 @@ export class Selectable {
     let current: Node | null
     while ((current = walker.nextNode())) {
       if (
-        node.compareDocumentPosition(current) &
-        Node.DOCUMENT_POSITION_PRECEDING
+        node.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_PRECEDING
       ) {
         total += (current as Text).data.length
       }

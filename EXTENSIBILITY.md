@@ -16,18 +16,18 @@ inside one document. That division is worth holding onto, because a lot of what 
 as "FrameMaker features" is really book-level machinery that does not belong in an
 editor at all:
 
-| Concern | Belongs to |
-| --- | --- |
-| document set, navigation, publishing | doc system |
-| cross-document references, shared numbering | doc system (editor emits anchors) |
-| condition definitions and their on/off state | doc system |
-| master pages, templates | doc system |
-| text, selection, editing, in-document structure | editor |
-| page breaking and page furniture when rendering | editor |
-| condition *application* to content | editor (CSS, see below) |
+| Concern                                         | Belongs to                        |
+| ----------------------------------------------- | --------------------------------- |
+| document set, navigation, publishing            | doc system                        |
+| cross-document references, shared numbering     | doc system (editor emits anchors) |
+| condition definitions and their on/off state    | doc system                        |
+| master pages, templates                         | doc system                        |
+| text, selection, editing, in-document structure | editor                            |
+| page breaking and page furniture when rendering | editor                            |
+| condition _application_ to content              | editor (CSS, see below)           |
 
-The split matters most for conditional content: the *definition* of a condition and
-whether it is currently on is a property of the document set, while the *marking* of
+The split matters most for conditional content: the _definition_ of a condition and
+whether it is currently on is a property of the document set, while the _marking_ of
 content is in the document. An editor that tries to own both ends up owning the whole
 publishing pipeline.
 
@@ -91,7 +91,7 @@ The rule that follows:
   if (ctx.tracksChanges() && ctx.refuseStructural('delete-my-thing')) return
   ```
 
-  A bare `return` is a *silent* refusal, and `preventDefault()` has already run
+  A bare `return` is a _silent_ refusal, and `preventDefault()` has already run
   by the time a command executes — so the user gets a dead menu item with no
   signal at any layer. Both built-in table commands shipped exactly that way
   for one commit, while the README promised the event by name. `refuseStructural`
@@ -123,17 +123,17 @@ JSON-model editor can offer, where an unknown node type is typically dropped or 
 
 **Two plugin shapes fall out of shadow DOM, and the distinction is load-bearing.**
 
-| | shadow DOM | light DOM |
-| --- | --- | --- |
-| example | footnote marker, variable, cross-reference | sidebar, conditional block, callout |
-| editor traversal sees inner text | no (measured) | yes (measured) |
-| behaves as | one atomic unit | container of editable content |
-| carries own styles | yes, encapsulated | needs styles reachable from the doc |
+|                                  | shadow DOM                                 | light DOM                           |
+| -------------------------------- | ------------------------------------------ | ----------------------------------- |
+| example                          | footnote marker, variable, cross-reference | sidebar, conditional block, callout |
+| editor traversal sees inner text | no (measured)                              | yes (measured)                      |
+| behaves as                       | one atomic unit                            | container of editable content       |
+| carries own styles               | yes, encapsulated                          | needs styles reachable from the doc |
 
 Atomic widgets should also carry `.not-selectable` / `.do-not-spanify`, the conventions
 that already exist for UI chrome.
 
-**Custom element lifecycle replaces the document-changed hook.** Measured: 
+**Custom element lifecycle replaces the document-changed hook.** Measured:
 `connectedCallback` and `disconnectedCallback` fire on insertion, on removal, and on
 `innerHTML` restore. Since `docHTML` is the single choke point for reading and writing
 document HTML and it assigns `innerHTML`, **undo rehydrates plugin state for free** —
@@ -159,7 +159,7 @@ establish.
 
 ### Invariant maintenance — footnotes, endnotes, numbering, cross-references
 
-*Scope:* small-to-moderate. *Gated by:* nothing.
+_Scope:_ small-to-moderate. _Gated by:_ nothing.
 
 Mostly falls out of the web-component substrate above. Endnotes are footnotes with a
 different collection target. Numbering is a derived view over document order.
@@ -171,11 +171,11 @@ deleted block, a reference whose target is gone, numbering across a document set
 
 ### Change tracking
 
-*Scope:* large. *Gated by:* the undo model.
+_Scope:_ large. _Gated by:_ the undo model.
 
 Undo is full-HTML snapshots. That is a genuine strength — serialization is free, there
 is no model/view desync, `value` just works, and plugin state rehydrates on restore.
-But a snapshot records *that* the document changed, never *what* changed or by whom.
+But a snapshot records _that_ the document changed, never _what_ changed or by whom.
 
 Change tracking needs per-edit attribution, which means operations alongside (not
 instead of) snapshots. That is the single most expensive architectural decision in this
@@ -202,10 +202,10 @@ Two things the implementation taught:
 
 ### Conditional content
 
-*Scope:* moderate, and unusually well-suited. *Gated by:* nothing technical.
+_Scope:_ moderate, and unusually well-suited. _Gated by:_ nothing technical.
 
 Conditions attach to styles. The content is always present in the DOM and in `value`;
-whether it renders is a question the *document set* answers. So the application is pure
+whether it renders is a question the _document set_ answers. So the application is pure
 CSS — a condition state on the host, rules that hide marked content — and no DOM
 mutation is involved.
 
@@ -220,7 +220,7 @@ means.
 
 ### Sidebars and anchored content
 
-*Scope:* moderate. *Gated by:* the container-plugin question above.
+_Scope:_ moderate. _Gated by:_ the container-plugin question above.
 
 A light-DOM custom element anchored to a position in the flow. The editing story is the
 container-plugin risk already noted; the layout story is mostly CSS until pagination
@@ -228,10 +228,10 @@ exists, at which point anchored content has to participate in page breaking.
 
 ### Pagination and page formats
 
-*Scope:* large — a project, not a task. *Gated by:* nothing, surprisingly.
+_Scope:_ large — a project, not a task. _Gated by:_ nothing, surprisingly.
 
 This is the one where the architecture is an asset rather than a liability. Page
-breaking is fundamentally a *measuring* problem: where does this content cross a page
+breaking is fundamentally a _measuring_ problem: where does this content cross a page
 boundary. This editor already owns measurement — `Range.getClientRects()` returns one
 rect per line box, which is exactly the primitive, and the same measuring-tape
 technique already drives hit-testing and caret geometry.
@@ -240,7 +240,7 @@ A `contentEditable` editor cannot do this well, because it cannot control where 
 browser breaks content it does not own. That is a real differentiator.
 
 What it requires: separating the logical document from its rendered pages, so a
-paginated view is a *rendering* of the document rather than its structure. Headers,
+paginated view is a _rendering_ of the document rather than its structure. Headers,
 footers, mixed orientation, and chapter breaks then become properties of the rendering
 layer. Hit-testing would need to work across multiple page containers rather than one
 scrolling box — `characterAtPoint` walks from a root, so this is likely tractable, but
@@ -252,7 +252,7 @@ affordances — has to learn about page boxes.
 
 ### Book-level capability
 
-*Scope:* largely out of scope here. See the table at the top.
+_Scope:_ largely out of scope here. See the table at the top.
 
 Variables, master pages, shared numbering and cross-document references are doc-system
 concerns. The editor's part is to emit and preserve the anchors, and to not corrupt

@@ -395,7 +395,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ':host .selection-edge.-end': {
       background: 'color-mix(in oklab, red 70%, var(--editor-text))',
     },
-// The squiggle. skip-ink off, because a spelling underline that dodges
+    // The squiggle. skip-ink off, because a spelling underline that dodges
     // descenders reads as a rendering artefact rather than a mark.
     // Change marks are styled in CORE even though the behaviour is a plugin. A
     // `<tosi-del>` without its strikethrough renders deleted text as ordinary
@@ -693,7 +693,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // into whatever the host persists — so a document would carry a record of
     // which words were once flagged, by a dictionary it no longer has.
     const restore = (
-      Array.from(this.parts.doc.querySelectorAll(MISSPELLING_TAG)) as HTMLElement[]
+      Array.from(
+        this.parts.doc.querySelectorAll(MISSPELLING_TAG)
+      ) as HTMLElement[]
     ).map((el) => ({
       el,
       parent: el.parentNode!,
@@ -817,7 +819,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Snapshot the nodes first: revising replaces them, which would invalidate
     // a live walk halfway through.
     const nodes: Text[] = []
-    const walker = document.createTreeWalker(this.parts.doc, NodeFilter.SHOW_TEXT)
+    const walker = document.createTreeWalker(
+      this.parts.doc,
+      NodeFilter.SHOW_TEXT
+    )
     let node: Node | null
     while ((node = walker.nextNode())) {
       const text = node as Text
@@ -1019,7 +1024,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
           ? (node as Element)
           : null
       if (asBlock && !asBlock.firstChild) continue
-      if (asBlock?.firstElementChild?.matches?.(DEL_TAG) && asBlock.children.length === 1) {
+      if (
+        asBlock?.firstElementChild?.matches?.(DEL_TAG) &&
+        asBlock.children.length === 1
+      ) {
         continue // already entirely deleted
       }
 
@@ -1095,7 +1103,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * commonest gesture in the editor is worse than no gate.
    */
   private removeNode(node: Node, gestureId?: string): void {
-    if (!this.trackDeletion([node], gestureId)) node.parentNode?.removeChild(node)
+    if (!this.trackDeletion([node], gestureId))
+      node.parentNode?.removeChild(node)
   }
 
   /**
@@ -1148,6 +1157,30 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * host to explain it. Cancelable so a host can decide to allow it, and
    * `detail.reason` names which edit was refused.
    */
+  /**
+   * Run a gesture with tracking suspended.
+   *
+   * For the one case where a host has OVERRIDDEN a structural refusal. The
+   * edit then happens as a plain structural change with no marks — which is
+   * the only honest reading, since if tracking could have represented it there
+   * would have been nothing to refuse.
+   *
+   * Without this the override half-applied: the block merge itself went
+   * through a raw `caretBlock.remove()` with nothing in `changes`, while the
+   * character that rides along on the same keystroke was MARKED — leaving the
+   * document simultaneously mid-merge and mid-proposal, where neither
+   * accepting nor rejecting reproduces a document either party proposed.
+   */
+  private asUntracked<T>(fn: () => T): T {
+    const was = this.trackChanges
+    this.trackChanges = false
+    try {
+      return fn()
+    } finally {
+      this.trackChanges = was
+    }
+  }
+
   private refuseStructural(reason: string): boolean {
     const evt = new CustomEvent('structural-edit-refused', {
       bubbles: true,
@@ -1184,17 +1217,24 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // caret-based command silently bailed.
     const emptied = targets
       .filter(
-        (c) => c.kind === 'delete' && c.element.hasAttribute('data-block-delete')
+        (c) =>
+          c.kind === 'delete' && c.element.hasAttribute('data-block-delete')
       )
       .map((c) => c.element.parentElement)
-      .filter((el): el is HTMLElement => !!el && el.parentNode === this.parts.doc)
+      .filter(
+        (el): el is HTMLElement => !!el && el.parentNode === this.parts.doc
+      )
 
     for (const change of targets) acceptChange(change.element)
 
     for (const block of emptied) {
       // Never remove the block holding the caret, whatever else is true — the
       // same guard `deleteSelection`'s sweep already applies.
-      if (block.isConnected && !block.querySelector('.caret, .sel-end, .sel-start') && blockIsEmpty(block)) {
+      if (
+        block.isConnected &&
+        !block.querySelector('.caret, .sel-end, .sel-start') &&
+        blockIsEmpty(block)
+      ) {
         block.remove()
       }
     }
@@ -1301,9 +1341,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** The current errors, in document order. The query browsers refuse. */
   get spellingErrors(): SpellingError[] {
-    return Array.from(
-      this.parts.doc.querySelectorAll(MISSPELLING_TAG)
-    ).map((el) => ({ word: el.textContent || '', element: el as HTMLElement }))
+    return Array.from(this.parts.doc.querySelectorAll(MISSPELLING_TAG)).map(
+      (el) => ({ word: el.textContent || '', element: el as HTMLElement })
+    )
   }
 
   /**
@@ -1318,7 +1358,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * That is the forcing function: unresolved spelling blocks a real form
    * submit, rather than relying on anyone to remember to look.
    */
-  acceptWord(word: string, scope: 'document' | 'dictionary' = 'document'): void {
+  acceptWord(
+    word: string,
+    scope: 'document' | 'dictionary' = 'document'
+  ): void {
     if (scope === 'dictionary') this.userDictionary.add(word)
     else this.documentWords.add(word)
     this.handleWordAccepted?.(word, scope)
@@ -2055,7 +2098,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!list) return
     // Merging a list item into its neighbour, or promoting it out of the list,
     // deletes a paragraph break. See `refusesStructuralDelete`.
-    if (this.refusesStructuralDelete && this.refuseStructural('remove-list-item')) {
+    if (
+      this.refusesStructuralDelete &&
+      this.refuseStructural('remove-list-item')
+    ) {
       return
     }
 
@@ -2456,39 +2502,49 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
-      // Backspace at the START of a block deletes a paragraph break, not a
-      // character. Under tracking we have no mark for that, so refuse rather
-      // than merge two blocks with no record of it.
-      if (
-        this.refusesStructuralDelete &&
+      // A deletion that crosses a block boundary deletes a paragraph break,
+      // not a character, and there is no mark for that — so refuse. A host
+      // that overrides the refusal gets the edit UNTRACKED: the whole gesture,
+      // not just the merge, or the document ends up simultaneously mid-merge
+      // and mid-proposal with no resolution that either party proposed.
+      const crossesBlocks = !!(
         deletionBlock &&
         caretBlock &&
-        deletionBlock !== caretBlock &&
+        deletionBlock !== caretBlock
+      )
+      if (
+        this.refusesStructuralDelete &&
+        crossesBlocks &&
         this.refuseStructural('merge-blocks-backward')
       ) {
         return
       }
+      const overridden = this.refusesStructuralDelete && crossesBlocks
 
-      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-        this.deleteEdgeCharacter(node as Text, 'end')
-        this.normalize()
-      } else {
-        this.removeNode(topSingleParentAncestor(node))
-        this.normalize()
-      }
+      const run = <T>(fn: () => T): T =>
+        overridden ? this.asUntracked(fn) : fn()
 
-      // Merge blocks if deletion crossed a block boundary
-      if (
-        deletionBlock &&
-        caretBlock &&
-        this.parts.doc.contains(deletionBlock) &&
-        deletionBlock !== caretBlock
-      ) {
-        while (caretBlock.firstChild) {
-          deletionBlock.appendChild(caretBlock.firstChild)
+      run(() => {
+        if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+          this.deleteEdgeCharacter(node as Text, 'end')
+        } else {
+          this.removeNode(topSingleParentAncestor(node))
         }
-        caretBlock.remove()
-      }
+        this.normalize()
+
+        // Merge blocks if deletion crossed a block boundary
+        if (
+          deletionBlock &&
+          caretBlock &&
+          this.parts.doc.contains(deletionBlock) &&
+          deletionBlock !== caretBlock
+        ) {
+          while (caretBlock.firstChild) {
+            deletionBlock.appendChild(caretBlock.firstChild)
+          }
+          caretBlock.remove()
+        }
+      })
       this.updateUndo()
     }
   }
@@ -2505,37 +2561,49 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
-      // Delete at the END of a block deletes a paragraph break — see backspace.
-      if (
-        this.refusesStructuralDelete &&
+      // A deletion that crosses a block boundary deletes a paragraph break,
+      // not a character, and there is no mark for that — so refuse. A host
+      // that overrides the refusal gets the edit UNTRACKED: the whole gesture,
+      // not just the merge, or the document ends up simultaneously mid-merge
+      // and mid-proposal with no resolution that either party proposed.
+      const crossesBlocks = !!(
         deletionBlock &&
         caretBlock &&
-        deletionBlock !== caretBlock &&
+        deletionBlock !== caretBlock
+      )
+      if (
+        this.refusesStructuralDelete &&
+        crossesBlocks &&
         this.refuseStructural('merge-blocks-forward')
       ) {
         return
       }
+      const overridden = this.refusesStructuralDelete && crossesBlocks
 
-      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-        this.deleteEdgeCharacter(node as Text, 'start')
-        this.normalize()
-      } else {
-        this.removeNode(topSingleParentAncestor(node))
-        this.normalize()
-      }
+      const run = <T>(fn: () => T): T =>
+        overridden ? this.asUntracked(fn) : fn()
 
-      // Merge blocks if deletion crossed a block boundary
-      if (
-        deletionBlock &&
-        caretBlock &&
-        this.parts.doc.contains(deletionBlock) &&
-        deletionBlock !== caretBlock
-      ) {
-        while (deletionBlock.firstChild) {
-          caretBlock.appendChild(deletionBlock.firstChild)
+      run(() => {
+        if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+          this.deleteEdgeCharacter(node as Text, 'start')
+        } else {
+          this.removeNode(topSingleParentAncestor(node))
         }
-        deletionBlock.remove()
-      }
+        this.normalize()
+
+        // Merge blocks if deletion crossed a block boundary
+        if (
+          deletionBlock &&
+          caretBlock &&
+          this.parts.doc.contains(deletionBlock) &&
+          deletionBlock !== caretBlock
+        ) {
+          while (deletionBlock.firstChild) {
+            caretBlock.appendChild(deletionBlock.firstChild)
+          }
+          deletionBlock.remove()
+        }
+      })
       this.updateUndo()
     }
   }
@@ -3307,6 +3375,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
       mark.setAttribute('data-session', this.sessionId)
       mark.setAttribute('data-time', new Date().toISOString())
+      // Block scope is a property of a deletion THIS editor performed, not
+      // something inbound markup gets to assert. kilpi is an attribute
+      // blocklist, so `data-*` survives paste, drop and `value` verbatim — and
+      // a tracked whole-block delete copied out of another editor carries this
+      // attribute, so no hand-crafted HTML is needed to reach it. Left in
+      // place, a later `acceptChanges()` would delete the pasting document's
+      // paragraph.
+      mark.removeAttribute('data-block-delete')
     }
   }
 

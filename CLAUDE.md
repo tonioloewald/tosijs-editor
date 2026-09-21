@@ -78,11 +78,11 @@ the trap as undetectable while the net existed. Now on 1.15.0, and
   markdown. An illustrative CSS block becomes a global `<style>`; a lone `html`
   block becomes a stray live example. Use a display-only language (`javascript`,
   `typescript`, `xml`) for anything meant only to be read. (tosijs-ui#146)
-  Walked into again in 0.4.5: an illustrative ```js block in README.md showing how
-  to swap in a different sanitizer was EXECUTED on the home page, throwing
-  `ReferenceError: editor is not defined`. The home page is built from README.md
-  (`docPaths`), so README fences are live examples too — that is easy to forget
-  while editing a README as prose. ```javascript renders and does not run.
+  Walked into again in 0.4.5: an illustrative `` js block in README.md showing how
+to swap in a different sanitizer was EXECUTED on the home page, throwing
+`ReferenceError: editor is not defined`. The home page is built from README.md
+(`docPaths`), so README fences are live examples too — that is easy to forget
+while editing a README as prose.  ``javascript renders and does not run.
 - **Adjacent fences form ONE `<tosi-example>`; prose between them starts a new
   one.** Keep a `test` block next to the `html` it drives, or it builds its own
   editor and renders an empty box.
@@ -120,9 +120,9 @@ matter for two things: deleting a character deletes the whole empty chain around
 
 **Click-to-character hit testing uses Range measurement, not DOM mutation**
 (`characterAtPoint` in `dom-utils.ts`). A Range whose boundaries are set ON A TEXT NODE
-takes *character* offsets, so `setStart(t, i); setEnd(t, i + 1); getBoundingClientRect()`
+takes _character_ offsets, so `setStart(t, i); setEnd(t, i + 1); getBoundingClientRect()`
 returns one glyph's box without touching the DOM. This is NOT true of a Range set on an
-element: there the offsets are *child indices*, so the finest rect available is a whole
+element: there the offsets are _child indices_, so the finest rect available is a whole
 child node — which is why measuring via `selectNode`/`selectNodeContents` appears
 impossible and led to the original spanify approach.
 
@@ -147,27 +147,27 @@ line box, split at bidi run boundaries.
 **Do not reintroduce spanification for measurement.** Wrapping characters in spans
 changes the thing being measured: each span is an inline box, so shaping breaks across
 the boundaries, Arabic cursive joins come apart, and lines re-wrap. Hovering a paragraph
-visibly relaid it out. Spans are still created for *word/line grouping* by double-click
+visibly relaid it out. Spans are still created for _word/line grouping_ by double-click
 and vertical arrows, but never on hover and never to resolve a click.
 
 `spanify(element, make, byWord?)` wraps each character in `<span class="spanified">` (or
 `.spanified-word`); `spanify(el, false)` unwraps and normalizes. Whitespace is left as
-bare text nodes — putting it inside spans changes *which* spaces collapse.
+bare text nodes — putting it inside spans changes _which_ spaces collapse.
 
 `Selectable` owns the mouse/touch listeners on the doc element and maintains selection as
 DOM state:
 
-| Class                            | Meaning                                                                                   |
-| -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `.sel-start`                     | `<span>` marking selection start                                                          |
-| `.sel-end .caret`                | `<span>` marking selection end / the caret                                                |
-| `.selected`                      | every selected leaf-level element                                                         |
-| `.selected-block`                | every block intersecting the selection                                                    |
-| `.first-block` / `.last-block`   | ends of a multi-block selection                                                           |
-| `.spanified` / `.spanified-word` | transient char/word wrappers                                                              |
-| `.do-not-spanify`                | subtree spanify skips                                                                     |
-| `.not-selectable`                | subtree selection skips (UI chrome, annotations)                                          |
-| `.not-editable`                  | keydown handling bails out inside this                                                    |
+| Class                            | Meaning                                          |
+| -------------------------------- | ------------------------------------------------ |
+| `.sel-start`                     | `<span>` marking selection start                 |
+| `.sel-end .caret`                | `<span>` marking selection end / the caret       |
+| `.selected`                      | every selected leaf-level element                |
+| `.selected-block`                | every block intersecting the selection           |
+| `.first-block` / `.last-block`   | ends of a multi-block selection                  |
+| `.spanified` / `.spanified-word` | transient char/word wrappers                     |
+| `.do-not-spanify`                | subtree spanify skips                            |
+| `.not-selectable`                | subtree selection skips (UI chrome, annotations) |
+| `.not-editable`                  | keydown handling bails out inside this           |
 
 The bounds markers are `<span>` styled `display: contents`, and both halves matter.
 
@@ -278,12 +278,12 @@ state is written in the document, not held by an instance.** An unregistered ele
 still round-trips through `innerHTML`, so a document edited by a build that lacks the
 plugin does not lose the marks — which is what makes these safe to put in content.
 
-| Tag                  | Module        | Kind                                    |
-| -------------------- | ------------- | --------------------------------------- |
-| `<tosi-ins>`         | `changes.ts`  | container — text inside stays editable  |
-| `<tosi-del>`         | `changes.ts`  | container                               |
+| Tag                  | Module        | Kind                                         |
+| -------------------- | ------------- | -------------------------------------------- |
+| `<tosi-ins>`         | `changes.ts`  | container — text inside stays editable       |
+| `<tosi-del>`         | `changes.ts`  | container                                    |
 | `<tosi-misspelling>` | `spelling.ts` | container, VIEW state, stripped by `docHTML` |
-| `<tosi-footnote>`    | `footnote.ts` | renumbers from its own lifecycle        |
+| `<tosi-footnote>`    | `footnote.ts` | renumbers from its own lifecycle             |
 
 Three things that are easy to undo by accident:
 

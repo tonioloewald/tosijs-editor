@@ -6,10 +6,7 @@
  * the editable context and arguments parsed from the command string.
  */
 
-import {
-  closestSingleParentAncestor,
-  isSafeNavigationUrl,
-} from './dom-utils'
+import { closestSingleParentAncestor, isSafeNavigationUrl } from './dom-utils'
 import { defineFootnote, FOOTNOTE_TAG } from './footnote'
 import type { Selectable } from './selection'
 import { spanify } from './selection'
@@ -167,7 +164,6 @@ function mergeAdjacentLists(list: Element): Element {
   return survivor
 }
 
-
 /**
  * Set (or clear) a link's target.
  *
@@ -203,7 +199,9 @@ export function renumberFootnotes(root: HTMLElement): void {
   // that documents saved before 0.4.4 contain. Numbering must not depend on
   // which era a document came from.
   const refs = Array.from(
-    root.querySelectorAll(`${FOOTNOTE_TAG}[data-footnote], .footnote-ref[data-footnote]`)
+    root.querySelectorAll(
+      `${FOOTNOTE_TAG}[data-footnote], .footnote-ref[data-footnote]`
+    )
   ).filter((ref) => !ref.closest('.footnotes'))
   let list = root.querySelector('ol.footnotes')
 

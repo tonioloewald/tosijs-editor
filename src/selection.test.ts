@@ -38,7 +38,9 @@ describe('spanify', () => {
     container.innerHTML = '<p>a\u{1F310}b</p>'
     const p = container.querySelector('p')!
     spanify(p, true)
-    const spans = [...p.querySelectorAll('.spanified')].map((s) => s.textContent)
+    const spans = [...p.querySelectorAll('.spanified')].map(
+      (s) => s.textContent
+    )
     // split('') would give 4 spans, the middle two being lone surrogates
     expect(spans).toEqual(['a', '\u{1F310}', 'b'])
     expect(p.textContent).toBe('a\u{1F310}b')
@@ -48,7 +50,9 @@ describe('spanify', () => {
     container.innerHTML = '<p>\u{1F1EC}\u{1F1E7}!</p>'
     const p = container.querySelector('p')!
     spanify(p, true)
-    const spans = [...p.querySelectorAll('.spanified')].map((s) => s.textContent)
+    const spans = [...p.querySelectorAll('.spanified')].map(
+      (s) => s.textContent
+    )
     expect(spans).toEqual(['\u{1F1EC}\u{1F1E7}', '!'])
   })
 
@@ -68,8 +72,8 @@ describe('spanify', () => {
     spanify(p, true, true)
     // isolating a space in an inline box changes WHICH spaces CSS collapses,
     // so words merge and gaps open mid-word
-    const spaceSpans = [...p.querySelectorAll('.spanified')].filter(
-      (s) => /^\s+$/.test(s.textContent || '')
+    const spaceSpans = [...p.querySelectorAll('.spanified')].filter((s) =>
+      /^\s+$/.test(s.textContent || '')
     )
     expect(spaceSpans.length).toBe(0)
     // the spaces are still there, just not wrapped
@@ -303,8 +307,14 @@ describe('click position resolution', () => {
     rangeProto.getBoundingClientRect = function (this: Range) {
       const i = this.startOffset
       return {
-        left: i * 10, right: i * 10 + 10, top: 0, bottom: 10,
-        width: 10, height: 10, x: i * 10, y: 0,
+        left: i * 10,
+        right: i * 10 + 10,
+        top: 0,
+        bottom: 10,
+        width: 10,
+        height: 10,
+        x: i * 10,
+        y: 0,
       } as DOMRect
     }
   })
@@ -332,7 +342,10 @@ describe('click position resolution', () => {
     const caret = root.querySelector('.sel-end')!
     const range = document.createRange()
     range.setStartAfter(caret)
-    range.setEnd(root.querySelector('p')!, root.querySelector('p')!.childNodes.length)
+    range.setEnd(
+      root.querySelector('p')!,
+      root.querySelector('p')!.childNodes.length
+    )
     expect(range.toString().replace(/\s+/g, '')).toBe('')
   })
 

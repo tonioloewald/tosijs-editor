@@ -98,7 +98,9 @@ export function isProseText(node: Node, extra = ''): boolean {
   if (node.nodeType !== 3) return false
   const parent = (node as Text).parentElement
   if (!parent) return false
-  return !parent.closest(extra ? `${NON_PROSE_SELECTOR}, ${extra}` : NON_PROSE_SELECTOR)
+  return !parent.closest(
+    extra ? `${NON_PROSE_SELECTOR}, ${extra}` : NON_PROSE_SELECTOR
+  )
 }
 
 function isCheckableText(node: Node): boolean {

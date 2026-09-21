@@ -456,7 +456,7 @@ describe('TosijsStyledEditor', () => {
       container.appendChild(el)
       pasteInto(
         el,
-        '<img src="x" onerror="boom()"><a href="javascript:boom()">x</a><script>boom()<\/script>'
+        '<img src="x" onerror="boom()"><a href="javascript:boom()">x</a><script>boom()</script>'
       )
       const html = el.value
       expect(html).not.toMatch(/onerror/i)
@@ -497,7 +497,8 @@ describe('TosijsStyledEditor', () => {
       const p = el.parts.doc.querySelector('p')!
       p.appendChild(el.selectable.createBounds())
       const data = {
-        getData: (t: string) => (t === 'text/html' ? '<b>gone</b><i>kept</i>' : 'x'),
+        getData: (t: string) =>
+          t === 'text/html' ? '<b>gone</b><i>kept</i>' : 'x',
         types: ['text/html'],
       }
       const evt = new Event('paste', { bubbles: true, cancelable: true })
@@ -557,7 +558,9 @@ describe('TosijsStyledEditor', () => {
       // the orphan is gone
       expect(el.parts.doc.querySelectorAll('li.footnote').length).toBe(1)
       // and the survivor renumbered from 2 to 1
-      expect(el.parts.doc.querySelector('tosi-footnote a')!.textContent).toBe('1')
+      expect(el.parts.doc.querySelector('tosi-footnote a')!.textContent).toBe(
+        '1'
+      )
       expect(el.parts.doc.querySelector('li.footnote')!.textContent).toContain(
         'Second'
       )
@@ -922,7 +925,10 @@ describe('TosijsStyledEditor', () => {
       const mark = el.parts.doc.querySelector('tosi-misspelling')!
 
       // the editor's own traversal sees the word — it is not opaque
-      const walker = document.createTreeWalker(el.parts.doc, NodeFilter.SHOW_TEXT)
+      const walker = document.createTreeWalker(
+        el.parts.doc,
+        NodeFilter.SHOW_TEXT
+      )
       const texts: string[] = []
       let n: Node | null
       while ((n = walker.nextNode())) texts.push((n as Text).data)
@@ -1084,7 +1090,11 @@ describe('TosijsStyledEditor', () => {
     const type = (el: TosijsStyledEditor, text: string): void => {
       for (const ch of text) {
         el.parts.doc.dispatchEvent(
-          new KeyboardEvent('keypress', { key: ch, bubbles: true, cancelable: true })
+          new KeyboardEvent('keypress', {
+            key: ch,
+            bubbles: true,
+            cancelable: true,
+          })
         )
       }
     }
@@ -1315,8 +1325,7 @@ describe('TosijsStyledEditor', () => {
       for (const html of ['<img src="x.png">', '<br>', '<hr>']) {
         const el = tosijsStyledEditor() as TosijsStyledEditor
         container.appendChild(el)
-        el.parts.doc.innerHTML =
-          `<p><tosi-ins data-change="c1" data-author="sam" data-session="other">keep${html}</tosi-ins></p>`
+        el.parts.doc.innerHTML = `<p><tosi-ins data-change="c1" data-author="sam" data-session="other">keep${html}</tosi-ins></p>`
         el.changeAuthor = { id: 'alex', name: 'Alex' }
         el.trackChanges = true
         const mark = el.parts.doc.querySelector('tosi-ins')!
@@ -1393,7 +1402,9 @@ describe('TosijsStyledEditor', () => {
         .map((d) => d.textContent)
         .join('')
       expect(deleted.length).toBe(3)
-      expect(el.changes.filter((c) => c.kind === 'delete').length).toBeGreaterThan(0)
+      expect(
+        el.changes.filter((c) => c.kind === 'delete').length
+      ).toBeGreaterThan(0)
       el.rejectChanges()
       expect(el.parts.doc.querySelector('p')!.textContent).toBe('hello world')
     })
@@ -1494,6 +1505,67 @@ describe('TosijsStyledEditor', () => {
       // the default menubar, so a silent no-op is a dead menu click — and
       // README promises the event by name for exactly these two commands.
       expect(refused).toEqual(['delete-table-row', 'delete-table-col'])
+    })
+
+    test('overriding a block-merge refusal gives a clean UNTRACKED edit', () => {
+      // Half-applying is the failure: the merge itself is a raw DOM move with
+      // nothing in `changes`, while the character riding along on the same
+      // keystroke gets MARKED — leaving the document mid-merge AND
+      // mid-proposal, where neither accepting nor rejecting reproduces a
+      // document either party proposed.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one</p><p>two</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const second = el.parts.doc.querySelectorAll('p')[1]
+      const range = document.createRange()
+      range.setStart(second.firstChild as Text, 0)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
+
+      press(el, 'Backspace')
+
+      // one paragraph, no marks anywhere, nothing pending review
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
+      expect(el.changes.length).toBe(0)
+      // and tracking is back on for the next edit
+      expect(el.trackChanges).toBe(true)
+    })
+
+    test('pasted markup cannot assert that it deletes a whole block', () => {
+      // A tracked whole-block delete copied out of ANOTHER editor carries
+      // data-block-delete, and kilpi is an attribute blocklist so data-* is
+      // passed through verbatim. Left in place, acceptChanges() would delete
+      // the pasting document's paragraph.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one</p><p></p><p>three</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      const empty = el.parts.doc.querySelectorAll('p')[1]
+      empty.appendChild(el.selectable.createBounds())
+
+      const evt = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(evt, 'clipboardData', {
+        value: {
+          getData: (t: string) =>
+            t === 'text/html'
+              ? '<tosi-del data-change="x" data-author="sam" data-block-delete="">struck</tosi-del>'
+              : 'struck',
+          types: ['text/html', 'text/plain'],
+        },
+      })
+      el.parts.doc.dispatchEvent(evt)
+      expect(
+        el.parts.doc.querySelector('tosi-del')?.hasAttribute('data-block-delete')
+      ).toBe(false)
+
+      el.selectable.removeBounds()
+      el.acceptChanges()
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
     })
 
     test('a host can override a refusal with preventDefault', () => {
@@ -1684,7 +1756,9 @@ describe('TosijsStyledEditor', () => {
 
       el.acceptChanges()
       const html = el.value
-      expect(html).not.toMatch(/tosi-ins|tosi-del|data-change|data-author|data-session/)
+      expect(html).not.toMatch(
+        /tosi-ins|tosi-del|data-change|data-author|data-session/
+      )
       // and the text is fully normalized, not left fragmented
       const p = el.parts.doc.querySelector('p')!
       expect(p.querySelectorAll('*').length).toBe(

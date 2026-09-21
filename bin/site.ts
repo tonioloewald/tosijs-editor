@@ -60,7 +60,11 @@ async function reportBundleSizes(): Promise<void> {
     if (!(await file.exists())) continue
     const bytes = new Uint8Array(await file.arrayBuffer())
     const kb = (n: number): string => (n / 1024).toFixed(1).padStart(6)
-    console.log(`  ${path.padEnd(16)} ${kb(bytes.length)} kB  ${kb(gzip(bytes))} kB gzipped`)
+    console.log(
+      `  ${path.padEnd(16)} ${kb(bytes.length)} kB  ${kb(
+        gzip(bytes)
+      )} kB gzipped`
+    )
   }
 }
 

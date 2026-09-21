@@ -190,7 +190,7 @@ a cost of replacing `contentEditable`, and worth knowing before you assume
 squiggles will appear on their own.
 
 In exchange you get the thing a `contentEditable` editor cannot have: an
-application that can *ask*.
+application that can _ask_.
 
 ```javascript
 editor.spellChecker = (words) => new Set(words.filter((w) => !dictionary.has(w)))
@@ -204,7 +204,7 @@ editor.clearSpelling()         // remove every mark, change no text
 ### Resolution is the workflow
 
 In a jargon-heavy domain — contracts, medicine, anything with terms of art — the
-usual answer to an unknown word is *"that is a real word"*, not *"I mistyped"*.
+usual answer to an unknown word is _"that is a real word"_, not _"I mistyped"_.
 So accepting has to be as cheap as correcting, and every flagged word has to end
 up resolved one way or the other.
 
@@ -287,7 +287,7 @@ document should not carry a record of which words some dictionary once disliked.
 
 Not implemented, and worth knowing before you build UI on this:
 
-- **no suggestions** — the checker reports *wrong*, not *did you mean*, and there
+- **no suggestions** — the checker reports _wrong_, not _did you mean_, and there
   is no native right-click menu to inherit either
 - **no incremental check** — `checkSpelling()` re-walks the whole document, which
   is right for a button and wrong for check-as-you-type on a long document
@@ -323,7 +323,7 @@ inside a change mark is ordinary editable content.
 
 **Out goes plain text**, one text node at a time. Formatting is deliberately not
 sent: a model asked to preserve markup will sometimes not, and a reviewer should
-be reviewing prose rather than diffing HTML. Marks *inside* a block — a link, a
+be reviewing prose rather than diffing HTML. Marks _inside_ a block — a link, a
 bold run — survive because each text node is revised in place. What the model
 never sees, it cannot damage.
 
@@ -362,14 +362,14 @@ without a mark and an entry in `changes`, which is the only property that makes
 `rejectChanges()` mean anything.
 
 The whole mechanism is **one predicate**, re-evaluated only when the insertion
-point might have moved: *is the caret already inside an insertion that is mine,
-from this session?* If yes, typing appends to it. If no, a new one opens. There
+point might have moved: _is the caret already inside an insertion that is mine,
+from this session?_ If yes, typing appends to it. If no, a new one opens. There
 is no per-operation bookkeeping, because a continuous run of typing keeps the
 predicate true and it stops being true exactly when it should — a click
 elsewhere, an arrow key, a new line, a different author, a later session.
 
 **Session, not just author.** Reopening a document and typing at the edge of your
-own earlier tracked insertion opens a *new* change. That edit happened at a
+own earlier tracked insertion opens a _new_ change. That edit happened at a
 different time and a reviewer may want to treat it separately; without this they
 would silently merge into one change bearing the older timestamp.
 
@@ -387,9 +387,10 @@ Two deletions behave specially, because the pedantic version would be noise:
 
 ### Not implemented
 
-- **no structural tracking.** A change mark wraps *content*, and structure is
+- **no structural tracking.** A change mark wraps _content_, and structure is
   not content. So while `trackChanges` is on, edits that restructure rather
   than delete text are **refused** rather than performed:
+
   - Backspace at the start of a paragraph, Delete at the end of one, and
     Backspace out of a list item (each deletes a paragraph break)
   - **Delete Row** and **Delete Column** on a table — a grid table has no row
@@ -418,11 +419,13 @@ Two deletions behave specially, because the pedantic version would be noise:
   untracked** — if tracking could have represented it, there would have been
   nothing to refuse. A custom command refuses the same way, through
   `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.
+
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see
   [EXTENSIBILITY.md](https://github.com/tonioloewald/tosijs-editor/blob/master/EXTENSIBILITY.md)
   (a repo document; it is not in the npm tarball).
+
 ### Resolved changes leave nothing behind
 
 Accepting or rejecting a change **evaporates the mark entirely** — no wrapper, no
@@ -709,35 +712,35 @@ Custom widgets you add follow the same rules and get translated too.
 
 ### Change tracking
 
-| Member                          | Type                               | Description                                                              |
-| ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| `trackChanges`                  | `boolean`                          | Record live edits as tracked changes                                     |
-| `changeAuthor`                  | `{ id, name? }`                    | Who the next change is attributed to                                     |
-| `sessionId`                     | `string` (readonly)                | Distinguishes this editing session from an earlier one by the same author |
-| `changes`                       | `TrackedChange[]`                  | Every change in the document, in document order                          |
-| `acceptChanges(id?)`            | `void`                             | Accept one change, or all of them with no argument                       |
-| `rejectChanges(id?)`            | `void`                             | Reject one change, or all of them with no argument                       |
-| `reviseWith(revise, author?)`   | `Promise<number>`                  | Round-trip the prose through a proofreader; returns changes introduced   |
+| Member                        | Type                | Description                                                               |
+| ----------------------------- | ------------------- | ------------------------------------------------------------------------- |
+| `trackChanges`                | `boolean`           | Record live edits as tracked changes                                      |
+| `changeAuthor`                | `{ id, name? }`     | Who the next change is attributed to                                      |
+| `sessionId`                   | `string` (readonly) | Distinguishes this editing session from an earlier one by the same author |
+| `changes`                     | `TrackedChange[]`   | Every change in the document, in document order                           |
+| `acceptChanges(id?)`          | `void`              | Accept one change, or all of them with no argument                        |
+| `rejectChanges(id?)`          | `void`              | Reject one change, or all of them with no argument                        |
+| `reviseWith(revise, author?)` | `Promise<number>`   | Round-trip the prose through a proofreader; returns changes introduced    |
 
 ### Spell checking
 
-| Member                            | Type                                 | Description                                              |
-| --------------------------------- | ------------------------------------ | -------------------------------------------------------- |
-| `spellChecker`                    | `(words) => Set \| Promise<Set>`     | Supply a checker; without one, nothing is checked        |
-| `checkSpelling()`                 | `Promise<SpellingError[]>`           | Check now and mark what comes back wrong                 |
-| `spellingErrors`                  | `SpellingError[]`                    | The current errors — the query browsers refuse to answer |
-| `acceptWord(word, scope?)`        | `void`                               | `'document'` (default) or `'dictionary'`                 |
-| `documentWords` / `userDictionary` | `Set<string>`                       | The two accepted-word scopes, for persisting             |
-| `handleWordAccepted`              | `(word, scope) => void`              | Called when a word is accepted, so the host can persist  |
-| `clearSpelling()`                 | `void`                               | Drop every mark without changing the text                |
+| Member                             | Type                             | Description                                              |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------- |
+| `spellChecker`                     | `(words) => Set \| Promise<Set>` | Supply a checker; without one, nothing is checked        |
+| `checkSpelling()`                  | `Promise<SpellingError[]>`       | Check now and mark what comes back wrong                 |
+| `spellingErrors`                   | `SpellingError[]`                | The current errors — the query browsers refuse to answer |
+| `acceptWord(word, scope?)`         | `void`                           | `'document'` (default) or `'dictionary'`                 |
+| `documentWords` / `userDictionary` | `Set<string>`                    | The two accepted-word scopes, for persisting             |
+| `handleWordAccepted`               | `(word, scope) => void`          | Called when a word is accepted, so the host can persist  |
+| `clearSpelling()`                  | `void`                           | Drop every mark without changing the text                |
 
 ### Other
 
-| Member           | Description                                                      |
-| ---------------- | ---------------------------------------------------------------- |
-| `doCommand(str)` | Execute a command string                                         |
-| `focus()`        | Focus the caret                                                  |
-| `sanitize`       | `(root: Element) => void` applied to pasted and dropped content   |
+| Member           | Description                                                     |
+| ---------------- | --------------------------------------------------------------- |
+| `doCommand(str)` | Execute a command string                                        |
+| `focus()`        | Focus the caret                                                 |
+| `sanitize`       | `(root: Element) => void` applied to pasted and dropped content |
 
 Also exported from the package: `stickySelectionBounds`, `sanitizeInPlace` and
 `isSafeNavigationUrl` (re-exported from

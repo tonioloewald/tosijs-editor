@@ -26,7 +26,7 @@ quarterly lens had to reconstruct seven reports by hand.
   collapsed-caret Backspace.
 - **The suite was 236 pass / 0 fail throughout, because none of the three had a test.**
   Green was not evidence of anything. The blockers were found by lenses reading the code,
-  and two of them were found *because* coverage flagged an untested shape.
+  and two of them were found _because_ coverage flagged an untested shape.
 - **Four regression tests written against confirmed, reproduced bugs passed against the
   UNFIXED code** and had to be rewritten — they asserted conditions the bugs did not
   actually violate (e.g. Latin marks separated by a real space never become adjacent; only

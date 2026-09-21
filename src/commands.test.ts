@@ -359,14 +359,18 @@ describe('links, images and footnotes', () => {
   })
 
   test('setLink repoints an existing link rather than nesting one', () => {
-    const ctx = selectAll('<p><a href="http://old.example"><span>x</span></a></p>')
+    const ctx = selectAll(
+      '<p><a href="http://old.example"><span>x</span></a></p>'
+    )
     root.querySelector('span')!.classList.add('selected')
     executeCommand(ctx, 'setLink https://new.example')
     expect(root.querySelectorAll('a').length).toBe(1)
   })
 
   test('removeLink unwraps but keeps the text', () => {
-    const ctx = selectAll('<p><a href="https://example.com"><span>keep me</span></a></p>')
+    const ctx = selectAll(
+      '<p><a href="https://example.com"><span>keep me</span></a></p>'
+    )
     root.querySelector('span')!.classList.add('selected')
     executeCommand(ctx, 'removeLink')
     expect(root.querySelector('a')).toBeNull()
@@ -375,7 +379,10 @@ describe('links, images and footnotes', () => {
 
   test('insertImage puts an img at the caret', () => {
     root.innerHTML = '<p>before<input class="sel-end caret">after</p>'
-    executeCommand(createContext(root), 'insertImage https://example.com/cat.png A cat')
+    executeCommand(
+      createContext(root),
+      'insertImage https://example.com/cat.png A cat'
+    )
     const img = root.querySelector('img')
     expect(img).not.toBeNull()
     expect(img!.getAttribute('src')).toBe('https://example.com/cat.png')
@@ -405,7 +412,9 @@ describe('links, images and footnotes', () => {
     root.querySelectorAll('p')[1].appendChild(caret)
     executeCommand(ctx, 'insertFootnote note B')
 
-    let numbers = [...root.querySelectorAll('.footnote-ref a')].map((a) => a.textContent)
+    let numbers = [...root.querySelectorAll('.footnote-ref a')].map(
+      (a) => a.textContent
+    )
     expect(numbers).toEqual(['1', '2'])
 
     // now insert one BEFORE both
@@ -413,10 +422,14 @@ describe('links, images and footnotes', () => {
     first.insertBefore(caret, first.firstChild)
     executeCommand(ctx, 'insertFootnote note C')
 
-    numbers = [...root.querySelectorAll('.footnote-ref a')].map((a) => a.textContent)
+    numbers = [...root.querySelectorAll('.footnote-ref a')].map(
+      (a) => a.textContent
+    )
     expect(numbers).toEqual(['1', '2', '3'])
     // and the list order follows the markers, not insertion order
-    const order = [...root.querySelectorAll('ol.footnotes li')].map((li) => li.textContent)
+    const order = [...root.querySelectorAll('ol.footnotes li')].map(
+      (li) => li.textContent
+    )
     expect(order).toEqual(['note C', 'note A', 'note B'])
   })
 
@@ -427,7 +440,9 @@ describe('links, images and footnotes', () => {
     executeCommand(ctx, 'insertFootnote stays')
     root.querySelector('.footnote-ref')!.remove()
     executeCommand(ctx, 'renumberFootnotes')
-    const items = [...root.querySelectorAll('ol.footnotes li')].map((li) => li.textContent)
+    const items = [...root.querySelectorAll('ol.footnotes li')].map(
+      (li) => li.textContent
+    )
     expect(items).toEqual(['stays'])
     expect(root.querySelector('.footnote-ref a')!.textContent).toBe('1')
   })

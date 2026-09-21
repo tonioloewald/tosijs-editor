@@ -27,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already word-granular, and a cross-block selection has larger units than
   words.
 
-
 - **Tracked changes, and an LLM proofreading round-trip.** Insertions and
   deletions are content (`<tosi-ins>` / `<tosi-del>` with author and timestamp),
   not an operation log, so a tracked document still serializes and round-trips.
@@ -71,7 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already do that, and a document carrying every resolved edit becomes
   unreadable and awkward to share.
 
-
 - **Spell checking, which this editor otherwise has none of.** Browsers only
   spell-check editing hosts (`textarea`, `input`, `contenteditable`), and nothing
   here is one — so replacing `contentEditable` removed browser spell checking
@@ -105,11 +103,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tosi-footnote, .footnote-ref { vertical-align: super; font-size: 0.75em; }`
 - **`<tosi-del>` needs a strikethrough rule outside the editor too.** A tracked
   document round-trips anywhere, which is the point — but an unstyled
-  `<tosi-del>` reads as ordinary prose, i.e. the *opposite* of what the document
+  `<tosi-del>` reads as ordinary prose, i.e. the _opposite_ of what the document
   says. If you render `value` outside this component, ship
   `tosi-del { text-decoration: line-through; opacity: 0.6; }` and
   `tosi-ins { text-decoration: underline; }`. Beware a downstream sanitizer that
-  *unwraps* unknown tags: that inverts a deletion silently. `acceptChanges()` is
+  _unwraps_ unknown tags: that inverts a deletion silently. `acceptChanges()` is
   how you hand a plain document to a consumer like that.
 - **`ignoreWord` is gone** — it was added and deprecated within this unreleased
   span, so it never shipped and protects no callers. Use
@@ -123,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`editor.value` could throw and permanently destroy every spelling mark.**
   Reading `value` unwraps the marks to keep them out of the serialization, then
   restores them. Restoring ran in document order, so when one mark's anchor was
-  the *next* mark — routine, since any `normalize()` collapses the empty text
+  the _next_ mark — routine, since any `normalize()` collapses the empty text
   node between them — `insertBefore` threw partway and every remaining mark
   stayed unwrapped for good. `updateUndo()` reads `value` first thing on
   keypress, so one keystroke in such a document also silently lost the undo
@@ -141,8 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `changes`, and nothing for `rejectChanges()` to restore. Every destructive
   path is now tracked.
 - **A paste inside an existing insertion nested the marks**, so rejecting the
-  outer change silently discarded the inner one — including rejecting *another
-  author's* change throwing away *your* pasted text.
+  outer change silently discarded the inner one — including rejecting _another
+  author's_ change throwing away _your_ pasted text.
 - **Change ids could collide** when a deletion and its replacement were produced
   in one keystroke (typing or pasting over a selection), so accepting the
   deletion also accepted the replacement.
@@ -151,7 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   liked and `editor.changes` reported it as fact — and a pasted `data-change`
   could collide with a live one. Attribution is client-asserted document
   content, not an authenticated identity; what is guaranteed is that a mark
-  records who put it in *this* document.
+  records who put it in _this_ document.
 - **A spelling error could outlive the document it described.** Undo, redo,
   `value =` and form reset all wipe the marks, and none of them touched form
   validity — leaving the field invalid with a message naming an absent word,
@@ -159,7 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`reviseWith` no longer builds an unbounded diff table from a remote
   response** (16k tokens measured at 1.7 s and +1.2 GB on the main thread), and
   a proofreader that fails part-way no longer leaves the document half-revised
-  *outside* the undo stack.
+  _outside_ the undo stack.
 - **`acceptChanges('')` / `rejectChanges('')` no longer resolve every change in
   the document.** An empty string arrives from a `dataset` lookup that found
   nothing; `undefined` still means all.
@@ -173,7 +171,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   connected/disconnectedCallback, so a deletion, drag, paste or undo maintains
   the list with no command run. Documents saved earlier, which used a plain
   `<sup class="footnote-ref">`, still renumber correctly.
-
 
 ## [0.4.5] - 2026-09-17
 
@@ -205,11 +202,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tosijs-kilpi` is a real dependency (this package's first — tosijs and
   tosijs-ui remain peers), at `^1.0.0`. kilpi went 1.0.0 for that reason alone:
   `^0.1.0` resolves to `>=0.1.0 <0.2.0`, so a 0.2.0 security fix would have
-  reached no installed consumer, and for a dependency that *is* the XSS defence
+  reached no installed consumer, and for a dependency that _is_ the XSS defence
   a range that blocks propagation is a defect in itself. It is external in `dist/module.js`, so a consumer who
   also depends on it directly gets one copy, and bundled into `dist/index.js`,
   which assumes no installs.
-
 
 ## [0.4.4] - 2026-09-16
 
@@ -235,8 +231,8 @@ they are collected here rather than reconstructed inaccurately.
   Ordinary formatting and unregistered custom elements are preserved.
   `editor.sanitize` is a swappable hook if you would rather supply your own
   (DOMPurify drops in; see the README).
-  *This path was unreachable in 0.4.2–0.4.3 only because `insertionPoint()` was
-  broken; fixing that is what made it live again.*
+  _This path was unreachable in 0.4.2–0.4.3 only because `insertionPoint()` was
+  broken; fixing that is what made it live again._
 - **Ctrl/Cmd-clicking a link checks the URL scheme** and always opens a new
   context. `javascript:` executes in the embedding page's origin and `noopener`
   does not prevent it; `_self`/`_top` are resolved before `noopener` is
@@ -280,7 +276,6 @@ they are collected here rather than reconstructed inaccurately.
   ignores the event that opened it by identity instead of deferring its own
   subscription.
 - The drop-in `dist/index.js` build is minified: 83.5kB → 70.8kB gzipped.
-
 
 ### Added
 
