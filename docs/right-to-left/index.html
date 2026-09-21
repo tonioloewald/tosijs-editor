@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="../doc-system.css?v=0.4.5" data-tosi-doc-system />
+  <link rel="stylesheet" href="../doc-system.css?v=d8140c7836d9" data-tosi-doc-system />
   <title>Right-to-Left Text — tosijs-styled-editor</title>
   <meta name="description" content="Bidirectional text is where an editor that fakes its own selection either works or falls over. Selection here is resolved by measuring with Ranges — the…" />
   <link rel="canonical" href="https://editor.tosijs.net/right-to-left/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="../docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
+  <tosi-doc-system docs="../docs.json?v=f11173c73bd8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
   <article class="doc-content">
 <h1>Right-to-Left Text</h1>
 <p>Bidirectional text is where an editor that fakes its own selection either works or
@@ -227,7 +227,7 @@ and renders the run correctly, which is the same fix <code>&lt;code&gt;</code> n
 <h2>Setting direction</h2>
 <p><code>dir</code> is ordinary markup and is preserved through editing, so a document can mix
 directions per block:</p>
-<pre><code class="language-xml">&lt;p dir=&quot;rtl&quot;&gt;…&lt;/p&gt;
+<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span> <span class="token attr-name">dir</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>rtl<span class="token punctuation">"</span></span><span class="token punctuation">></span></span>…<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
 </code></pre>
 <p>There is no toolbar command for it yet. <code>setBlocks</code> only writes CSS properties,
 and <code>direction</code> set in CSS does not survive serialization the way the attribute
@@ -243,6 +243,6 @@ does.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="../hydrate.js?v=0.4.5"></script>
+  <script type="module" src="../hydrate.js?v=d8140c7836d9"></script>
 </body>
 </html>

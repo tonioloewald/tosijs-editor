@@ -1,3 +1,119 @@
+[ ] FROM THE 0.5.0 NINE-LENS REVIEW (reviews/0.5.0-nine-lens.md). Everything the
+    review found and this release did NOT fix. Nothing here is "reviewed and fine";
+    it is "reviewed, deferred, tracked".
+
+    CHANGE TRACKING — the gaps the feature ships with:
+    - Line-break tracking. A change mark wraps CONTENT and a paragraph break is not
+      content, so deletions that would MERGE blocks are currently REFUSED while
+      tracking (Backspace at the start of a paragraph, Delete at the end of one,
+      Backspace out of a list item). This is the honest behaviour, not the desired
+      one. Doing it properly needs a representation for a deleted break.
+    - Drag-move within the document should be one delete + one insert pair, so a
+      reviewer sees a move rather than an unrelated deletion and insertion.
+    - No merge story. Needs an operation log; changes-as-content deliberately is not
+      one. See EXTENSIBILITY.md.
+    - Pasting content that ALREADY contains tracked marks nests them, and
+      acceptChange unwraps only the outer element. Marks are now re-stamped on
+      paste (attribution and ids), but nesting is unresolved. The "leaves NO
+      residue" tests only cover marks this editor created.
+    - trackDeletion receives topSingleParentAncestor(node), which for a text node
+      that is the only child of a <tosi-ins> climbs PAST the mark — so the
+      "un-typing my own text" test can run against the wrong element.
+    - TrackedChange omits `session`, though data-session decides tracking behaviour.
+
+    reviseWith:
+    - One serial LLM call per TEXT NODE: no batching, no bounded concurrency, no
+      cancellation signal. `<p>the <b>quick</b> brown fox</p>` is five calls, so the
+      proofreader cannot fix grammar across an inline run — the feature is weakest
+      exactly where formatting exists. Batch by BLOCK and the problem goes away.
+      (The half-revised-document-outside-undo part of this IS fixed.)
+
+    SPELL CHECKING:
+    - No suggestions ("did you mean"), and no incremental re-check: a word typed
+      after a check is not flagged until the next full pass. syncSpellingValidity
+      keeps validity honest about the marks that EXIST, but it is not live.
+    - markHits' bare `catch {}` means a word straddling the bounds markers — the
+      word the caret is in — is systematically never flagged. Possibly right;
+      currently undocumented, untested and invisible.
+
+    LEAKS AND CLEANUP:
+    - `value` still carries the selection markers (.sel-start/.sel-end). docHTML
+      serves BOTH `value` and the undo stack, and undo wants the caret back, so
+      splitting them is a real design decision rather than an oversight. A host
+      persisting `value` is storing editor chrome today.
+    - TosiFootnote.connectedCallback stamps `not-selectable do-not-spanify` onto the
+      light-DOM element, so view-state classes leak into `value` — the same leak
+      docHTML goes to trouble to prevent for spelling marks. Express the exemption
+      by tag instead.
+    - docHTML's GETTER mutates the live DOM on every keystroke (via updateUndo) to
+      produce a string. Serializing a detached clone would remove both the
+      affordance dance and the mark unwrap/restore entirely. Measured 4.2x under
+      happy-dom; the risk is running custom-element constructors on every clone.
+
+    DRYNESS (each confirmed, none urgent):
+    - "Unwrap an element, keeping its children" is hand-written five times
+      (changes.ts, spelling.ts, tosijs-styled-editor.ts, commands.ts, dom-utils.ts)
+      and three differ in whether they normalize. Export one `unwrap(el)`.
+    - defineChanges / defineMisspelling / defineFootnote are three copies of one
+      idempotent registration guard — and EXTENSIBILITY.md teaches the pattern to
+      plugin authors. One `defineElement(tag, ctor)`.
+    - Three copies of the Intl.Segmenter capability probe, whose fallbacks have
+      already drifted.
+    - The four global tag names are claimed with a silent customElements.get bail,
+      no tag override and no documentation. Warn when the guard bails on a foreign
+      constructor; say in README that importing registers these names.
+
+    COVERAGE GAPS (no test is red; these are absences):
+    - No src/changes.test.ts. tokenize/diffWords — the release's only non-trivial
+      pure algorithm — are covered only by integration tests over one four-word
+      ASCII sentence. Table-driven cases plus a lossless round-trip property.
+    - Branches that can never execute in the suite: wordsIn's non-Segmenter
+      fallback, markHits' catch, and reviseWith's `typeof revised !== 'string'`
+      guard — the untrusted-response path.
+    - extendSticky and the dragAnchor lifecycle are untested; only the pure
+      stickySelectionBounds is covered.
+    - The legacy <sup class="footnote-ref"> compatibility path is asserted by no
+      test, because insertFootnote emits the new tag WITH THE SAME CLASS so every
+      selector matches the new element. Legacy <sup> refs are also never upgraded,
+      so they never get lifecycle reconcile.
+    - Nothing verifies a <tosi-del> or <tosi-misspelling> inside a table cell
+      survives column ops.
+    - NOT MEASURED IN A REAL ENGINE. Spelling marks split text nodes across the
+      whole document on every check, and tosi-ins/tosi-del are inline elements in
+      the text flow. CLAUDE.md records that merely splitting a text node reshapes
+      Arabic in WebKit by up to 4px. Every new test is happy-dom, where all rects
+      are zero. Drive `bun start` + `hj eval` against the RTL page for reshaping,
+      line re-wrap and block-height deltas. THIS IS THE MOST IMPORTANT ITEM HERE.
+
+    DOWNSTREAM RENDERING (both are "the document means something different outside
+    the editor", which is the same class as the <tosi-del> styling decision):
+    - insertFootnote changed the saved format <sup> -> <tosi-footnote>, and the
+      superscript rule lives only in the shadow stylesheet, so markers render as
+      full-size baseline digits in any downstream renderer. `.footnote-ref` is
+      retained, so one CSS rule repairs every already-written document — ship or
+      document it.
+    - No CSS ships or is documented for <tosi-ins>/<tosi-del> outside the editor,
+      while README advertises that a tracked document "can be read by something
+      that has never heard of this component" — where a <tosi-del> reads as live
+      prose. Ship or document the six lines.
+    - SECURITY.md says nothing about what `value` carries: plugin content elements
+      whose meaning depends on styling the consumer may not have, and that a
+      downstream sanitizer which UNWRAPS unknown tags inverts a <tosi-del>. One
+      sentence there, plus a README note that acceptChanges() is how you hand a
+      plain document to such a consumer.
+
+    SMALLER:
+    - docs/version.json records the build-time commit, so it can never survive
+      `git diff --exit-code` and the Tier-0 stale-docs check has a permanent false
+      positive. Exclude it or stamp it from HEAD.
+    - Naming: Selectable.textIndexOf returns a struct, not an index. tokenize /
+      diffWords / DiffOp / applyRevision are now generic top-level package exports
+      with no hint they are word-diff internals.
+    - extendSticky rebuilds the block text index and constructs two Segmenters per
+      mousemove, re-segmenting an anchor whose bounds cannot change during a drag.
+      0.72ms at 40k chars — under budget, but on the one handler already optimized
+      once.
+
 [ ] DEV-DEPENDENCY MAJORS HELD BACK DELIBERATELY — release-doctor asks "deliberate, or
     stale?" on each, so this is the answer. Neither ships to consumers.
     - prettier ^2 (latest 3.x): upgrading reformats the whole codebase in one commit,
@@ -18,7 +134,7 @@
     installed consumer. For a dependency that IS the XSS defence, a range that blocks
     propagation is a defect.
 
-[ ] DELIBERATE SCOPE DECISION, not an oversight (from the 0.4.6 review, B1). Sanitization
+[ ] DELIBERATE SCOPE DECISION, not an oversight (from the review filed as reviews/0.4.6-pre-release.md; that work shipped as 0.4.4, B1). Sanitization
     covers the two paths by which UNTRUSTED content enters: paste and drop, both through
     insertTransfer(). It does NOT cover `editor.value = html` or initial light-DOM content
     (tosijs-styled-editor.ts:655, :712) — those are host-supplied and in the host's own

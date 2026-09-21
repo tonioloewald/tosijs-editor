@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=0.4.5" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=d8140c7836d9" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=f11173c73bd8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -84,19 +84,19 @@ nothing is handed back to the browser to edit.</p>
 <li>Touch-friendly selection</li>
 </ul>
 <h2>Development</h2>
-<pre><code class="language-bash">bun install
-bun run tls     # once — locally-trusted dev certs (needs mkcert)
-bun start       # dev server + doc site on https://localhost:8789
-bun test        # unit tests
-bun run lint    # typecheck, including unused locals/params
-bun run format  # Prettier
-bun run make    # full build (NOT `bun run build` — `bun build` is a Bun builtin)
+<pre><code class="language-bash" data-highlighted>bun <span class="token function">install</span>
+bun run tls     <span class="token comment"># once — locally-trusted dev certs (needs mkcert)</span>
+bun start       <span class="token comment"># dev server + doc site on https://localhost:8789</span>
+bun <span class="token builtin class-name">test</span>        <span class="token comment"># unit tests</span>
+bun run lint    <span class="token comment"># typecheck, including unused locals/params</span>
+bun run <span class="token function">format</span>  <span class="token comment"># Prettier</span>
+bun run <span class="token function">make</span>    <span class="token comment"># full build (NOT `bun run build` — `bun build` is a Bun builtin)</span>
 </code></pre>
 <p><code>bin/site.ts</code> is the only build/dev entry; it wraps tosijs-ui&#39;s doc system and
 is configured in <code>tosijs-editor-site.config.ts</code>.</p>
 <p>Live site and docs: <a href="https://editor.tosijs.net">https://editor.tosijs.net</a></p>
 <h2>Installation</h2>
-<pre><code class="language-bash">npm install tosijs-styled-editor
+<pre><code class="language-bash" data-highlighted><span class="token function">npm</span> <span class="token function">install</span> tosijs-styled-editor
 </code></pre>
 <p><strong>Peer dependencies</strong> (you install these): <code>tosijs</code>, <code>tosijs-ui</code></p>
 <p><strong>Runtime dependency</strong> (installed automatically):
@@ -108,35 +108,35 @@ leaves it external so you get one copy if you also depend on it directly.</p>
 <p>Drop it in and it is editable. <code>widgets</code> picks a built-in toolbar preset —
 <code>none</code> (the default), <code>minimal</code>, or <code>default</code> (toolbar + menus), as in the
 example above.</p>
-<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot;&gt;
-  &lt;p&gt;Edit this text!&lt;/p&gt;
-  &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
-&lt;/tosijs-styled-editor&gt;
+<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>tosijs-styled-editor</span> <span class="token attr-name">widgets</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>default<span class="token punctuation">"</span></span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">></span></span>Edit this text!<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">></span></span>It supports <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>b</span><span class="token punctuation">></span></span>bold<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>b</span><span class="token punctuation">></span></span>, <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>i</span><span class="token punctuation">></span></span>italic<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>i</span><span class="token punctuation">></span></span>, and more.<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>tosijs-styled-editor</span><span class="token punctuation">></span></span>
 </code></pre>
 <p>The whole chrome is mixed from one custom property, so re-theming is a single
 value:</p>
-<pre><code class="language-xml">&lt;style&gt;
-  tosijs-styled-editor { --editor-ink: #27488c; }
-&lt;/style&gt;
+<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>style</span><span class="token punctuation">></span></span><span class="token style"><span class="token language-css">
+  <span class="token selector">tosijs-styled-editor</span> <span class="token punctuation">{</span> <span class="token property">--editor-ink</span><span class="token punctuation">:</span> #27488c<span class="token punctuation">;</span> <span class="token punctuation">}</span>
+</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>style</span><span class="token punctuation">></span></span>
 </code></pre>
 <h3>Setting up toolbars and menus</h3>
-<pre><code class="language-typescript">import { tosijsStyledEditor, type TosijsStyledEditor } from &#39;tosijs-styled-editor&#39;
-import { defaultToolbar, defaultMenubar } from &#39;tosijs-styled-editor&#39;
+<pre><code class="language-typescript" data-highlighted><span class="token keyword">import</span> <span class="token punctuation">{</span> tosijsStyledEditor<span class="token punctuation">,</span> <span class="token keyword">type</span> <span class="token class-name">TosijsStyledEditor</span> <span class="token punctuation">}</span> <span class="token keyword">from</span> <span class="token string">'tosijs-styled-editor'</span>
+<span class="token keyword">import</span> <span class="token punctuation">{</span> defaultToolbar<span class="token punctuation">,</span> defaultMenubar <span class="token punctuation">}</span> <span class="token keyword">from</span> <span class="token string">'tosijs-styled-editor'</span>
 
-const editor = tosijsStyledEditor() as TosijsStyledEditor
-editor.value = &#39;&lt;p&gt;Hello world&lt;/p&gt;&#39;
-document.body.appendChild(editor)
+<span class="token keyword">const</span> editor <span class="token operator">=</span> <span class="token function">tosijsStyledEditor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">as</span> TosijsStyledEditor
+editor<span class="token punctuation">.</span>value <span class="token operator">=</span> <span class="token string">'&lt;p>Hello world&lt;/p>'</span>
+document<span class="token punctuation">.</span>body<span class="token punctuation">.</span><span class="token function">appendChild</span><span class="token punctuation">(</span>editor<span class="token punctuation">)</span>
 
-// Add menus (slot=&quot;menubar&quot;)
-for (const menu of defaultMenubar(editor)) {
-  editor.appendChild(menu)
-}
+<span class="token comment">// Add menus (slot="menubar")</span>
+<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">const</span> menu <span class="token keyword">of</span> <span class="token function">defaultMenubar</span><span class="token punctuation">(</span>editor<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  editor<span class="token punctuation">.</span><span class="token function">appendChild</span><span class="token punctuation">(</span>menu<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 
-// Add toolbar buttons (slot=&quot;toolbar&quot;)
-for (const widget of defaultToolbar()) {
-  widget.setAttribute(&#39;slot&#39;, &#39;toolbar&#39;)
-  editor.appendChild(widget)
-}
+<span class="token comment">// Add toolbar buttons (slot="toolbar")</span>
+<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">const</span> widget <span class="token keyword">of</span> <span class="token function">defaultToolbar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  widget<span class="token punctuation">.</span><span class="token function">setAttribute</span><span class="token punctuation">(</span><span class="token string">'slot'</span><span class="token punctuation">,</span> <span class="token string">'toolbar'</span><span class="token punctuation">)</span>
+  editor<span class="token punctuation">.</span><span class="token function">appendChild</span><span class="token punctuation">(</span>widget<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 </code></pre>
 <h2>How It Works</h2>
 <p>The editor uses three layers:</p>
@@ -175,16 +175,16 @@ cannot fix that for you — setting <code>value</code> does not filter. Sanitize
 corpus as part of the upgrade.</p>
 <p><strong>Using a different sanitizer.</strong> <code>editor.sanitize</code> is the hook — it receives a
 detached element and mutates it:</p>
-<pre><code class="language-javascript">editor.sanitize = (root) =&gt; {
-  DOMPurify.sanitize(root, {
-    IN_PLACE: true,
-    FORBID_TAGS: [&#39;style&#39;],
-    CUSTOM_ELEMENT_HANDLING: {
-      tagNameCheck: /^[a-z][a-z0-9]*-[a-z0-9-]*$/,
-      attributeNameCheck: /^data-|^slot$|^dir$/,
-    },
-  })
-}
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function-variable function">sanitize</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token parameter">root</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  DOMPurify<span class="token punctuation">.</span><span class="token function">sanitize</span><span class="token punctuation">(</span>root<span class="token punctuation">,</span> <span class="token punctuation">{</span>
+    <span class="token constant">IN_PLACE</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+    <span class="token constant">FORBID_TAGS</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">'style'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+    <span class="token constant">CUSTOM_ELEMENT_HANDLING</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+      <span class="token literal-property property">tagNameCheck</span><span class="token operator">:</span> <span class="token regex"><span class="token regex-delimiter">/</span><span class="token regex-source language-regex">^[a-z][a-z0-9]*-[a-z0-9-]*$</span><span class="token regex-delimiter">/</span></span><span class="token punctuation">,</span>
+      <span class="token literal-property property">attributeNameCheck</span><span class="token operator">:</span> <span class="token regex"><span class="token regex-delimiter">/</span><span class="token regex-source language-regex">^data-|^slot$|^dir$</span><span class="token regex-delimiter">/</span></span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 </code></pre>
 <p>It takes an element rather than an HTML string on purpose: a string signature
 would force a serialize-and-reparse round trip, and that round trip is where
@@ -201,12 +201,12 @@ a cost of replacing <code>contentEditable</code>, and worth knowing before you a
 squiggles will appear on their own.</p>
 <p>In exchange you get the thing a <code>contentEditable</code> editor cannot have: an
 application that can <em>ask</em>.</p>
-<pre><code class="language-javascript">editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !dictionary.has(w)))
-await editor.checkSpelling()
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function-variable function">spellChecker</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token parameter">words</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token keyword">new</span> <span class="token class-name">Set</span><span class="token punctuation">(</span>words<span class="token punctuation">.</span><span class="token function">filter</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token parameter">w</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token operator">!</span>dictionary<span class="token punctuation">.</span><span class="token function">has</span><span class="token punctuation">(</span>w<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token keyword">await</span> editor<span class="token punctuation">.</span><span class="token function">checkSpelling</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
 
-editor.spellingErrors          // [{ word, element }, …] in document order
-editor.validity.customError    // true — a real form submit is blocked
-editor.clearSpelling()         // remove every mark, change no text
+editor<span class="token punctuation">.</span>spellingErrors          <span class="token comment">// [{ word, element }, …] in document order</span>
+editor<span class="token punctuation">.</span>validity<span class="token punctuation">.</span>customError    <span class="token comment">// true — a real form submit is blocked</span>
+editor<span class="token punctuation">.</span><span class="token function">clearSpelling</span><span class="token punctuation">(</span><span class="token punctuation">)</span>         <span class="token comment">// remove every mark, change no text</span>
 </code></pre>
 <h3>Resolution is the workflow</h3>
 <p>In a jargon-heavy domain — contracts, medicine, anything with terms of art — the
@@ -217,8 +217,8 @@ up resolved one way or the other.</p>
 word is corrected or accepted</strong>, so a real form submit is blocked rather than
 relying on anyone to remember to look.</p>
 <p>Accepting has two scopes, because they have different lifetimes:</p>
-<pre><code class="language-javascript">editor.acceptWord(&#39;indemnitor&#39;, &#39;document&#39;)    // this document only
-editor.acceptWord(&#39;lessor&#39;, &#39;dictionary&#39;)      // everywhere, for this user
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function">acceptWord</span><span class="token punctuation">(</span><span class="token string">'indemnitor'</span><span class="token punctuation">,</span> <span class="token string">'document'</span><span class="token punctuation">)</span>    <span class="token comment">// this document only</span>
+editor<span class="token punctuation">.</span><span class="token function">acceptWord</span><span class="token punctuation">(</span><span class="token string">'lessor'</span><span class="token punctuation">,</span> <span class="token string">'dictionary'</span><span class="token punctuation">)</span>      <span class="token comment">// everywhere, for this user</span>
 </code></pre>
 <ul>
 <li><strong><code>documentWords</code></strong> — a contract&#39;s defined terms and party names. Persist with
@@ -231,10 +231,10 @@ domains: either every later document inherits one contract&#39;s party names, or
 user re-accepts the same terminology forever.</p>
 <p>The editor persists neither — it does not know where either store lives. It tells
 you what to write, and you decide where:</p>
-<pre><code class="language-javascript">editor.handleWordAccepted = (word, scope) =&gt; {
-  if (scope === &#39;dictionary&#39;) saveToUserDictionary(word)
-  else saveWithDocument(word)
-}
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function-variable function">handleWordAccepted</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token parameter">word<span class="token punctuation">,</span> scope</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>scope <span class="token operator">===</span> <span class="token string">'dictionary'</span><span class="token punctuation">)</span> <span class="token function">saveToUserDictionary</span><span class="token punctuation">(</span>word<span class="token punctuation">)</span>
+  <span class="token keyword">else</span> <span class="token function">saveWithDocument</span><span class="token punctuation">(</span>word<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 </code></pre>
 <p>Load them back by assigning the sets before checking.</p>
 <p>Accepting jargon does not launder a real typo: with <code>indemnitor</code> and <code>lessor</code>
@@ -245,19 +245,19 @@ roughly forty times the size of the whole editor.</p>
 <h3>Wiring a real checker</h3>
 <p>The checker is <code>(distinctWords) =&gt; the subset that is wrong</code>, sync or async, so
 any off-the-shelf engine fits behind it. With a hunspell-style library:</p>
-<pre><code class="language-javascript">import nspell from &#39;nspell&#39;
+<pre><code class="language-javascript" data-highlighted><span class="token keyword">import</span> nspell <span class="token keyword">from</span> <span class="token string">'nspell'</span>
 
-const spell = nspell(await loadAffix(), await loadDictionary())
-editor.spellChecker = (words) =&gt; new Set(words.filter((w) =&gt; !spell.correct(w)))
+<span class="token keyword">const</span> spell <span class="token operator">=</span> <span class="token function">nspell</span><span class="token punctuation">(</span><span class="token keyword">await</span> <span class="token function">loadAffix</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token keyword">await</span> <span class="token function">loadDictionary</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+editor<span class="token punctuation">.</span><span class="token function-variable function">spellChecker</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token parameter">words</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token keyword">new</span> <span class="token class-name">Set</span><span class="token punctuation">(</span>words<span class="token punctuation">.</span><span class="token function">filter</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token parameter">w</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token operator">!</span>spell<span class="token punctuation">.</span><span class="token function">correct</span><span class="token punctuation">(</span>w<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
 </code></pre>
 <p>Or against a service, which is the case the batching exists for:</p>
-<pre><code class="language-javascript">editor.spellChecker = async (words) =&gt; {
-  const res = await fetch(&#39;/api/spell&#39;, {
-    method: &#39;POST&#39;,
-    body: JSON.stringify(words),
-  })
-  return new Set(await res.json())
-}
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function-variable function">spellChecker</span> <span class="token operator">=</span> <span class="token keyword">async</span> <span class="token punctuation">(</span><span class="token parameter">words</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  <span class="token keyword">const</span> res <span class="token operator">=</span> <span class="token keyword">await</span> <span class="token function">fetch</span><span class="token punctuation">(</span><span class="token string">'/api/spell'</span><span class="token punctuation">,</span> <span class="token punctuation">{</span>
+    <span class="token literal-property property">method</span><span class="token operator">:</span> <span class="token string">'POST'</span><span class="token punctuation">,</span>
+    <span class="token literal-property property">body</span><span class="token operator">:</span> <span class="token constant">JSON</span><span class="token punctuation">.</span><span class="token function">stringify</span><span class="token punctuation">(</span>words<span class="token punctuation">)</span><span class="token punctuation">,</span>
+  <span class="token punctuation">}</span><span class="token punctuation">)</span>
+  <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">Set</span><span class="token punctuation">(</span><span class="token keyword">await</span> res<span class="token punctuation">.</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 </code></pre>
 <p>The editor asks about <strong>distinct</strong> words, once per check — so a 10,000-word
 document with a 2,000-word vocabulary is one call carrying 2,000 entries, not
@@ -283,17 +283,17 @@ is right for a button and wrong for check-as-you-type on a long document</li>
 carrying author and timestamp — not an operation log. A tracked document is still
 a document: it serializes, round-trips, and can be read by something that has
 never heard of this component.</p>
-<pre><code class="language-javascript">editor.changeAuthor = { id: &#39;alex&#39;, name: &#39;Alex&#39; }
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span>changeAuthor <span class="token operator">=</span> <span class="token punctuation">{</span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token string">'alex'</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'Alex'</span> <span class="token punctuation">}</span>
 
-await editor.reviseWith(async (text) =&gt; {
-  const res = await fetch(&#39;/api/proofread&#39;, { method: &#39;POST&#39;, body: text })
-  return (await res.json()).text
-}, { id: &#39;gpt-x&#39;, name: &#39;Proofreader&#39; })
+<span class="token keyword">await</span> editor<span class="token punctuation">.</span><span class="token function">reviseWith</span><span class="token punctuation">(</span><span class="token keyword">async</span> <span class="token punctuation">(</span><span class="token parameter">text</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  <span class="token keyword">const</span> res <span class="token operator">=</span> <span class="token keyword">await</span> <span class="token function">fetch</span><span class="token punctuation">(</span><span class="token string">'/api/proofread'</span><span class="token punctuation">,</span> <span class="token punctuation">{</span> <span class="token literal-property property">method</span><span class="token operator">:</span> <span class="token string">'POST'</span><span class="token punctuation">,</span> <span class="token literal-property property">body</span><span class="token operator">:</span> text <span class="token punctuation">}</span><span class="token punctuation">)</span>
+  <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">await</span> res<span class="token punctuation">.</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span>text
+<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">{</span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token string">'gpt-x'</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'Proofreader'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span>
 
-editor.changes                    // [{ id, kind, author, authorName, time, text, element }]
-editor.acceptChanges(id)          // take this one
-editor.rejectChanges(id)          // keep the original
-editor.acceptChanges()            // all of them
+editor<span class="token punctuation">.</span>changes                    <span class="token comment">// [{ id, kind, author, authorName, time, text, element }]</span>
+editor<span class="token punctuation">.</span><span class="token function">acceptChanges</span><span class="token punctuation">(</span>id<span class="token punctuation">)</span>          <span class="token comment">// take this one</span>
+editor<span class="token punctuation">.</span><span class="token function">rejectChanges</span><span class="token punctuation">(</span>id<span class="token punctuation">)</span>          <span class="token comment">// keep the original</span>
+editor<span class="token punctuation">.</span><span class="token function">acceptChanges</span><span class="token punctuation">(</span><span class="token punctuation">)</span>            <span class="token comment">// all of them</span>
 </code></pre>
 <p>Both readings stay in the document until someone decides. A reviewer can put the
 caret inside a proposed insertion and adjust it before accepting — the text
@@ -320,8 +320,8 @@ the behaviour is a plugin. An unloaded footnote plugin is benign — you see a
 stray marker. A <code>&lt;tosi-del&gt;</code> without its strikethrough renders deleted text as
 ordinary prose, which reads as the opposite of what the document means.</p>
 <h3>Tracking live edits</h3>
-<pre><code class="language-javascript">editor.changeAuthor = { id: &#39;alex&#39;, name: &#39;Alex&#39; }
-editor.trackChanges = true
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span>changeAuthor <span class="token operator">=</span> <span class="token punctuation">{</span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token string">'alex'</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'Alex'</span> <span class="token punctuation">}</span>
+editor<span class="token punctuation">.</span>trackChanges <span class="token operator">=</span> <span class="token boolean">true</span>
 </code></pre>
 <p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code>, and <strong>every</strong> deletion wraps in
 <code>&lt;tosi-del&gt;</code> instead of removing — caret Backspace and Delete, a selection
@@ -646,32 +646,32 @@ annotate note              # Insert annotation at caret
 </code></pre>
 <h2>Tables</h2>
 <p>Tables use CSS Grid layout instead of <code>&lt;table&gt;</code> elements:</p>
-<pre><code class="language-xml">&lt;ul class=&quot;editor-table&quot; style=&quot;grid-template-columns: 1fr 1fr 1fr&quot;&gt;
-  &lt;li class=&quot;table-header&quot;&gt;Name&lt;/li&gt;
-  &lt;li class=&quot;table-header&quot;&gt;Role&lt;/li&gt;
-  &lt;li class=&quot;table-header&quot;&gt;Location&lt;/li&gt;
-  &lt;li&gt;Alice&lt;/li&gt;
-  &lt;li&gt;Engineer&lt;/li&gt;
-  &lt;li&gt;New York&lt;/li&gt;
-&lt;/ul&gt;
+<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>ul</span> <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>editor-table<span class="token punctuation">"</span></span> <span class="token special-attr"><span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token value css language-css"><span class="token property">grid-template-columns</span><span class="token punctuation">:</span> 1fr 1fr 1fr</span><span class="token punctuation">"</span></span></span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span> <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>table-header<span class="token punctuation">"</span></span><span class="token punctuation">></span></span>Name<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span> <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>table-header<span class="token punctuation">"</span></span><span class="token punctuation">></span></span>Role<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span> <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>table-header<span class="token punctuation">"</span></span><span class="token punctuation">></span></span>Location<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span><span class="token punctuation">></span></span>Alice<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span><span class="token punctuation">></span></span>Engineer<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>li</span><span class="token punctuation">></span></span>New York<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>li</span><span class="token punctuation">></span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>ul</span><span class="token punctuation">></span></span>
 </code></pre>
 <h2>Extending the editor</h2>
 <p>Add custom commands by extending <code>editor.commands</code>:</p>
-<pre><code class="language-typescript">editor.commands.myCommand = (ctx, ...args) =&gt; {
-  // ctx provides: root, selectable, commands, find(), findAll(),
-  //   selectedLeafNodes(), selectedBlocks(), insertionPoint(),
-  //   block(), normalize(), focus(), updateUndo()
-  const nodes = ctx.selectedLeafNodes()
-  // ... manipulate nodes ...
-  ctx.updateUndo(&#39;new&#39;)
-}
+<pre><code class="language-typescript" data-highlighted>editor<span class="token punctuation">.</span>commands<span class="token punctuation">.</span><span class="token function-variable function">myCommand</span> <span class="token operator">=</span> <span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token operator">...</span>args<span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  <span class="token comment">// ctx provides: root, selectable, commands, find(), findAll(),</span>
+  <span class="token comment">//   selectedLeafNodes(), selectedBlocks(), insertionPoint(),</span>
+  <span class="token comment">//   block(), normalize(), focus(), updateUndo()</span>
+  <span class="token keyword">const</span> nodes <span class="token operator">=</span> ctx<span class="token punctuation">.</span><span class="token function">selectedLeafNodes</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token comment">// ... manipulate nodes ...</span>
+  ctx<span class="token punctuation">.</span><span class="token function">updateUndo</span><span class="token punctuation">(</span><span class="token string">'new'</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
 
-editor.doCommand(&#39;myCommand arg1 arg2&#39;)
+editor<span class="token punctuation">.</span><span class="token function">doCommand</span><span class="token punctuation">(</span><span class="token string">'myCommand arg1 arg2'</span><span class="token punctuation">)</span>
 </code></pre>
 <h2>Localization</h2>
 <p>Add <code>localized</code> and the built-in widgets translate themselves, with a flag-only
 language picker in the menubar:</p>
-<pre><code class="language-xml">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;&lt;/tosijs-styled-editor&gt;
+<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>tosijs-styled-editor</span> <span class="token attr-name">widgets</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>default<span class="token punctuation">"</span></span> <span class="token attr-name">localized</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>tosijs-styled-editor</span><span class="token punctuation">></span></span>
 </code></pre>
 <p>Strings live in one tab-separated table, <code>localized-strings.tsv</code>. <strong>To add a
 language, add a column</strong> — nothing else changes:</p>
@@ -688,9 +688,9 @@ English text</strong>, so a missing cell or a missing row falls back to English 
 than showing a key — you can ship a half-translated column safely. A <code>&quot;</code> cell
 means &quot;same as English&quot;, which is what proper nouns and numerals use.</p>
 <p>Load it once at startup:</p>
-<pre><code class="language-typescript">import { initLocalization } from &#39;tosijs-ui&#39;
+<pre><code class="language-typescript" data-highlighted><span class="token keyword">import</span> <span class="token punctuation">{</span> initLocalization <span class="token punctuation">}</span> <span class="token keyword">from</span> <span class="token string">'tosijs-ui'</span>
 
-initLocalization(await (await fetch(&#39;/localized-strings.txt&#39;)).text())
+<span class="token function">initLocalization</span><span class="token punctuation">(</span><span class="token keyword">await</span> <span class="token punctuation">(</span><span class="token keyword">await</span> <span class="token function">fetch</span><span class="token punctuation">(</span><span class="token string">'/localized-strings.txt'</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">text</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
 </code></pre>
 <p>A doc site built on <code>tosijs-ui/site</code> does this for you — pass the table as
 <code>localizedStrings</code> in the site config.</p>
@@ -738,10 +738,101 @@ Custom widgets you add follow the same rules and get translated too.</p>
 <td>Attribute — translate the built-in widgets and show a language picker</td>
 </tr>
 </tbody></table>
+<h3>Change tracking</h3>
 <table>
 <thead>
 <tr>
-<th>Method</th>
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>trackChanges</code></td>
+<td><code>boolean</code></td>
+<td>Record live edits as tracked changes</td>
+</tr>
+<tr>
+<td><code>changeAuthor</code></td>
+<td><code>{ id, name? }</code></td>
+<td>Who the next change is attributed to</td>
+</tr>
+<tr>
+<td><code>sessionId</code></td>
+<td><code>string</code> (readonly)</td>
+<td>Distinguishes this editing session from an earlier one by the same author</td>
+</tr>
+<tr>
+<td><code>changes</code></td>
+<td><code>TrackedChange[]</code></td>
+<td>Every change in the document, in document order</td>
+</tr>
+<tr>
+<td><code>acceptChanges(id?)</code></td>
+<td><code>void</code></td>
+<td>Accept one change, or all of them with no argument</td>
+</tr>
+<tr>
+<td><code>rejectChanges(id?)</code></td>
+<td><code>void</code></td>
+<td>Reject one change, or all of them with no argument</td>
+</tr>
+<tr>
+<td><code>reviseWith(revise, author?)</code></td>
+<td><code>Promise&lt;number&gt;</code></td>
+<td>Round-trip the prose through a proofreader; returns changes introduced</td>
+</tr>
+</tbody></table>
+<h3>Spell checking</h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>spellChecker</code></td>
+<td><code>(words) =&gt; Set | Promise&lt;Set&gt;</code></td>
+<td>Supply a checker; without one, nothing is checked</td>
+</tr>
+<tr>
+<td><code>checkSpelling()</code></td>
+<td><code>Promise&lt;SpellingError[]&gt;</code></td>
+<td>Check now and mark what comes back wrong</td>
+</tr>
+<tr>
+<td><code>spellingErrors</code></td>
+<td><code>SpellingError[]</code></td>
+<td>The current errors — the query browsers refuse to answer</td>
+</tr>
+<tr>
+<td><code>acceptWord(word, scope?)</code></td>
+<td><code>void</code></td>
+<td><code>&#39;document&#39;</code> (default) or <code>&#39;dictionary&#39;</code></td>
+</tr>
+<tr>
+<td><code>documentWords</code> / <code>userDictionary</code></td>
+<td><code>Set&lt;string&gt;</code></td>
+<td>The two accepted-word scopes, for persisting</td>
+</tr>
+<tr>
+<td><code>handleWordAccepted</code></td>
+<td><code>(word, scope) =&gt; void</code></td>
+<td>Called when a word is accepted, so the host can persist</td>
+</tr>
+<tr>
+<td><code>clearSpelling()</code></td>
+<td><code>void</code></td>
+<td>Drop every mark without changing the text</td>
+</tr>
+</tbody></table>
+<h3>Other</h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
 <th>Description</th>
 </tr>
 </thead>
@@ -753,7 +844,16 @@ Custom widgets you add follow the same rules and get translated too.</p>
 <td><code>focus()</code></td>
 <td>Focus the caret</td>
 </tr>
+<tr>
+<td><code>sanitize</code></td>
+<td><code>(root: Element) =&gt; void</code> applied to pasted and dropped content</td>
+</tr>
 </tbody></table>
+<p>Also exported from the package: <code>stickySelectionBounds</code>, <code>sanitizeInPlace</code> and
+<code>isSafeNavigationUrl</code> (re-exported from
+<a href="https://www.npmjs.com/package/tosijs-kilpi">tosijs-kilpi</a>), <code>changeId</code>,
+<code>diffWords</code>, <code>acceptChange</code>/<code>rejectChange</code>, <code>checkSpelling</code>, <code>wordsIn</code>,
+<code>renumberFootnotes</code>, and the element classes behind the four content tags.</p>
 <h2>License</h2>
 <p>Apache-2.0</p>
 
@@ -767,6 +867,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=0.4.5"></script>
+  <script type="module" src="hydrate.js?v=d8140c7836d9"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 {
   "name": "tosijs-styled-editor",
   "version": "0.4.5",
-  "description": "Rich text editor web component \u2014 no contentEditable, no browser selection APIs",
+  "description": "Rich text editor web component — no contentEditable, no browser selection APIs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tonioloewald/tosijs-editor.git"
@@ -56,7 +56,7 @@
     "prettier": "^2",
     "tjs-lang": "^0.13.1",
     "tosijs": "^1.10.1",
-    "tosijs-ui": "^1.13.0",
+    "tosijs-ui": "^1.15.0",
     "typescript": "^5.9.3"
   },
   "overrides": {

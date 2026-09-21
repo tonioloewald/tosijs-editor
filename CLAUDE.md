@@ -61,6 +61,12 @@ There is no bundler config and no `dev.ts`.
 
 ### Doc-system traps (each of these cost a debugging session)
 
+Four of these were filed upstream and fixed — see `UPSTREAM.md` for the issue URLs and
+status. **The fix only helps if you are on a version that has it**: tosijs-ui sat pinned
+at 1.13.0 for three releases while #145's detector shipped in 1.14.1, so this repo taught
+the trap as undetectable while the net existed. Now on 1.15.0, and
+`bundleRegistrations()` runs on every build.
+
 - **`bundleEntry` REPLACES tosijs-ui's `iife.js`, it does not extend it.** If
   `demo/index.ts` omits the doc system, `<tosi-doc-system>`/`<tosi-example>`
   never register: no header, no menu, no live examples — and no error, because
