@@ -42,8 +42,38 @@ quarterly lens had to reconstruct seven reports by hand.
 - **tosijs-ui had been pinned at 1.13.0 for three releases** while the upstream fix for a
   trap this repo filed (#145) shipped in 1.14.1. The repo taught the failure as
   undetectable while the detector existed.
+- **FOUR remediation re-reviews were needed, and the first three each found blockers
+  introduced by the previous round's fix**: 4 blockers → 5 (3 mine) → 2 (both mine) →
+  1 (mine) → 2 (both mine) → clean. Every one shipped with a fully green suite. The
+  subsystem is change tracking, and the recurring shape was a *policy gate* (refuse a
+  structural edit; skip already-deleted text; decide what "empty" means) applied at one
+  site while five others kept the old behaviour.
+- **The same defect was fixed three times before the fix was right**: "an overridden
+  structural refusal must apply the whole gesture untracked, and the refusal must be
+  resolved BEFORE anything is mutated" — on the keystroke paths, then the table commands,
+  then selection deletes. Each fix was correct for its site and reproduced the bug one
+  site over. The gate now exists in four shapes and collapsing them is the top TODO item.
+- **Writing a rule down does not apply it.** `blockIsEmpty()` was extracted with a doc
+  comment reading *"'No text' is not enough on its own: an image, a rule, a line break or
+  a table is content with no text content"* — and the same commit, 460 lines away, gated a
+  tail re-attachment on `tail.textContent` and silently destroyed `<img>` tails. Its
+  replacement was then a *denylist*, which answered "empty" for `<svg>`, `<video>` and
+  `<canvas>`; and its chrome skip made every `.not-selectable` plugin widget invisible,
+  destroying annotations the shipped `annotate` command builds. Three rounds on one
+  predicate.
+- **Two falsification checks were themselves wrong** — one mutated a doc-comment example
+  carrying the same line as the code, one threw on text prettier had reformatted and
+  reported "0 fail", which I read as a result rather than as a failed script. A
+  falsification check needs the same scepticism as the test it is checking.
+- One test failure was a **harness** defect that looked exactly like the product defect
+  under test: setting `.selected-block` without `.first-block`/`.last-block` makes every
+  block count as interior. Probing rather than reasoning caught it.
 - Fixed in-release: B1–B4, M1–M11, M13, plus the paste-attribution and empty-change-id
-  hardening. Deferred and filed to `TODO.md`: line-break tracking, `reviseWith` batching
+  hardening, and across four remediation rounds: the dead Backspace key, the caret-
+  destroying `acceptChanges` sweep, insertion-splitting, the table-command tracking
+  bypass, the `withoutBounds` caret loss, phantom changes, unselectable-widget
+  destruction, the half-applied override (×3), and a pre-existing merge that reversed
+  the first block's children (`A <b>B</b> C<i>D</i>` + `tail` → `<i>D</i> C<b>B</b>A tail`). Deferred and filed to `TODO.md`: line-break tracking, `reviseWith` batching
   (M6's other half), and the real-engine measurement of what spelling marks and inline
   change marks do to Arabic shaping — which is the most important open item.
 

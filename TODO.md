@@ -1,3 +1,57 @@
+[ ] FROM THE FOUR 0.5.0 REMEDIATION RE-REVIEWS (reviews/0.5.0-remediation-rereview*.md).
+    Deferred and tracked, not "reviewed and fine".
+
+    THE STRUCTURAL TWIN THAT KEEPS BITING — do this one first:
+    - The refuse/override gate now exists in FOUR shapes: backspace(),
+      forwardDelete(), the two table commands, and deleteSelection(). They have
+      already diverged on arrival, and the same defect ("an overridden refusal
+      must apply the WHOLE gesture untracked, and the refusal must be resolved
+      BEFORE anything is mutated") was fixed three separate times in three
+      separate rounds. Collapse them into one helper that takes the gesture and
+      runs it in exactly one mode. Add ONE executable guard asserting the
+      property across every reason, rather than per-site tests: only 3 of the 7
+      documented reasons are exercised at all today.
+
+    CHANGE TRACKING:
+    - A RUN of backspaces should coalesce into one change, the way a run of
+      typing coalesces into one insertion. Each keystroke is currently its own
+      <tosi-del>, so deleting a word leaves eight rows in the review sidebar.
+    - Paste inside a foreign insertion leaves the caret in the HEAD half of the
+      split — insertTransfer calls openInsertion() but never moves ip.
+    - A caret at a mark's START can leave an empty <tosi-ins> that nothing
+      removes (Selectable.normalize only strips whitespace text nodes), which
+      surfaces in `changes` as a row with no text.
+    - refuseStructural('merge-blocks-selection') fires before the contains()
+      and .editor-table guards, so it can refuse when no merge was possible.
+    - TrackedChange still omits `session`, though data-session decides
+      tracking behaviour.
+
+    COVERAGE (nothing is red; these are absences):
+    - No src/commands.test.ts case for the table deletes with tracking OFF —
+      both existing tests set trackChanges = true and exercise only the early
+      return.
+    - M-2's unconditional `wasAnythingDeleted = true` has no test that fails
+      without it (three paragraphs, tracking off, exact block boundaries).
+    - EditableContext gained THREE required members this release (removeNode,
+      tracksChanges, refuseStructural). Any external context construction
+      breaks, and nothing in the repo catches it because tsconfig excludes the
+      test files from typechecking. Either include them or add a
+      type-level test.
+    - The blockIsEmpty tosi-footnote case builds bare markup; the shipped
+      element adds not-selectable/do-not-spanify in connectedCallback, so the
+      test does not exercise the shape that actually reaches the predicate.
+    - STILL NOT MEASURED IN A REAL ENGINE. This is unchanged and remains the
+      single most important item in this file.
+
+    SMALLER:
+    - blockIsEmpty materializes every descendant via Array.from(...
+      querySelectorAll('*')) before a loop that usually returns at index 0,
+      and deleteSelection runs it per selected block — a block can be a whole
+      editor table. Iterate the NodeList directly.
+    - blockIsEmpty is now published API (index.ts re-exports dom-utils)
+      carrying an undocumented policy list. Either document INLINE_WRAPPERS or
+      stop exporting it.
+
 [ ] FROM THE 0.5.0 NINE-LENS REVIEW (reviews/0.5.0-nine-lens.md). Everything the
 review found and this release did NOT fix. Nothing here is "reviewed and fine";
 it is "reviewed, deferred, tracked".
