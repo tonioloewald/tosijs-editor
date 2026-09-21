@@ -18,7 +18,7 @@ quarterly lens had to reconstruct seven reports by hand.
   at 0.4.5 and at the review filed as `0.4.6-pre-release.md`, so its findings here are
   three releases of backlog surfacing at once: no `reviews/AAR.md`, no `UPSTREAM.md`, and
   KB write-backs proposed by three consecutive reviews that never landed.
-- **Verdict BLOCK, 4 confirmed blockers from 75 findings.** Three were silent data loss in
+- **Gate returned BLOCK, 4 confirmed blockers from 75 findings** (report: `0.5.0-nine-lens.md`, now CLEARED). Three were silent data loss in
   the two headline features: `editor.value` threw and permanently destroyed every spelling
   mark; spell check and `reviseWith` walked text nodes split by the caret, so a
   correctly-spelled word was flagged and the proofreader was sent half-words; and
