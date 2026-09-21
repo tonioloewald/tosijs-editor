@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=d8140c7836d9" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=70529179a8e0" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=f11173c73bd8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=723147b59fd8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -351,19 +351,35 @@ un-typing something you just typed, not proposing to delete your own proposal</l
 </ul>
 <h3>Not implemented</h3>
 <ul>
-<li><strong>no line-break tracking.</strong> A change mark wraps content, and a paragraph break
-is not content. So while <code>trackChanges</code> is on, deletions that would <em>merge</em>
-blocks are <strong>refused</strong> rather than performed: Backspace at the start of a
-paragraph, Delete at the end of one, and Backspace out of a list item all do
-nothing. Refusing is deliberate — the alternative is silently restructuring
-the document with nothing in <code>changes</code> to show for it, which is the failure
-mode this feature exists to prevent. Text deletion inside a block is
-unaffected.</li>
-<li><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
+<li><p><strong>no structural tracking.</strong> A change mark wraps <em>content</em>, and structure is
+not content. So while <code>trackChanges</code> is on, edits that restructure rather
+than delete text are <strong>refused</strong> rather than performed:</p>
+<ul>
+<li>Backspace at the start of a paragraph, Delete at the end of one, and
+Backspace out of a list item (each deletes a paragraph break)</li>
+<li><strong>Delete Row</strong> and <strong>Delete Column</strong> on a table — a grid table has no row
+elements, so row and column are derived from <code>cellIndex</code>, and a
+<code>&lt;tosi-del&gt;</code> around a cell would itself become a grid item and shift every
+later cell</li>
+</ul>
+<p>Refusing is deliberate: the alternative is silently restructuring the
+document with nothing in <code>changes</code> to show for it, which is the failure this
+feature exists to prevent. Text deletion inside a block or a cell is
+unaffected and fully tracked.</p>
+<p>A refusal fires a cancelable <strong><code>structural-edit-refused</code></strong> event carrying
+<code>detail.reason</code>, so the key is not simply dead — show a note, or call
+<code>preventDefault()</code> on it to allow the edit:</p>
+<pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span><span class="token function">addEventListener</span><span class="token punctuation">(</span><span class="token string">'structural-edit-refused'</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token operator">=></span> <span class="token punctuation">{</span>
+  <span class="token function">toast</span><span class="token punctuation">(</span><span class="token template-string"><span class="token template-punctuation string">`</span><span class="token string">Not tracked yet: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${</span>e<span class="token punctuation">.</span>detail<span class="token punctuation">.</span>reason<span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">. Turn off tracking to do this.</span><span class="token template-punctuation string">`</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span class="token punctuation">)</span>
+</code></pre>
+</li>
+<li><p><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
 but not collaborative merge. That needs an operation log, which is a larger
 decision — see
 <a href="https://github.com/tonioloewald/tosijs-editor/blob/master/EXTENSIBILITY.md">EXTENSIBILITY.md</a>
-(a repo document; it is not in the npm tarball).</li>
+(a repo document; it is not in the npm tarball).</p>
+</li>
 </ul>
 <h3>Resolved changes leave nothing behind</h3>
 <p>Accepting or rejecting a change <strong>evaporates the mark entirely</strong> — no wrapper, no
@@ -867,6 +883,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=d8140c7836d9"></script>
+  <script type="module" src="hydrate.js?v=70529179a8e0"></script>
 </body>
 </html>
