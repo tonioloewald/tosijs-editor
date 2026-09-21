@@ -11,6 +11,7 @@
 
 import {
   characterAtPoint,
+  type CharacterHit,
   firstLeafNode,
   lastLeafNode,
   nextLeafNode,
@@ -62,6 +63,63 @@ function wordBoundsAt(text: string, offset: number): { start: number; end: numbe
   while (start > 0 && !/\s/.test(text[start - 1])) start--
   while (end < text.length && !/\s/.test(text[end])) end++
   return { start, end }
+}
+
+/**
+ * Where a drag selection should actually end, given where it started.
+ *
+ * Dragging character by character is precise and miserable for selecting
+ * prose; snapping to words is pleasant right up until you need half a word,
+ * at which point it is infuriating. The rule that gets both:
+ *
+ *   **Snapping engages only once the drag LEAVES the word it began in.**
+ *
+ * Inside the anchor word you keep character precision, so pulling `fix` out of
+ * `prefix` still works. The moment you cross into another word, both ends snap
+ * — including the anchor end, because a selection that spans words but starts
+ * mid-word is almost never what was meant. Coming back inside the anchor word
+ * returns to character precision, and that is not jittery in practice because
+ * the anchor word is a large target to re-enter.
+ *
+ * Punctuation is included only when the pointer has actually reached it. The
+ * segmenter treats `,` and `(` as their own segments, so dragging onto the
+ * comma in `hello,` takes the comma and stopping inside `hello` does not —
+ * "as necessary" falls out rather than needing a rule.
+ */
+export function stickySelectionBounds(
+  text: string,
+  anchor: number,
+  head: number
+): { start: number; end: number } {
+  const anchorWord = wordBoundsAt(text, anchor)
+
+  // Still inside the word we started in: the user is being precise, let them.
+  if (head >= anchorWord.start && head <= anchorWord.end) {
+    return head < anchor
+      ? { start: head, end: anchor }
+      : { start: anchor, end: head }
+  }
+
+  const headWord = wordBoundsAt(text, head)
+
+  // Do not drag whitespace along. Landing in the gap between two words means
+  // you have left the first and not arrived at the second, so the boundary is
+  // the edge of the text you actually crossed — otherwise every selection ends
+  // with a trailing space you did not ask for.
+  const trimEnd = (index: number): number => {
+    let i = index
+    while (i > 0 && /\s/.test(text[i - 1])) i--
+    return i
+  }
+  const trimStart = (index: number): number => {
+    let i = index
+    while (i < text.length && /\s/.test(text[i])) i++
+    return i
+  }
+
+  return head < anchor
+    ? { start: trimStart(headWord.start), end: anchorWord.end }
+    : { start: anchorWord.start, end: trimEnd(headWord.end) }
 }
 
 /** Check if a node is a text node not inside a .do-not-spanify element */
@@ -169,6 +227,9 @@ export class Selectable {
 
   private lastHovered: Element | null = null
   /** A click inside a selection, resolved on mouseup if no drag started */
+  /** Where a character-granularity drag started, for word stickiness. */
+  private dragAnchor: { block: Element; index: number } | null = null
+
   private pendingCollapse: { x: number; y: number; target: Element } | null =
     null
 
@@ -238,13 +299,15 @@ export class Selectable {
       const hit = characterAtPoint(this.root, evt.clientX, evt.clientY)
       const selEnd = this.find('.sel-end')
       if (hit && selEnd) {
-        const range = document.createRange()
-        range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
-        range.collapse(true)
-        // insertNode MOVES selEnd: it is already in the document, so this
-        // relocates the existing marker rather than cloning it.
-        range.insertNode(selEnd)
-        this.root.normalize()
+        if (!this.extendSticky(hit)) {
+          const range = document.createRange()
+          range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+          range.collapse(true)
+          // insertNode MOVES selEnd: it is already in the document, so this
+          // relocates the existing marker rather than cloning it.
+          range.insertNode(selEnd)
+          this.root.normalize()
+        }
         this.extendSelection()
         this.onBoundsChanged?.()
       }
@@ -276,14 +339,19 @@ export class Selectable {
   }
 
 
-  /** Put the bounds around the word containing an offset in a text node. */
-  selectWordAt(node: Text, offset: number): void {
-    const block = this.topLevelAncestor(node) || this.root
-
-    // Segment the WHOLE block's text, not one text node's. Text nodes get split
-    // by the bounds markers and by inline elements, so a word is very often
-    // spread over several of them — segmenting one fragment selects the part of
-    // the word on one side of a previous caret, which is not a word.
+  /**
+   * The block's whole text, with the map back to the nodes that hold it.
+   *
+   * Segmenting one text node is not good enough: nodes are split by the bounds
+   * markers and by inline elements, so a word is routinely spread across
+   * several and segmenting a fragment finds the part of a word on one side of
+   * a previous caret.
+   */
+  textIndexOf(block: Element): {
+    text: string
+    locate: (index: number) => { node: Text; offset: number } | null
+    indexOf: (node: Text, offset: number) => number | null
+  } {
     const parts: Array<{ node: Text; start: number }> = []
     let text = ''
     const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
@@ -293,19 +361,83 @@ export class Selectable {
       parts.push({ node: textNode, start: text.length })
       text += textNode.data
     }
-
-    const hitPart = parts.find((part) => part.node === node)
-    if (!hitPart) return
-
-    const { start, end } = wordBoundsAt(text, hitPart.start + offset)
-    const locate = (index: number): { node: Text; offset: number } | null => {
-      for (let i = parts.length - 1; i >= 0; i--) {
-        if (index >= parts[i].start) {
-          return { node: parts[i].node, offset: index - parts[i].start }
+    return {
+      text,
+      locate: (index) => {
+        for (let i = parts.length - 1; i >= 0; i--) {
+          if (index >= parts[i].start) {
+            return { node: parts[i].node, offset: index - parts[i].start }
+          }
         }
-      }
-      return null
+        return null
+      },
+      indexOf: (node, offset) => {
+        const part = parts.find((p) => p.node === node)
+        return part ? part.start + offset : null
+      },
     }
+  }
+
+  /**
+   * Move BOTH bounds, snapped to word boundaries once the drag has left the
+   * word it started in. Returns false when stickiness does not apply and the
+   * caller should fall back to moving the end bound only.
+   *
+   * Only plain character drags are sticky. A double-click drag is already
+   * word-granular by construction, and a drag that crosses into another block
+   * falls back — the text index is per-block, and a selection spanning blocks
+   * has bigger units than words anyway.
+   */
+  private extendSticky(hit: CharacterHit): boolean {
+    const anchor = this.dragAnchor
+    if (this.selecting !== 1 || !anchor) return false
+    const block = this.topLevelAncestor(hit.node)
+    if (!block || block !== anchor.block) return false
+
+    const index = this.textIndexOf(block)
+    const head = index.indexOf(
+      hit.node,
+      hit.after ? hit.offset + 1 : hit.offset
+    )
+    if (head === null) return false
+
+    const { start, end } = stickySelectionBounds(index.text, anchor.index, head)
+    const startPos = index.locate(start)
+    const endPos = index.locate(end)
+    if (!startPos || !endPos) return false
+
+    const selStart = this.find('.sel-start')
+    const selEnd = this.find('.sel-end')
+    if (!selStart || !selEnd) return false
+
+    // End first: inserting the start marker splits the text node and would
+    // invalidate the later offset.
+    const endRange = document.createRange()
+    endRange.setStart(endPos.node, Math.min(endPos.offset, endPos.node.length))
+    endRange.collapse(true)
+    endRange.insertNode(selEnd)
+
+    const startRange = document.createRange()
+    startRange.setStart(
+      startPos.node,
+      Math.min(startPos.offset, startPos.node.length)
+    )
+    startRange.collapse(true)
+    startRange.insertNode(selStart)
+
+    this.root.normalize()
+    return true
+  }
+
+  /** Put the bounds around the word containing an offset in a text node. */
+  selectWordAt(node: Text, offset: number): void {
+    const block = this.topLevelAncestor(node) || this.root
+    const index = this.textIndexOf(block)
+    const at = index.indexOf(node, offset)
+    if (at === null) return
+
+    const { start, end } = wordBoundsAt(index.text, at)
+    const locate = index.locate
     const startPos = locate(start)
     const endPos = locate(end)
     if (!startPos || !endPos) return
@@ -380,6 +512,19 @@ export class Selectable {
           this.extendSelection()
         }
       } else if (this.selecting === 1) {
+        // Remember where the drag began, so the move handler can tell whether
+        // the pointer has left the anchor word yet.
+        const block = this.topLevelAncestor(hit.node)
+        this.dragAnchor = block
+          ? {
+              block,
+              index:
+                this.textIndexOf(block).indexOf(
+                  hit.node,
+                  hit.after ? hit.offset + 1 : hit.offset
+                ) ?? 0,
+            }
+          : null
         this.placeCaretAt(evt.clientX, evt.clientY)
       } else if (this.selecting === 2) {
         // Double click selects a word. The boundaries come from segmenting the
@@ -445,6 +590,7 @@ export class Selectable {
       if (mode !== 1) this.resetBounds()
       this.normalizeBoundsOrder()
       this.selecting = false
+      this.dragAnchor = null
     }
     // Despanify non-selected blocks to clean up hover spanification
     for (const child of Array.from(this.root.children)) {

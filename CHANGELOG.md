@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Drag selection is sticky at word boundaries.** The rule is one sentence:
+  snapping engages only once the drag LEAVES the word it began in. Inside that
+  word you keep character precision, so pulling `fix` out of `prefix` still
+  works; cross into another word and both ends snap — including the anchor,
+  because a selection spanning words that starts mid-word is almost never what
+  was meant. Coming back inside the anchor word returns to precision.
+  Punctuation comes along only when the pointer reaches it: the segmenter
+  treats `,` as its own segment, so dragging past the comma in `hello,` takes
+  it and stopping inside `hello` does not. Whitespace is never dragged along,
+  so a selection cannot end in a trailing space you did not ask for.
+  Sticky only within a block, and only for plain drags — a double-click drag is
+  already word-granular, and a cross-block selection has larger units than
+  words.
+
+
 - **Tracked changes, and an LLM proofreading round-trip.** Insertions and
   deletions are content (`<tosi-ins>` / `<tosi-del>` with author and timestamp),
   not an operation log, so a tracked document still serializes and round-trips.

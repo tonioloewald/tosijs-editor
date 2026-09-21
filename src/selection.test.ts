@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
-import { spanify, Selectable } from './selection'
+import { spanify, Selectable, stickySelectionBounds } from './selection'
 import { isBefore } from './dom-utils'
 
 describe('spanify', () => {
@@ -345,5 +345,104 @@ describe('click position resolution', () => {
     range.setStart(p, 0)
     range.setEndBefore(caret)
     expect(range.toString().replace(/\s+/g, '')).toBe('')
+  })
+})
+
+describe('sticky word selection', () => {
+  // The whole design in one sentence: snapping engages only once the drag
+  // LEAVES the word it began in. Everything below is a consequence of that,
+  // and the first group is what keeps it from being infuriating.
+  const T = 'the quick brown fox'
+  const sel = (anchor: number, head: number): string => {
+    const { start, end } = stickySelectionBounds(T, anchor, head)
+    return T.slice(start, end)
+  }
+
+  describe('inside the anchor word, character precision survives', () => {
+    test('a partial word can still be selected', () => {
+      // "qui" out of "quick" — anchor and head both inside it
+      expect(sel(4, 7)).toBe('qui')
+    })
+
+    test('backwards inside the word is still partial', () => {
+      expect(sel(7, 4)).toBe('qui')
+    })
+
+    test('pulling a suffix out of a longer word works', () => {
+      const t = 'prefix'
+      const { start, end } = stickySelectionBounds(t, 3, 6)
+      expect(t.slice(start, end)).toBe('fix')
+    })
+  })
+
+  describe('crossing a boundary snaps BOTH ends', () => {
+    test('a drag from mid-word into the next word takes whole words', () => {
+      // started inside "quick", ended inside "brown"
+      expect(sel(6, 12)).toBe('quick brown')
+    })
+
+    test('the anchor end snaps too, not just the head', () => {
+      // a selection spanning words but starting mid-word is almost never meant
+      expect(sel(6, 12).startsWith('quick')).toBe(true)
+    })
+
+    test('dragging backwards snaps symmetrically', () => {
+      expect(sel(12, 6)).toBe('quick brown')
+    })
+
+    test('coming back inside the anchor word returns to precision', () => {
+      // out to "brown" and back in: not sticky any more
+      expect(sel(4, 12)).toBe('quick brown')
+      expect(sel(4, 7)).toBe('qui')
+    })
+  })
+
+  describe('punctuation is taken only when reached', () => {
+    const P = 'hello, world'
+    const pick = (a: number, h: number): string => {
+      const { start, end } = stickySelectionBounds(P, a, h)
+      return P.slice(start, end)
+    }
+
+    test('stopping inside the word does not take the comma', () => {
+      expect(pick(0, 4)).toBe('hell')
+    })
+
+    test('reaching the end of the word keeps character precision', () => {
+      // offset 5 is both the end of "hello" and the start of ","; treating it
+      // as still inside the word is the conservative read — you have not left.
+      expect(pick(1, 5)).toBe('ello')
+    })
+
+    test('dragging PAST the comma takes it, without the space after', () => {
+      expect(pick(1, 6)).toBe('hello,')
+    })
+
+    test('the word-end boundary is still INSIDE the word', () => {
+      // "the quick brown fox": offset 9 ends "quick", offset 10 starts "brown".
+      // There is no offset that means "in the space" — they bracket it — so 9
+      // must read as not-yet-left, or dragging to the end of a word would snap
+      // and partial selections ending at a word end would be impossible.
+      const atEnd = stickySelectionBounds(T, 6, 9)
+      expect(T.slice(atEnd.start, atEnd.end)).toBe('ick')
+
+      // one further and you have arrived in the next word
+      expect(sel(6, 10)).toBe('quick brown')
+    })
+
+    test('leading punctuation comes along when reached backwards', () => {
+      const Q = '(aside) text'
+      const { start, end } = stickySelectionBounds(Q, 3, 0)
+      expect(Q.slice(start, end)).toBe('(aside')
+    })
+  })
+
+  describe('degenerate input does not throw', () => {
+    test('empty text', () => {
+      expect(() => stickySelectionBounds('', 0, 0)).not.toThrow()
+    })
+    test('offsets past the end', () => {
+      expect(() => stickySelectionBounds('hi', 99, 99)).not.toThrow()
+    })
   })
 })
