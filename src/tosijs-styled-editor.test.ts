@@ -1307,6 +1307,31 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    test('splitting an insertion does not drop a tail with no TEXT in it', () => {
+      // extractContents() has already moved the tail out. Gating re-attachment
+      // on textContent dropped an <img>/<br>/<hr> tail on the floor — no mark,
+      // no entry in changes, no error. Reachable in one session: type,
+      // insertImage, ArrowLeft, paste.
+      for (const html of ['<img src="x.png">', '<br>', '<hr>']) {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML =
+          `<p><tosi-ins data-change="c1" data-author="sam" data-session="other">keep${html}</tosi-ins></p>`
+        el.changeAuthor = { id: 'alex', name: 'Alex' }
+        el.trackChanges = true
+        const mark = el.parts.doc.querySelector('tosi-ins')!
+        const range = document.createRange()
+        range.setStart(mark.firstChild as Text, 4) // between "keep" and the element
+        range.collapse(true)
+        range.insertNode(el.selectable.createBounds())
+
+        type(el, 'X')
+        const tag = html.match(/<(\w+)/)![1]
+        expect(el.parts.doc.querySelector(tag)).not.toBeNull()
+        expect(el.parts.doc.querySelector('p')!.textContent).toContain('keepX')
+      }
+    })
+
     test('one delete gesture is ONE change, however many nodes it spans', () => {
       // README warns that finer granularity turns a rewritten sentence into
       // confetti, and the paste path already upholds that. Delete must too:
@@ -1452,6 +1477,11 @@ describe('TosijsStyledEditor', () => {
       const cells = [...el.parts.doc.querySelectorAll('li')]
       cells[2].appendChild(el.selectable.createBounds())
 
+      const refused: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        refused.push((e as CustomEvent).detail.reason)
+      })
+
       el.doCommand('deleteTableRow')
       // Structural: a grid table derives row/col from cellIndex, so there is
       // nothing a <tosi-del> could wrap without corrupting it. Refusing is the
@@ -1459,6 +1489,28 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.textContent).toContain('SECRET')
       el.doCommand('deleteTableCol')
       expect(el.parts.doc.textContent).toContain('SECRET')
+
+      // ...and it must REFUSE, not merely do nothing. These are live items in
+      // the default menubar, so a silent no-op is a dead menu click — and
+      // README promises the event by name for exactly these two commands.
+      expect(refused).toEqual(['delete-table-row', 'delete-table-col'])
+    })
+
+    test('a host can override a refusal with preventDefault', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a1</li><li>b1</li><li>SECRET</li><li>b2</li></ul>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const cells = [...el.parts.doc.querySelectorAll('li')]
+      cells[2].appendChild(el.selectable.createBounds())
+      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
+
+      el.doCommand('deleteTableRow')
+      // the override actually performs the edit, rather than half-applying it
+      expect(el.parts.doc.textContent).not.toContain('SECRET')
+      expect(el.parts.doc.querySelectorAll('li').length).toBe(2)
     })
 
     test('checkSpelling does not kill a caret in a textless block', async () => {

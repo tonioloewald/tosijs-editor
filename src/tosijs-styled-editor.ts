@@ -958,9 +958,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     tail.appendChild(after.extractContents())
 
     enclosing.after(ins)
-    // Caret at the very end of the insertion: there is no tail, and this is
-    // the ordinary "keep typing at the end" case.
-    if (tail.textContent) ins.after(tail)
+    // NODE presence, not TEXT presence. `extractContents()` has already MOVED
+    // everything after the caret into the tail, so gating on `textContent`
+    // dropped a tail holding only an <img>, <br> or <hr> on the floor — no
+    // mark, no entry in `changes`, no error. Reachable in one session: type,
+    // insertImage, ArrowLeft, paste, and the image is gone.
+    //
+    // This is exactly the mistake `blockIsEmpty()` was extracted to prevent,
+    // made in the same commit that extracted it. "Has no text" and "is empty"
+    // are different questions and the difference is always content.
+    if (tail.firstChild) ins.after(tail)
     return ins
   }
 
@@ -1773,6 +1780,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       focus: () => this.focus(),
       updateUndo: (cmd, reason) => this.updateUndo(cmd, reason),
       removeNode: (node) => this.removeNode(node),
+      refuseStructural: (reason) => this.refuseStructural(reason),
       tracksChanges: () => this.trackChanges,
     }
   }
@@ -2125,7 +2133,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       } else {
         // At end of <li> — merge next <li> into this one
         const nextLi = li.nextElementSibling
-        if (nextLi && nextLi.tagName === 'LI' && !this.refusesStructuralDelete) {
+        if (
+          nextLi &&
+          nextLi.tagName === 'LI' &&
+          (!this.refusesStructuralDelete ||
+            !this.refuseStructural('merge-list-items'))
+        ) {
           while (nextLi.firstChild) {
             li.appendChild(nextLi.firstChild)
           }

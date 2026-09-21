@@ -63,6 +63,29 @@ export interface EditableContext {
    */
   removeNode(node: Node): void
   /**
+   * Decline a structural edit, audibly.
+   *
+   * Returns true when the caller should go ahead and refuse; a host that calls
+   * `preventDefault()` on the `structural-edit-refused` event gets false back
+   * and the edit proceeds. Pair it with `tracksChanges()`:
+   *
+   * ```typescript
+   * if (ctx.tracksChanges() && ctx.refuseStructural('delete-table-row')) return
+   * ```
+   *
+   * A bare `return` is not good enough: `preventDefault()` has already run by
+   * the time a command executes, so a silent refusal is a dead menu item with
+   * no signal at any layer. Both table commands shipped that way for one
+   * commit while the README promised the event.
+   *
+   * **An override means the edit happens UNTRACKED.** If tracking could have
+   * represented it, the command would not have been refusing. So a command
+   * whose refusal was overridden should delete raw rather than through
+   * `removeNode` — half-tracking a structural edit is worse than either
+   * choice made cleanly.
+   */
+  refuseStructural(reason: string): boolean
+  /**
    * Whether edits are being recorded as tracked changes.
    *
    * A command that RESTRUCTURES rather than deletes text — removing a table
@@ -633,7 +656,7 @@ export const commands: Record<string, Command> = {
     // <tosi-del> wrapped around a cell would itself become a grid item and
     // shift every later cell's index, corrupting the table it was meant to
     // annotate. Decline while tracking rather than restructure silently.
-    if (ctx.tracksChanges()) return
+    if (ctx.tracksChanges() && ctx.refuseStructural('delete-table-row')) return
     const ip = ctx.insertionPoint()
     if (!ip) return
     const cell = cellOf(ip)
@@ -658,8 +681,15 @@ export const commands: Record<string, Command> = {
       ctx.focus()
     }
 
+    // A RAW removal, deliberately — not `ctx.removeNode`. Getting here means
+    // one of: tracking is off, or a host called preventDefault() on the
+    // refusal. In the second case they have asked for the edit anyway, and
+    // the only honest way to give it to them is untracked: wrapping cells in
+    // <tosi-del> would make the marks grid items and shift every later
+    // cellIndex, which is the corruption the refusal exists to prevent. An
+    // override means "do it, untracked", not "do it, half-tracked".
     for (const c of rowCells) {
-      ctx.removeNode(c)
+      c.remove()
     }
     ctx.updateUndo('new')
   },
@@ -670,7 +700,7 @@ export const commands: Record<string, Command> = {
   deleteTableCol(ctx: EditableContext) {
     // Removing a column changes the table's SHAPE — every row loses a cell and
     // grid-template-columns is rewritten. Same reasoning as deleteTableRow.
-    if (ctx.tracksChanges()) return
+    if (ctx.tracksChanges() && ctx.refuseStructural('delete-table-col')) return
     const ip = ctx.insertionPoint()
     if (!ip) return
     const cell = cellOf(ip)

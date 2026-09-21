@@ -78,13 +78,27 @@ The rule that follows:
 - **Deleting text?** `ctx.removeNode(node)`. It marks the node deleted when
   tracking is on and removes it when it is off, so the command does not need to
   know which.
-- **Restructuring?** Check `ctx.tracksChanges()` and **decline**. A change mark
+- **Restructuring?** Check `ctx.tracksChanges()` and decline **through
+  `ctx.refuseStructural(reason)`**, never with a bare `return`. A change mark
   wraps content; a paragraph break, a table row and a list nesting level are not
   content, so there is nothing for a mark to hold and no way to reject the change
   back. Both table commands decline for exactly this reason, and so does
   `refusesStructuralDelete` in the component. Silently restructuring with nothing
   in `changes` to show for it is the failure the whole mechanism exists to
   prevent — a gate that fails open is worse than no gate.
+
+  ```typescript
+  if (ctx.tracksChanges() && ctx.refuseStructural('delete-my-thing')) return
+  ```
+
+  A bare `return` is a *silent* refusal, and `preventDefault()` has already run
+  by the time a command executes — so the user gets a dead menu item with no
+  signal at any layer. Both built-in table commands shipped exactly that way
+  for one commit, while the README promised the event by name. `refuseStructural`
+  returns `false` when a host cancels the event, which means **do the edit
+  untracked** — delete raw in that branch rather than through `removeNode`,
+  because half-tracking a structural edit is worse than either choice made
+  cleanly.
 
 ## Web components as the plugin substrate
 

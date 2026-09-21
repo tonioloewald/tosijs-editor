@@ -411,6 +411,13 @@ Two deletions behave specially, because the pedantic version would be noise:
     toast(`Not tracked yet: ${e.detail.reason}. Turn off tracking to do this.`)
   })
   ```
+
+  `detail.reason` is one of `merge-blocks-backward`, `merge-blocks-forward`,
+  `remove-list-item`, `merge-list-items`, `delete-table-row`,
+  `delete-table-col`. **Calling `preventDefault()` performs the edit
+  untracked** — if tracking could have represented it, there would have been
+  nothing to refuse. A custom command refuses the same way, through
+  `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see
