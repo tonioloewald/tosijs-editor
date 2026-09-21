@@ -1,5 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import { TosijsStyledEditor, tosijsStyledEditor } from './tosijs-styled-editor'
+import { changeId } from './changes'
 
 describe('TosijsStyledEditor', () => {
   let container: HTMLElement
@@ -1056,6 +1057,164 @@ describe('TosijsStyledEditor', () => {
       expect(ins[1].getAttribute('data-author')).toBe('sam')
     })
 
+    test('an insertion is never nested inside another insertion', () => {
+      // Nesting makes `changes` report two overlapping ids, and rejecting the
+      // outer silently discards the inner. The case that hurts is pasting
+      // inside SOMEONE ELSE'S insertion: rejecting their change would throw
+      // away your text.
+      const el = typing()
+      type(el, 'ab')
+      const mine = el.parts.doc.querySelector('tosi-ins')!
+      // a different author's mark, with our caret inside it
+      mine.setAttribute('data-author', 'sam')
+      type(el, 'cd')
+
+      const all = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      expect(all.length).toBe(2)
+      for (const ins of all) {
+        expect(ins.querySelector('tosi-ins')).toBeNull()
+        expect(ins.parentElement!.closest('tosi-ins')).toBeNull()
+      }
+      // and rejecting theirs leaves ours alone
+      el.rejectChanges(all[0].getAttribute('data-change')!)
+      expect(el.parts.doc.querySelector('p')!.textContent).toContain('cd')
+    })
+
+    test('ids produced in the same millisecond are still distinct', () => {
+      const ids = new Set<string>()
+      for (let i = 0; i < 1000; i++) ids.add(changeId())
+      expect(ids.size).toBe(1000)
+    })
+
+    // THE GATE MUST NOT FAIL OPEN. `trackDeletion` had exactly one call site,
+    // so every gesture below deleted raw: no <tosi-del>, no entry in
+    // `changes`, and `rejectChanges()` could not bring the text back.
+    const press = (el: TosijsStyledEditor, key: string): void => {
+      el.parts.doc.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+      )
+    }
+
+    test('a caret Backspace is tracked, not a raw delete', () => {
+      const el = typing()
+      press(el, 'Backspace')
+      const del = el.parts.doc.querySelector('tosi-del')
+      expect(del).not.toBeNull()
+      expect(del!.textContent).toBe('d')
+      expect(el.changes.length).toBe(1)
+      // the text is still recoverable, which is the whole point
+      el.rejectChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('hello world')
+    })
+
+    test('a caret Delete is tracked too', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>hello world</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      const range = document.createRange()
+      range.setStart(text, 0)
+      range.collapse(true)
+      range.insertNode(el.selectable.createBounds())
+
+      press(el, 'Delete')
+      const del = el.parts.doc.querySelector('tosi-del')
+      expect(del).not.toBeNull()
+      expect(el.changes.length).toBe(1)
+      el.rejectChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('hello world')
+    })
+
+    test('backspacing my OWN fresh typing really removes it', () => {
+      // the documented carve-out: un-typing your own uncommitted proposal
+      const el = typing()
+      type(el, 'xy')
+      press(el, 'Backspace')
+      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
+      expect(el.parts.doc.querySelector('tosi-ins')!.textContent).toBe('x')
+    })
+
+    test('a fully selected interior block is marked, not silently removed', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one</p><p>two</p><p>three</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const middle = el.parts.doc.querySelectorAll('p')[1] as HTMLElement
+      middle.classList.add('selected-block')
+
+      el.deleteSelection()
+      // the paragraph is still a paragraph — a <tosi-del> wrapped AROUND a <p>
+      // would sit at document top level and make block() answer `tosi-del`
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
+      const del = middle.querySelector('tosi-del')
+      expect(del).not.toBeNull()
+      expect(del!.textContent).toBe('two')
+      expect(el.parts.doc.querySelector('tosi-del > p')).toBeNull()
+      expect(el.changes.length).toBe(1)
+    })
+
+    test('nothing leaves the document untracked on any delete gesture', () => {
+      // The property, stated once: with tracking on, the text content of the
+      // document never shrinks. It only gains strikethrough.
+      const el = typing()
+      const before = el.parts.doc.querySelector('p')!.textContent
+      press(el, 'Backspace')
+      press(el, 'Backspace')
+      press(el, 'Delete')
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe(before)
+    })
+
+    test('a tracked block deletion resolves cleanly in both directions', () => {
+      const mk = (): TosijsStyledEditor => {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML = '<p>one</p><p>two</p><p>three</p>'
+        el.changeAuthor = { id: 'alex', name: 'Alex' }
+        el.trackChanges = true
+        ;(el.parts.doc.querySelectorAll('p')[1] as HTMLElement).classList.add(
+          'selected-block'
+        )
+        el.deleteSelection()
+        return el
+      }
+      const rejected = mk()
+      rejected.rejectChanges()
+      expect(rejected.parts.doc.textContent).toContain('two')
+      expect(rejected.value).not.toMatch(/tosi-del|data-change/)
+
+      const accepted = mk()
+      accepted.acceptChanges()
+      expect(accepted.parts.doc.textContent).not.toContain('two')
+      expect(accepted.value).not.toMatch(/tosi-del|data-change/)
+      // and the block goes with it — accepting a paragraph deletion must not
+      // leave an empty paragraph standing where it was
+      expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
+    })
+
+    test('a deletion and its replacement get DIFFERENT ids', () => {
+      // Typing over a selection deletes and inserts inside ONE synchronous
+      // handler, so `Date.now()` alone collides. A collision means
+      // acceptChanges(deletionId) also accepts the replacement, and a
+      // reviewer cannot accept a deletion and reject what replaced it.
+      const el = typing()
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      const span = document.createElement('span')
+      span.className = 'selected'
+      text.parentNode!.insertBefore(span, text)
+      span.appendChild(text)
+      el.deleteSelection()
+      type(el, 'z')
+
+      const ids = el.changes.map((c) => c.id)
+      expect(ids.length).toBeGreaterThan(1)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+
     test('a later SESSION does not extend an earlier insertion', () => {
       const first = typing()
       type(first, 'ab')
@@ -1067,7 +1226,11 @@ describe('TosijsStyledEditor', () => {
       second.parts.doc.innerHTML = html
       second.changeAuthor = { id: 'alex', name: 'Alex' }
       second.trackChanges = true
-      // caret inside the EXISTING insertion from last time
+      // caret inside the EXISTING insertion from last time. Clear first: the
+      // serialization still carries the previous editor's caret (see TODO —
+      // `value` leaks selection chrome), and two carets would make this test
+      // about that instead of about sessions.
+      second.selectable.removeBounds()
       const existing = second.parts.doc.querySelector('tosi-ins')!
       existing.appendChild(second.selectable.createBounds())
       type(second, 'cd')

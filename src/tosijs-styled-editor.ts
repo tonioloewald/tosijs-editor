@@ -139,6 +139,7 @@ import {
   INS_TAG,
   type ChangeAuthor,
   type TrackedChange,
+  changeId,
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
@@ -903,14 +904,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!ip || ip.closest(DEL_TAG)) return null
     defineChanges()
     const ins = document.createElement(INS_TAG)
-    ins.setAttribute('data-change', `chg-${Date.now().toString(36)}`)
+    ins.setAttribute('data-change', changeId())
     ins.setAttribute('data-author', this.changeAuthor.id)
     if (this.changeAuthor.name) {
       ins.setAttribute('data-author-name', this.changeAuthor.name)
     }
     ins.setAttribute('data-session', this.sessionId)
     ins.setAttribute('data-time', new Date().toISOString())
-    ip.before(ins)
+
+    // NEVER nest one insertion inside another. `ip.before(ins)` would put the
+    // new mark INSIDE the open insertion whenever the caret is in one — so
+    // `changes` reports two overlapping ids and rejecting the outer silently
+    // discards the inner. The bad case is pasting inside SOMEONE ELSE'S
+    // insertion: rejecting their change would throw away your text. Escape to
+    // just after the enclosing insertion instead.
+    const enclosing = ip.closest(INS_TAG)
+    if (enclosing?.parentNode) enclosing.after(ins)
+    else ip.before(ins)
     return ins
   }
 
@@ -928,7 +938,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private trackDeletion(nodes: Node[]): boolean {
     if (!this.trackChanges) return false
     defineChanges()
-    const id = `chg-${Date.now().toString(36)}`
+    const id = changeId()
     for (const node of nodes) {
       const el =
         node.nodeType === 3 ? (node as Text).parentElement : (node as Element)
@@ -943,6 +953,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         node.parentNode?.removeChild(node)
         continue
       }
+
+      // A whole BLOCK is marked by wrapping its CONTENTS, never the block.
+      // `<tosi-del><p>…</p></tosi-del>` lands at document top level, and then
+      // `block()` answers `tosi-del` for everything inside it — mis-targeting
+      // setBlockType, selectedBlocks and Enter handling, and nesting on a
+      // multi-block delete. Struck-through contents inside the original <p> is
+      // also what a reviewer should see: the paragraph is still there, proposed
+      // for removal.
+      const asBlock =
+        node.nodeType === 1 && node.parentNode === this.parts.doc
+          ? (node as Element)
+          : null
+      if (asBlock && !asBlock.firstChild) continue
+      if (asBlock?.firstElementChild?.matches?.(DEL_TAG) && asBlock.children.length === 1) {
+        continue // already entirely deleted
+      }
+
       const del = document.createElement(DEL_TAG)
       del.setAttribute('data-change', id)
       del.setAttribute('data-author', this.changeAuthor.id)
@@ -951,10 +978,61 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
       del.setAttribute('data-session', this.sessionId)
       del.setAttribute('data-time', new Date().toISOString())
-      node.parentNode?.insertBefore(del, node)
-      del.appendChild(node)
+
+      if (asBlock) {
+        while (asBlock.firstChild) del.appendChild(asBlock.firstChild)
+        asBlock.appendChild(del)
+      } else {
+        node.parentNode?.insertBefore(del, node)
+        del.appendChild(node)
+      }
     }
     return true
+  }
+
+  /**
+   * Remove a node — or, under change tracking, mark it deleted in place.
+   *
+   * EVERY destructive path goes through this. It used to be that only the
+   * selection-delete loop consulted `trackDeletion`, so the six other paths
+   * (caret Backspace and Delete, fully-selected interior blocks, both list
+   * paths, the empty-block sweep) deleted raw: the content left the document
+   * with no `<tosi-del>`, no entry in `changes`, and no way for
+   * `rejectChanges()` to bring it back. A tracking gate that fails OPEN on the
+   * commonest gesture in the editor is worse than no gate.
+   */
+  private removeNode(node: Node): void {
+    if (!this.trackDeletion([node])) node.parentNode?.removeChild(node)
+  }
+
+  /**
+   * Delete one character from an end of a text node, honouring tracking.
+   *
+   * Under tracking the character has to be WRAPPED, and a `<tosi-del>` needs a
+   * node to wrap — so split it out of the run first. `splitText` is exact
+   * here; the caller has already established there is more than one character.
+   */
+  private deleteEdgeCharacter(text: Text, end: 'start' | 'end'): void {
+    if (!this.trackChanges) {
+      text.data = end === 'end' ? text.data.slice(0, -1) : text.data.slice(1)
+      return
+    }
+    const char = end === 'end' ? text.splitText(text.data.length - 1) : text
+    if (end === 'start') char.splitText(1)
+    this.trackDeletion([char])
+  }
+
+  /**
+   * Whether a deletion that would RESTRUCTURE blocks should be refused.
+   *
+   * Merging two paragraphs, or pulling a list item out of its list, deletes a
+   * paragraph break — and change tracking has no representation for one yet.
+   * Doing it anyway would silently rewrite the document's structure with no
+   * record, which is the failure this whole pass is about. Refusing is the
+   * honest answer until line-break tracking exists (TODO.md).
+   */
+  private get refusesStructuralDelete(): boolean {
+    return this.trackChanges
   }
 
   /** Every tracked change, in document order. */
@@ -965,7 +1043,21 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Accept one change by id, or every change when given none. */
   acceptChanges(id?: string): void {
     const targets = this.changes.filter((c) => !id || c.id === id)
+    // A whole-block deletion marks the block's CONTENTS, so accepting it
+    // empties the block rather than removing it — and an empty paragraph left
+    // where a deleted one used to be is not what anyone accepted.
+    const emptied = targets
+      .filter((c) => c.kind === 'delete')
+      .map((c) => c.element.parentElement)
+      .filter((el): el is HTMLElement => !!el && el.parentNode === this.parts.doc)
+
     for (const change of targets) acceptChange(change.element)
+
+    for (const block of emptied) {
+      if (block.isConnected && !block.textContent?.trim() && !block.querySelector('img, hr, br, .editor-table')) {
+        block.remove()
+      }
+    }
     if (targets.length) {
       this.normalize()
       this.updateUndo('new', 'accept-changes')
@@ -1808,6 +1900,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private removeListItem(li: HTMLElement): void {
     const list = li.parentElement
     if (!list) return
+    // Merging a list item into its neighbour, or promoting it out of the list,
+    // deletes a paragraph break. See `refusesStructuralDelete`.
+    if (this.refusesStructuralDelete) return
 
     const prevLi = li.previousElementSibling
     if (prevLi && prevLi.tagName === 'LI') {
@@ -1849,12 +1944,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (prev) {
         // There's content before the caret in this <li> — delete it normally
         if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
-          prev.textContent = prev.textContent!.slice(0, -1)
+          this.deleteEdgeCharacter(prev as Text, 'end')
         } else {
           const top = topSingleParentAncestor(prev)
-          if (li.contains(top)) {
-            top.parentNode?.removeChild(top)
-          }
+          if (li.contains(top)) this.removeNode(top)
         }
         this.normalize()
         this.updateUndo()
@@ -1875,19 +1968,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (next) {
         // There's content after the caret in this <li> — delete it normally
         if (next.nodeType === 3 && (next.textContent || '').length > 1) {
-          next.textContent = next.textContent!.slice(1)
+          this.deleteEdgeCharacter(next as Text, 'start')
         } else {
           const top = topSingleParentAncestor(next)
-          if (li.contains(top)) {
-            top.parentNode?.removeChild(top)
-          }
+          if (li.contains(top)) this.removeNode(top)
         }
         this.normalize()
         this.updateUndo()
       } else {
         // At end of <li> — merge next <li> into this one
         const nextLi = li.nextElementSibling
-        if (nextLi && nextLi.tagName === 'LI') {
+        if (nextLi && nextLi.tagName === 'LI' && !this.refusesStructuralDelete) {
           while (nextLi.firstChild) {
             li.appendChild(nextLi.firstChild)
           }
@@ -2205,11 +2296,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
+      // Backspace at the START of a block deletes a paragraph break, not a
+      // character. Under tracking we have no mark for that, so refuse rather
+      // than merge two blocks with no record of it.
+      if (
+        this.refusesStructuralDelete &&
+        deletionBlock &&
+        caretBlock &&
+        deletionBlock !== caretBlock
+      ) {
+        return
+      }
+
       if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-        node.textContent = node.textContent!.slice(0, -1)
+        this.deleteEdgeCharacter(node as Text, 'end')
+        this.normalize()
       } else {
-        const top = topSingleParentAncestor(node)
-        top.parentNode?.removeChild(top)
+        this.removeNode(topSingleParentAncestor(node))
         this.normalize()
       }
 
@@ -2241,11 +2344,21 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
+      // Delete at the END of a block deletes a paragraph break — see backspace.
+      if (
+        this.refusesStructuralDelete &&
+        deletionBlock &&
+        caretBlock &&
+        deletionBlock !== caretBlock
+      ) {
+        return
+      }
+
       if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-        node.textContent = node.textContent!.slice(1)
+        this.deleteEdgeCharacter(node as Text, 'start')
+        this.normalize()
       } else {
-        const top = topSingleParentAncestor(node)
-        top.parentNode?.removeChild(top)
+        this.removeNode(topSingleParentAncestor(node))
         this.normalize()
       }
 
@@ -2270,13 +2383,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const blocks = this.selectedBlocks()
     let wasAnythingDeleted = false
 
-    // Remove completely selected blocks (not first or last)
+    // Remove completely selected blocks (not first or last).
+    // This ran BEFORE any trackChanges check, so an interior paragraph in a
+    // three-paragraph selection vanished with no mark and no entry in
+    // `changes` — and on an exact block boundary deleteSelection() then
+    // returned false, so the keydown handler fell through to backspace() and
+    // ate an extra character on top.
     for (const block of blocks) {
       if (
         !block.classList.contains('first-block') &&
         !block.classList.contains('last-block')
       ) {
-        block.remove()
+        this.removeNode(block)
+        if (this.trackChanges) wasAnythingDeleted = true
       }
     }
 
@@ -2292,16 +2411,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (keptCaret && firstTop.parentNode) {
         firstTop.parentNode.insertBefore(keptCaret, firstTop)
       }
-      if (this.trackChanges) {
-        // Wrap rather than remove: the reader needs to see what was proposed
-        // for deletion, and by whom, until someone resolves it.
-        this.trackDeletion(nodes.map((node) => topSingleParentAncestor(node)))
-      } else {
-        for (const node of nodes) {
-          const top = topSingleParentAncestor(node)
-          top.parentNode?.removeChild(top)
-        }
-      }
+      // Wrap rather than remove when tracking: the reader needs to see what
+      // was proposed for deletion, and by whom, until someone resolves it.
+      for (const node of nodes) this.removeNode(topSingleParentAncestor(node))
       wasAnythingDeleted = true
     }
 
@@ -2315,14 +2427,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Remove blocks that are now empty (no text content) after leaf node deletion
     // but keep the block containing the caret
+    // A block left empty by the leaf deletion above. Under tracking a block is
+    // never empty — its content is sitting inside a <tosi-del> — so this only
+    // fires for untracked edits. Guarded anyway: this sweep could otherwise
+    // remove a block holding a <tosi-del> that was created moments earlier.
     const caret = this.parts.doc.querySelector('.caret')
     for (const block of blocks) {
       if (
         this.parts.doc.contains(block) &&
         (!caret || !block.contains(caret)) &&
-        !block.textContent?.trim()
+        !block.textContent?.trim() &&
+        !block.querySelector(DEL_TAG)
       ) {
-        block.remove()
+        this.removeNode(block)
       }
     }
 
@@ -2331,6 +2448,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const firstBlock = blocks[0]
       const lastBlock = blocks[blocks.length - 1]
       if (
+        !this.refusesStructuralDelete &&
         this.parts.doc.contains(firstBlock) &&
         this.parts.doc.contains(lastBlock) &&
         !firstBlock.classList.contains('editor-table') &&
@@ -2793,12 +2911,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
             const prev = previousLeafNode(ip, cell, deletableFilter)
             if (prev) {
               if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
-                prev.textContent = prev.textContent!.slice(0, -1)
+                this.deleteEdgeCharacter(prev as Text, 'end')
               } else {
                 const top = topSingleParentAncestor(prev)
-                if (cell.contains(top)) {
-                  top.parentNode?.removeChild(top)
-                }
+                if (cell.contains(top)) this.removeNode(top)
               }
               this.normalize()
               this.updateUndo()
@@ -2820,12 +2936,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
             const next = nextLeafNode(ip, cell, deletableFilter)
             if (next) {
               if (next.nodeType === 3 && (next.textContent || '').length > 1) {
-                next.textContent = next.textContent!.slice(1)
+                this.deleteEdgeCharacter(next as Text, 'start')
               } else {
                 const top = topSingleParentAncestor(next)
-                if (cell.contains(top)) {
-                  top.parentNode?.removeChild(top)
-                }
+                if (cell.contains(top)) this.removeNode(top)
               }
               this.normalize()
               this.updateUndo()

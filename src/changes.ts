@@ -41,7 +41,19 @@ export const INS_TAG = 'tosi-ins'
 export const DEL_TAG = 'tosi-del'
 
 let changeSeq = 0
-const changeId = (): string =>
+/**
+ * A new change id.
+ *
+ * The sequence counter is not decoration. `Date.now()` alone collides whenever
+ * two marks are produced in one synchronous handler, which is the NORMAL case:
+ * typing over a selection and pasting over one both delete and then insert
+ * inside a single keydown. Measured at 29% collision without the counter — and
+ * a collision means `acceptChanges(deletionId)` silently also accepts the
+ * replacement insertion, so a reviewer cannot accept a deletion and reject
+ * what replaced it. Exported so there is ONE producer; there used to be three,
+ * and only this one had the guard.
+ */
+export const changeId = (): string =>
   `chg-${Date.now().toString(36)}-${(changeSeq++).toString(36)}`
 
 /**

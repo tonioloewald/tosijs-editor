@@ -36,10 +36,11 @@
     "make": "bun bin/site.ts --build",
     "prepublishOnly": "bun run make && bun test && bun run lint",
     "test": "bun test",
-    "lint": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "lint": "bun run typecheck",
     "format": "bun prettier --write .",
     "haltija": "haltija --name tosijs-editor --port 8702 --server",
-    "tls": "bunx tosijs-dev-certs"
+    "tls": "bunx tosijs-dev-certs",
+    "typecheck": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters"
   },
   "author": "Tonio Loewald",
   "license": "Apache-2.0",
