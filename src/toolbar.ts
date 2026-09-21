@@ -64,10 +64,25 @@ function menuScopeMarker(): MenuItem {
  * Create a toolbar command button with an icon.
  * The button's `value` attribute holds the command string.
  */
+/**
+ * What `icons.*` returns.
+ *
+ * tosijs-ui 1.15 widened icons from `SVGElement` to `SVGElement |
+ * HTMLSpanElement` — an icon can now be a glyph in a span rather than inline
+ * SVG. The union is declared in the package as `IconElement` but is not
+ * re-exported from any entry point (it lives in `icon-types.d.ts`, and
+ * `exports` only publishes `./icons`), so it has to be restated here. Filed:
+ * see UPSTREAM.md.
+ */
+type IconElement = SVGElement | HTMLSpanElement
+
 export function commandButton(
   title: string,
   command: string,
-  icon: SVGElement,
+  // tosijs-ui 1.15 widened icons to `SVGElement | HTMLSpanElement` — an icon
+  // can now be a glyph in a span, not only inline SVG. Narrowing this to
+  // SVGElement made every call site a type error.
+  icon: IconElement,
   shortcut?: string
 ): HTMLButtonElement {
   const attrs: Record<string, any> = {

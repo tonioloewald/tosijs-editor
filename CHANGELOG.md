@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
 ### Added
 
 - **Drag selection is sticky at word boundaries.** The rule is one sentence:
@@ -86,7 +88,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persists. Code, `kbd`, `samp`, `pre` and `spellcheck="false"` subtrees are
   skipped.
 
+### Changed
+
+- **Footnote markers are saved as `<tosi-footnote>`, not `<sup>`.** The
+  superscript rule lives in the editor's shadow stylesheet, so in a downstream
+  renderer a marker will lay out as a full-size baseline digit unless you style
+  it. `.footnote-ref` is retained as the class, so **one rule repairs every
+  document**, including ones written before this change:
+  `tosi-footnote, .footnote-ref { vertical-align: super; font-size: 0.75em; }`
+- **`<tosi-del>` needs a strikethrough rule outside the editor too.** A tracked
+  document round-trips anywhere, which is the point — but an unstyled
+  `<tosi-del>` reads as ordinary prose, i.e. the *opposite* of what the document
+  says. If you render `value` outside this component, ship
+  `tosi-del { text-decoration: line-through; opacity: 0.6; }` and
+  `tosi-ins { text-decoration: underline; }`. Beware a downstream sanitizer that
+  *unwraps* unknown tags: that inverts a deletion silently. `acceptChanges()` is
+  how you hand a plain document to a consumer like that.
+- **`ignoreWord` is gone** — it was added and deprecated within this unreleased
+  span, so it never shipped and protects no callers. Use
+  `acceptWord(word, 'document')`.
+- **The build prints bundle sizes.** 0.5.0 measures 284.4 kB / **77.1 kB
+  gzipped** for the drop-in `dist/index.js`, and 143.8 kB / **29.2 kB gzipped**
+  for `dist/module.js` — three features for +3.4 kB gzipped over 0.4.5.
+
 ### Fixed
+
+- **`editor.value` could throw and permanently destroy every spelling mark.**
+  Reading `value` unwraps the marks to keep them out of the serialization, then
+  restores them. Restoring ran in document order, so when one mark's anchor was
+  the *next* mark — routine, since any `normalize()` collapses the empty text
+  node between them — `insertBefore` threw partway and every remaining mark
+  stayed unwrapped for good. `updateUndo()` reads `value` first thing on
+  keypress, so one keystroke in such a document also silently lost the undo
+  snapshot and the form value.
+- **Spell checking flagged correctly-spelled words, and the proofreader was sent
+  half-words.** Both walked text nodes directly, and the caret is a real element
+  that splits the node it sits in — so with the caret after `br` in
+  `the brown fox`, the checker was asked about `"br"` and reported it wrong,
+  blocking a form submit on a real word. Anything reading the document as
+  language now runs with the selection markers out of the text.
+- **Under `trackChanges`, most deletions were not tracked at all.** Only
+  selection deletes consulted the gate; caret Backspace and Delete — the
+  commonest gesture in the editor — along with list and table-cell deletions and
+  fully-selected blocks removed content outright, with no `<tosi-del>`, no entry
+  in `changes`, and nothing for `rejectChanges()` to restore. Every destructive
+  path is now tracked.
+- **A paste inside an existing insertion nested the marks**, so rejecting the
+  outer change silently discarded the inner one — including rejecting *another
+  author's* change throwing away *your* pasted text.
+- **Change ids could collide** when a deletion and its replacement were produced
+  in one keystroke (typing or pasting over a selection), so accepting the
+  deletion also accepted the replacement.
+- **Change marks arriving by paste are re-stamped.** `<tosi-ins>` is a safe
+  element, so pasted markup could carry any `data-author` and `data-time` it
+  liked and `editor.changes` reported it as fact — and a pasted `data-change`
+  could collide with a live one. Attribution is client-asserted document
+  content, not an authenticated identity; what is guaranteed is that a mark
+  records who put it in *this* document.
+- **A spelling error could outlive the document it described.** Undo, redo,
+  `value =` and form reset all wipe the marks, and none of them touched form
+  validity — leaving the field invalid with a message naming an absent word,
+  anchored to a detached node.
+- **`reviseWith` no longer builds an unbounded diff table from a remote
+  response** (16k tokens measured at 1.7 s and +1.2 GB on the main thread), and
+  a proofreader that fails part-way no longer leaves the document half-revised
+  *outside* the undo stack.
+- **`acceptChanges('')` / `rejectChanges('')` no longer resolve every change in
+  the document.** An empty string arrives from a `dataset` lookup that found
+  nothing; `undefined` still means all.
+- `src/spelling.ts` is exported from the package — `SpellChecker`,
+  `checkSpelling`, `wordsIn` and the rest were unnameable.
 
 - **Footnotes maintain themselves.** `renumberFootnotes` was always correct —
   it removed orphans and derived numbers from document order — but only ever ran
