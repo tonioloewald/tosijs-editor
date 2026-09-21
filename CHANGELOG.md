@@ -44,11 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live edit tracking** (`editor.trackChanges = true`). Typing lands inside a
   `<tosi-ins>`, and every deletion wraps in `<tosi-del>` — caret Backspace and
   Delete, selection deletes, cut, inside lists, inside table cells. Deletions
-  that would MERGE blocks (Backspace at the start of a paragraph, Delete at the
-  end of one, Backspace out of a list item) are refused instead: a change mark
-  wraps content and a paragraph break is not content, so the honest answer
-  until line-break tracking exists is to decline rather than restructure the
-  document with nothing in `changes` to show for it. The mechanism is one predicate —
+  that RESTRUCTURE rather than delete text are refused instead — block merges
+  (Backspace at the start of a paragraph, Delete at the end of one, Backspace
+  out of a list item) and table Delete Row / Delete Column. A change mark wraps
+  content and structure is not content, so the honest answer until structural
+  tracking exists is to decline rather than restructure the document with
+  nothing in `changes` to show for it. A custom command deletes through
+  `ctx.removeNode(node)` and checks `ctx.tracksChanges()` before restructuring
+  — see EXTENSIBILITY.md. The mechanism is one predicate —
   is the caret already inside an insertion that is mine, this session? — so a
   continuous run of typing is one change and there is no per-operation
   bookkeeping. Session is part of the test, so reopening a document and typing

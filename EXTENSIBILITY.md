@@ -52,6 +52,40 @@ it did not fully handle the footnotes that were already shipped. `<tosi-footnote
 closed that in 0.5.0 by driving `renumberFootnotes` from the element's own lifecycle —
 which is the point the worked example was there to make.
 
+## Custom commands must delete through `ctx.removeNode`
+
+`editor.commands.myCommand = fn` is the documented way to add an editing
+operation, and a command receives an `EditableContext` rather than the
+component. Two members of it exist for change tracking, and a command that
+deletes anything needs one of them:
+
+```typescript
+ctx.removeNode(node)      // delete, or mark deleted — never `node.remove()`
+ctx.tracksChanges()       // true while edits are being recorded
+```
+
+**Why this is a seam and not a convenience.** When tracked deletion was built,
+the tracking-aware helper landed on the component and was wired into the keydown
+handlers. The command registry was not touched — so `deleteTableRow` and
+`deleteTableCol` removed content with no `<tosi-del>`, no entry in `changes` and
+nothing for `rejectChanges()` to restore, while the README claimed every deletion
+was tracked. The two built-in commands were a symptom; the real problem was that
+**every host-authored command inherited the same hole by construction**, and each
+author would have to discover it alone.
+
+The rule that follows:
+
+- **Deleting text?** `ctx.removeNode(node)`. It marks the node deleted when
+  tracking is on and removes it when it is off, so the command does not need to
+  know which.
+- **Restructuring?** Check `ctx.tracksChanges()` and **decline**. A change mark
+  wraps content; a paragraph break, a table row and a list nesting level are not
+  content, so there is nothing for a mark to hold and no way to reject the change
+  back. Both table commands decline for exactly this reason, and so does
+  `refusesStructuralDelete` in the component. Silently restructuring with nothing
+  in `changes` to show for it is the failure the whole mechanism exists to
+  prevent — a gate that fails open is worse than no gate.
+
 ## Web components as the plugin substrate
 
 A plugin defines a custom element and wraps content in it. This turns out to answer

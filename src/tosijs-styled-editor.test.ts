@@ -1307,6 +1307,130 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    // --- regressions introduced by the B3 remediation (a0e2c43) -------------
+    // Every one of these shipped green. The original B3 test asserted only
+    // that textContent was unchanged, which a DEAD KEY satisfies just as well
+    // as a tracked deletion.
+
+    test('repeated Backspace keeps deleting — the mark is not a wall', () => {
+      const el = typing()
+      press(el, 'Backspace')
+      press(el, 'Backspace')
+      press(el, 'Backspace')
+      const deleted = [...el.parts.doc.querySelectorAll('tosi-del')]
+        .map((d) => d.textContent)
+        .join('')
+      expect(deleted.length).toBe(3)
+      expect(el.changes.filter((c) => c.kind === 'delete').length).toBeGreaterThan(0)
+      el.rejectChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('hello world')
+    })
+
+    test('a document opened with someone else s <tosi-del> is not dead at it', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>keep<tosi-del data-change="c1" data-author="sam">gone</tosi-del></p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const p = el.parts.doc.querySelector('p')!
+      p.appendChild(el.selectable.createBounds())
+
+      press(el, 'Backspace')
+      // it walked PAST the existing mark and took a real character
+      expect(p.textContent).toBe('keepgone')
+      const mine = [...p.querySelectorAll('tosi-del')].filter(
+        (d) => d.getAttribute('data-author') === 'alex'
+      )
+      expect(mine.length).toBe(1)
+      expect(mine[0].textContent).toBe('p')
+    })
+
+    test('accepting an inline delete of all a block s text keeps the block AND the caret', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one</p><p>two</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const first = el.parts.doc.querySelector('p')!
+      const text = first.firstChild as Text
+      const span = document.createElement('span')
+      span.className = 'selected'
+      text.parentNode!.insertBefore(span, text)
+      span.appendChild(text)
+      first.appendChild(el.selectable.createBounds())
+
+      el.deleteSelection()
+      el.acceptChanges()
+
+      // the paragraph was never deleted — only its text was
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+      // and the editor still takes input, which is what actually broke
+      expect(el.insertionPoint()).not.toBeNull()
+    })
+
+    test('typing mid-word inside another author s insertion lands mid-word', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>A<tosi-ins data-change="c1" data-author="sam" data-session="other">QUICKBROWN</tosi-ins>Z</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const mark = el.parts.doc.querySelector('tosi-ins')!
+      const range = document.createRange()
+      range.setStart(mark.firstChild as Text, 5) // between QUICK and BROWN
+      range.collapse(true)
+      range.insertNode(el.selectable.createBounds())
+
+      type(el, 'X')
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('AQUICKXBROWNZ')
+      // still not nested, which was the point of the original fix
+      for (const ins of el.parts.doc.querySelectorAll('tosi-ins')) {
+        expect(ins.querySelector('tosi-ins')).toBeNull()
+      }
+      // and the other author's text is still attributed to them, in both halves
+      const theirs = [...el.parts.doc.querySelectorAll('tosi-ins')].filter(
+        (i) => i.getAttribute('data-author') === 'sam'
+      )
+      expect(theirs.map((i) => i.textContent).join('')).toBe('QUICKBROWN')
+    })
+
+    test('table row and column deletion do not bypass tracking', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a1</li><li>b1</li><li>SECRET</li><li>b2</li></ul>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const cells = [...el.parts.doc.querySelectorAll('li')]
+      cells[2].appendChild(el.selectable.createBounds())
+
+      el.doCommand('deleteTableRow')
+      // Structural: a grid table derives row/col from cellIndex, so there is
+      // nothing a <tosi-del> could wrap without corrupting it. Refusing is the
+      // house rule — what must NOT happen is the text leaving with no record.
+      expect(el.parts.doc.textContent).toContain('SECRET')
+      el.doCommand('deleteTableCol')
+      expect(el.parts.doc.textContent).toContain('SECRET')
+    })
+
+    test('checkSpelling does not kill a caret in a textless block', async () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>one</p><p></p>'
+      el.spellChecker = () => new Set<string>()
+      const empty = el.parts.doc.querySelectorAll('p')[1]
+      empty.appendChild(el.selectable.createBounds())
+      expect(el.insertionPoint()).not.toBeNull()
+
+      await el.checkSpelling()
+
+      // The host calls this on blur or before submit. Losing the caret here
+      // reads as "the editor stopped accepting input", inside their app.
+      expect(el.insertionPoint()).not.toBeNull()
+      expect(el.parts.doc.querySelectorAll('.sel-end').length).toBe(1)
+    })
+
     test('a deletion and its replacement get DIFFERENT ids', () => {
       // Typing over a selection deletes and inserts inside ONE synchronous
       // handler, so `Date.now()` alone collides. A collision means

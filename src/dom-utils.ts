@@ -415,3 +415,17 @@ export function caretGeometryAt(
  * keeps importing from `./dom-utils`.
  */
 export { sanitizeInPlace, isSafeNavigationUrl } from 'tosijs-kilpi'
+
+/**
+ * A block with nothing left in it worth keeping.
+ *
+ * "No text" is not enough on its own: an image, a rule, a line break or a
+ * table is content with no text content, and a `<tosi-del>` is text somebody
+ * has proposed to remove and a reviewer still has to see. Two copies of this
+ * test existed and had already drifted in opposite directions — one checked
+ * the replaced elements and not the change mark, the other the reverse.
+ */
+export function blockIsEmpty(block: Element): boolean {
+  if (block.textContent?.trim()) return false
+  return !block.querySelector('img, hr, br, .editor-table, tosi-del, tosi-ins')
+}

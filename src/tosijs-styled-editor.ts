@@ -127,6 +127,7 @@ import {
   caretGeometryAt,
   sanitizeInPlace,
   isSafeNavigationUrl,
+  blockIsEmpty,
 } from './dom-utils'
 import { defineFootnote } from './footnote'
 import {
@@ -925,15 +926,41 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ins.setAttribute('data-session', this.sessionId)
     ins.setAttribute('data-time', new Date().toISOString())
 
-    // NEVER nest one insertion inside another. `ip.before(ins)` would put the
-    // new mark INSIDE the open insertion whenever the caret is in one — so
-    // `changes` reports two overlapping ids and rejecting the outer silently
-    // discards the inner. The bad case is pasting inside SOMEONE ELSE'S
-    // insertion: rejecting their change would throw away your text. Escape to
-    // just after the enclosing insertion instead.
-    const enclosing = ip.closest(INS_TAG)
-    if (enclosing?.parentNode) enclosing.after(ins)
-    else ip.before(ins)
+    // NEVER nest one insertion inside another: `changes` would report two
+    // overlapping ids and rejecting the outer would silently discard the
+    // inner — and the bad case is typing or pasting inside SOMEONE ELSE'S
+    // insertion, where rejecting their change throws away your text.
+    //
+    // But escaping to `enclosing.after(ins)` is not the answer either: it puts
+    // the new mark after the WHOLE enclosing insertion, and `enterInsertion`
+    // then drags the caret out of the word with it. Typing an X between QUICK
+    // and BROWN inside another author's mark produced `QUICKBROWNX`.
+    //
+    // So SPLIT the enclosing insertion at the caret. The tail keeps the
+    // original's attributes — it is the same change, still one id, still the
+    // same author and session — and the new mark goes between the halves,
+    // which is both non-nested and positionally honest. This is the gesture
+    // `changes.ts` exists to support: a reviewer putting the caret inside a
+    // proposed sentence and adjusting it.
+    const enclosing = ip.closest(INS_TAG) as HTMLElement | null
+    if (!enclosing?.parentNode) {
+      ip.before(ins)
+      return ins
+    }
+
+    const tail = document.createElement(INS_TAG)
+    for (const attr of Array.from(enclosing.attributes)) {
+      tail.setAttribute(attr.name, attr.value)
+    }
+    const after = document.createRange()
+    after.setStartAfter(ip)
+    after.setEnd(enclosing, enclosing.childNodes.length)
+    tail.appendChild(after.extractContents())
+
+    enclosing.after(ins)
+    // Caret at the very end of the insertion: there is no tail, and this is
+    // the ordinary "keep typing at the end" case.
+    if (tail.textContent) ins.after(tail)
     return ins
   }
 
@@ -993,6 +1020,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       del.setAttribute('data-time', new Date().toISOString())
 
       if (asBlock) {
+        // Record that this mark stands for the WHOLE BLOCK, not just the text
+        // it happens to contain. Accepting it should take the block with it —
+        // and that cannot be INFERRED later from "the block is now empty",
+        // because an ordinary inline deletion of all a block's text looks
+        // identical and must leave the empty block (and its caret) standing.
+        del.setAttribute('data-block-delete', '')
         while (asBlock.firstChild) del.appendChild(asBlock.firstChild)
         asBlock.appendChild(del)
       } else {
@@ -1001,6 +1034,40 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
     }
     return true
+  }
+
+  /**
+   * The next thing a deletion gesture should actually consume.
+   *
+   * Text already inside a `<tosi-del>` is left alone — that is the documented
+   * policy and it is right. What was missing is that nothing WALKED PAST such
+   * a mark: `previousLeafNode` kept handing back the character inside the mark
+   * the previous keystroke had just created, `trackDeletion` correctly refused
+   * it, and returned true anyway — so the caller skipped its own removal too
+   * and the key did nothing. Backspace worked exactly once and was then dead
+   * forever, and a document opened with someone else's `<tosi-del>` in it was
+   * dead at that mark from the first press.
+   *
+   * Only while tracking. With tracking off there are no marks to skip.
+   */
+  private deletionTarget(
+    from: Node,
+    scope: Node,
+    direction: 'back' | 'forward'
+  ): Node | null {
+    const step = direction === 'back' ? previousLeafNode : nextLeafNode
+    let node = step(from, scope, deletableFilter)
+    if (!this.trackChanges) return node
+    const deleted = (n: Node): boolean => {
+      const el = n.nodeType === 3 ? (n as Text).parentElement : (n as Element)
+      return !!el?.closest(DEL_TAG)
+    }
+    // Bounded by the walk itself: each step strictly advances toward the end
+    // of `scope`, so this terminates when the scope is exhausted.
+    while (node && deleted(node)) {
+      node = step(node, scope, deletableFilter)
+    }
+    return node
   }
 
   /**
@@ -1030,6 +1097,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       text.data = end === 'end' ? text.data.slice(0, -1) : text.data.slice(1)
       return
     }
+    // Check BEFORE splitting. `trackDeletion` refuses text already inside a
+    // <tosi-del>, so splitting first would carve the run in half for a
+    // deletion that is then declined — leaving the document restructured for
+    // no reason. Callers navigate with `deletionTarget`, so this should not
+    // be reachable; a split that cannot be undone is worth the second guard.
+    if (text.parentElement?.closest(DEL_TAG)) return
     const char = end === 'end' ? text.splitText(text.data.length - 1) : text
     if (end === 'start') char.splitText(1)
     this.trackDeletion([char])
@@ -1063,15 +1136,27 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // A whole-block deletion marks the block's CONTENTS, so accepting it
     // empties the block rather than removing it — and an empty paragraph left
     // where a deleted one used to be is not what anyone accepted.
+    //
+    // Only marks STAMPED as block-scoped qualify. Inferring it from "the block
+    // ended up empty" deleted paragraphs nobody deleted: selecting all the
+    // text of a paragraph and pressing Backspace is an inline deletion that
+    // must leave the empty paragraph — and the caret inside it — standing.
+    // Accepting it removed the block, took `.sel-end` with it, and left the
+    // editor with no insertion point: typing inserted nothing and every
+    // caret-based command silently bailed.
     const emptied = targets
-      .filter((c) => c.kind === 'delete')
+      .filter(
+        (c) => c.kind === 'delete' && c.element.hasAttribute('data-block-delete')
+      )
       .map((c) => c.element.parentElement)
       .filter((el): el is HTMLElement => !!el && el.parentNode === this.parts.doc)
 
     for (const change of targets) acceptChange(change.element)
 
     for (const block of emptied) {
-      if (block.isConnected && !block.textContent?.trim() && !block.querySelector('img, hr, br, .editor-table')) {
+      // Never remove the block holding the caret, whatever else is true — the
+      // same guard `deleteSelection`'s sweep already applies.
+      if (block.isConnected && !block.querySelector('.caret, .sel-end, .sel-start') && blockIsEmpty(block)) {
         block.remove()
       }
     }
@@ -1656,6 +1741,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       normalize: () => this.normalize(),
       focus: () => this.focus(),
       updateUndo: (cmd, reason) => this.updateUndo(cmd, reason),
+      removeNode: (node) => this.removeNode(node),
+      tracksChanges: () => this.trackChanges,
     }
   }
 
@@ -1967,7 +2054,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         return
       }
 
-      const prev = previousLeafNode(ip, li, deletableFilter)
+      const prev = this.deletionTarget(ip, li, 'back')
       if (prev) {
         // There's content before the caret in this <li> — delete it normally
         if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
@@ -1991,7 +2078,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const ip = this.insertionPoint()
       if (!ip) return
 
-      const next = nextLeafNode(ip, li, deletableFilter)
+      const next = this.deletionTarget(ip, li, 'forward')
       if (next) {
         // There's content after the caret in this <li> — delete it normally
         if (next.nodeType === 3 && (next.textContent || '').length > 1) {
@@ -2317,7 +2404,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const ip = this.insertionPoint()
       if (!ip) return
 
-      const node = previousLeafNode(ip, this.parts.doc, deletableFilter)
+      const node = this.deletionTarget(ip, this.parts.doc, 'back')
       if (!node) return
 
       const caretBlock = this.block(ip)
@@ -2365,7 +2452,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const ip = this.insertionPoint()
       if (!ip) return
 
-      const node = nextLeafNode(ip, this.parts.doc, deletableFilter)
+      const node = this.deletionTarget(ip, this.parts.doc, 'forward')
       if (!node) return
 
       const caretBlock = this.block(ip)
@@ -2463,8 +2550,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (
         this.parts.doc.contains(block) &&
         (!caret || !block.contains(caret)) &&
-        !block.textContent?.trim() &&
-        !block.querySelector(DEL_TAG)
+        blockIsEmpty(block)
       ) {
         this.removeNode(block)
       }
@@ -2936,7 +3022,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         } else if (cell) {
           // In a table cell: don't let backspace escape the cell
           if (ip) {
-            const prev = previousLeafNode(ip, cell, deletableFilter)
+            const prev = this.deletionTarget(ip, cell, 'back')
             if (prev) {
               if (prev.nodeType === 3 && (prev.textContent || '').length > 1) {
                 this.deleteEdgeCharacter(prev as Text, 'end')
@@ -2961,7 +3047,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         } else if (cell) {
           // In a table cell: don't let delete escape the cell
           if (ip) {
-            const next = nextLeafNode(ip, cell, deletableFilter)
+            const next = this.deletionTarget(ip, cell, 'forward')
             if (next) {
               if (next.nodeType === 3 && (next.textContent || '').length > 1) {
                 this.deleteEdgeCharacter(next as Text, 'start')

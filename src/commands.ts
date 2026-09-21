@@ -50,6 +50,28 @@ export interface EditableContext {
   normalize(): void
   focus(): void
   updateUndo(command?: string, reason?: string): void
+  /**
+   * Delete a node — or, under change tracking, mark it deleted in place.
+   *
+   * **This is how a command deletes anything.** A bare `node.remove()` is
+   * correct only when you know tracking is off, and a command cannot know
+   * that. The fix for tracked deletion originally landed on the component's
+   * private helper and stopped at the keydown handlers, so the two table
+   * commands — and every host-authored command added through
+   * `editor.commands.x = fn` — removed content with no `<tosi-del>`, no entry
+   * in `changes`, and nothing for `rejectChanges()` to restore.
+   */
+  removeNode(node: Node): void
+  /**
+   * Whether edits are being recorded as tracked changes.
+   *
+   * A command that RESTRUCTURES rather than deletes text — removing a table
+   * row, merging blocks — should check this and decline, because a change mark
+   * wraps content and structure is not content. Declining is the house rule:
+   * silently restructuring with nothing in `changes` to show for it is the
+   * failure this whole mechanism exists to prevent.
+   */
+  tracksChanges(): boolean
 }
 
 /** Parse a "key value key value" argument list into a CSS object */
@@ -606,6 +628,12 @@ export const commands: Record<string, Command> = {
    * Delete the row containing the caret.
    */
   deleteTableRow(ctx: EditableContext) {
+    // Structural, like deleteTableCol below. A grid table has no row elements
+    // — row and column are derived arithmetically from `cellIndex` — so a
+    // <tosi-del> wrapped around a cell would itself become a grid item and
+    // shift every later cell's index, corrupting the table it was meant to
+    // annotate. Decline while tracking rather than restructure silently.
+    if (ctx.tracksChanges()) return
     const ip = ctx.insertionPoint()
     if (!ip) return
     const cell = cellOf(ip)
@@ -631,7 +659,7 @@ export const commands: Record<string, Command> = {
     }
 
     for (const c of rowCells) {
-      c.remove()
+      ctx.removeNode(c)
     }
     ctx.updateUndo('new')
   },
@@ -640,6 +668,9 @@ export const commands: Record<string, Command> = {
    * Delete the column containing the caret.
    */
   deleteTableCol(ctx: EditableContext) {
+    // Removing a column changes the table's SHAPE — every row loses a cell and
+    // grid-template-columns is rewritten. Same reasoning as deleteTableRow.
+    if (ctx.tracksChanges()) return
     const ip = ctx.insertionPoint()
     if (!ip) return
     const cell = cellOf(ip)

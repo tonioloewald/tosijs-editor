@@ -840,11 +840,21 @@ export class Selectable {
     if (markers.length === 0) return fn()
 
     const saved = markers.map((el) => {
-      const block = this.topLevelAncestor(el)
+      // `topLevelAncestor` answers the marker itself when it is already a
+      // direct child of the root. Treat that as "the root is the container",
+      // not as "no container" — otherwise the marker is dropped below.
+      const found = this.topLevelAncestor(el)
+      const container = !found || found === el ? this.root : found
       return {
         el,
-        block,
-        offset: block ? this.textOffsetOf(block, el) : 0,
+        container,
+        // Where to land if the block has no text to measure against. A
+        // textless block is not exotic: backspacing the last character of a
+        // paragraph leaves exactly that, and the empty-block sweep
+        // deliberately KEEPS the block holding the caret.
+        parent: el.parentNode,
+        next: el.nextSibling,
+        offset: this.textOffsetOf(container, el),
       }
     })
     for (const { el } of saved) el.remove()
@@ -853,16 +863,33 @@ export class Selectable {
     try {
       return fn()
     } finally {
-      for (const { el, block, offset } of saved) {
-        if (!block?.isConnected) continue
+      // A `finally` whose whole job is to put view state back MUST have no
+      // path that drops it. Losing the caret here means the editor stops
+      // accepting input — and the entry point that calls this
+      // (`checkSpelling`) is one the host invokes on blur or before submit,
+      // so the failure surfaces inside the host's app as a dead editor.
+      for (const { el, container, parent, next, offset } of saved) {
         // Recompute per marker: putting the first one back splits a text node
         // and invalidates any index taken before it.
-        const pos = this.textIndexOf(block).locate(offset)
-        if (!pos) continue
-        const range = document.createRange()
-        range.setStart(pos.node, Math.min(pos.offset, pos.node.length))
-        range.collapse(true)
-        range.insertNode(el)
+        const pos = container.isConnected
+          ? this.textIndexOf(container).locate(offset)
+          : null
+        if (pos) {
+          const range = document.createRange()
+          range.setStart(pos.node, Math.min(pos.offset, pos.node.length))
+          range.collapse(true)
+          range.insertNode(el)
+          continue
+        }
+        // No text node to locate against. Fall back, in order of fidelity:
+        // exactly where it was, then the end of its container, then the root.
+        if (parent?.isConnected && (!next || next.parentNode === parent)) {
+          parent.insertBefore(el, next)
+        } else if (container.isConnected) {
+          container.appendChild(el)
+        } else {
+          this.root.appendChild(el)
+        }
       }
       this.normalize()
       this.onBoundsChanged?.()

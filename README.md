@@ -387,14 +387,20 @@ Two deletions behave specially, because the pedantic version would be noise:
 
 ### Not implemented
 
-- **no line-break tracking.** A change mark wraps content, and a paragraph break
-  is not content. So while `trackChanges` is on, deletions that would *merge*
-  blocks are **refused** rather than performed: Backspace at the start of a
-  paragraph, Delete at the end of one, and Backspace out of a list item all do
-  nothing. Refusing is deliberate — the alternative is silently restructuring
-  the document with nothing in `changes` to show for it, which is the failure
-  mode this feature exists to prevent. Text deletion inside a block is
-  unaffected.
+- **no structural tracking.** A change mark wraps *content*, and structure is
+  not content. So while `trackChanges` is on, edits that restructure rather
+  than delete text are **refused** rather than performed:
+  - Backspace at the start of a paragraph, Delete at the end of one, and
+    Backspace out of a list item (each deletes a paragraph break)
+  - **Delete Row** and **Delete Column** on a table — a grid table has no row
+    elements, so row and column are derived from `cellIndex`, and a
+    `<tosi-del>` around a cell would itself become a grid item and shift every
+    later cell
+
+  Refusing is deliberate: the alternative is silently restructuring the
+  document with nothing in `changes` to show for it, which is the failure this
+  feature exists to prevent. Text deletion inside a block or a cell is
+  unaffected and fully tracked.
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see
