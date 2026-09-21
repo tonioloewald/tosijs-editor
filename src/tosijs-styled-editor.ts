@@ -2626,6 +2626,35 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   /** Delete the current selection, return true if something was deleted */
   deleteSelection(): boolean {
     const blocks = this.selectedBlocks()
+
+    // ASK FIRST, BEFORE ANYTHING IS MUTATED.
+    //
+    // A multi-block selection delete merges what is left of the first and last
+    // blocks, which is structural. Deciding that after the tracked deletions
+    // had already run left an overridden gesture HALF-APPLIED: the text was
+    // wrapped in <tosi-del> and sitting in `changes` while the paragraph break
+    // had been removed raw, so `rejectChanges()` put the words back into a
+    // document whose structure had silently changed. That is the third time
+    // this exact shape has appeared — on the keystroke paths, on the table
+    // commands, and here — so the ordering is the fix, not another special
+    // case: resolve the refusal, then run the whole gesture in one mode.
+    const crossesBlocks = blocks.length > 1
+    const refusing = this.refusesStructuralDelete && crossesBlocks
+    const overridden =
+      refusing && !this.refuseStructural('merge-blocks-selection')
+
+    return overridden
+      ? this.asUntracked(() => this.runDeleteSelection(blocks, true))
+      : this.runDeleteSelection(blocks, !refusing)
+  }
+
+  /**
+   * The body of `deleteSelection`, after the structural question is settled.
+   *
+   * `mayMerge` is decided by the caller so that this never has to ask midway
+   * through its own mutations.
+   */
+  private runDeleteSelection(blocks: Element[], mayMerge: boolean): boolean {
     let wasAnythingDeleted = false
     // One selection delete is ONE change, however many nodes and blocks it
     // spans. A reviewer accepts or rejects the deletion, not its fragments.
@@ -2704,13 +2733,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const lastBlock = blocks[blocks.length - 1]
       // Selecting across paragraphs and pressing Backspace is the COMMONEST
       // gesture in this class, and keydown routes both Backspace and Delete
-      // through deleteSelection() first — so this refusal shadowed the
-      // merge-blocks-backward/-forward ones for every selection delete. It was
-      // the last bare `!refusesStructuralDelete` left, and it made README's
-      // enumerated six reasons untrue for the case a user hits most.
-      const mayMerge =
-        !this.refusesStructuralDelete ||
-        !this.refuseStructural('merge-blocks-selection')
+      // through deleteSelection() first — so a silent refusal here shadowed
+      // the merge-blocks-backward/-forward ones for every selection delete,
+      // and made README's enumerated reasons untrue for the case a user hits
+      // most. `mayMerge` is settled by the caller, before any mutation.
       if (
         mayMerge &&
         this.parts.doc.contains(firstBlock) &&

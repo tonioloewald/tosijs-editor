@@ -1317,6 +1317,35 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    test('an annotation widget survives a delete that empties its block', () => {
+      // End-to-end, not just the predicate: the destruction happened at the
+      // CALL SITES. An annotation is exactly what the shipped `annotate`
+      // command builds, and it carries the two classes EXTENSIBILITY.md tells
+      // plugin authors to use.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>alpha</p><p>gamma<span class="annotation do-not-spanify not-selectable"><img src="note.svg"></span></p>'
+      const blocks = [...el.parts.doc.querySelectorAll('p')]
+      blocks.forEach((p, i) => {
+        // `.first-block` / `.last-block` are what markBounds() sets on a real
+        // selection. Without them EVERY block counts as interior and is
+        // removed wholesale — a harness defect that looks exactly like the
+        // product defect under test.
+        p.classList.add('selected-block')
+        p.classList.add(i === 0 ? 'first-block' : 'last-block')
+        const span = document.createElement('span')
+        span.className = 'selected'
+        const text = p.firstChild as Text
+        p.insertBefore(span, text)
+        span.appendChild(text)
+      })
+
+      el.deleteSelection()
+      expect(el.parts.doc.querySelector('img')).not.toBeNull()
+      expect(el.parts.doc.querySelector('.annotation')).not.toBeNull()
+    })
+
     test('splitting an insertion does not mint a PHANTOM change', () => {
       // The DOM extract algorithm clones a partially-contained child into the
       // fragment even when the extracted subrange is empty — so a caret at the
@@ -1610,6 +1639,37 @@ describe('TosijsStyledEditor', () => {
       el.selectable.removeBounds()
       el.acceptChanges()
       expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
+    })
+
+    test('overriding a selection-delete refusal is all-or-nothing', () => {
+      // The refusal used to be resolved AFTER the tracked deletions had run,
+      // so an override left the text wrapped in <tosi-del> and pending review
+      // while the paragraph break had already gone raw — rejectChanges() then
+      // put the words back into a document whose structure had changed.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>hello world</p><p>second para</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
+      const blocks = [...el.parts.doc.querySelectorAll('p')]
+      blocks.forEach((p, i) => {
+        p.classList.add('selected-block')
+        p.classList.add(i === 0 ? 'first-block' : 'last-block')
+        const span = document.createElement('span')
+        span.className = 'selected'
+        const text = p.firstChild as Text
+        p.insertBefore(span, text)
+        span.appendChild(text)
+      })
+
+      el.deleteSelection()
+
+      // one mode, not two: the merge happened, so the deletion is untracked
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+      expect(el.changes.length).toBe(0)
+      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
+      expect(el.trackChanges).toBe(true)
     })
 
     test('a cross-paragraph selection delete refuses audibly too', () => {

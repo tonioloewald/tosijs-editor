@@ -349,17 +349,33 @@ describe('blockIsEmpty', () => {
     }
   })
 
-  test('our own chrome is not content', () => {
+  test('the bounds markers are not content', () => {
+    // and they are the ONLY chrome inside a block: the touch affordances are
+    // appended to parts.doc, a sibling of every block and never inside one.
     expect(blockIsEmpty(block('<span class="sel-end caret"></span>'))).toBe(
       true
     )
+    expect(blockIsEmpty(block('<span class="sel-start"></span>'))).toBe(true)
+  })
+
+  test('an UNSELECTABLE widget is still content', () => {
+    // `.not-selectable` / `.do-not-spanify` are what EXTENSIBILITY.md tells
+    // plugin authors to mark an atomic widget with, and what the shipped
+    // `annotate` command uses. Skipping them here made every annotation
+    // invisible to the two delete sweeps and to openInsertion's tail gate,
+    // which then destroyed it with no mark and no error. Being unselectable
+    // is a statement about the CARET, not about who authored the thing.
     expect(
       blockIsEmpty(
-        block('<div class="touch-affordances not-selectable"><i>x</i></div>')
+        block(
+          '<span class="annotation do-not-spanify not-selectable"><img></span>'
+        )
       )
-    ).toBe(false) // it has TEXT; the point is the element itself is skipped
-    expect(blockIsEmpty(block('<div class="not-selectable"><img></div>'))).toBe(
-      true
-    )
+    ).toBe(false)
+    expect(
+      blockIsEmpty(
+        block('<tosi-footnote class="not-selectable"></tosi-footnote>')
+      )
+    ).toBe(false)
   })
 })

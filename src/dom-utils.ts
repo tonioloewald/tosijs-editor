@@ -472,9 +472,18 @@ const INLINE_WRAPPERS = new Set([
 export function blockIsEmpty(block: Element): boolean {
   if (block.textContent?.trim()) return false
   for (const el of Array.from(block.querySelectorAll('*'))) {
-    // Our own chrome is not content: the bounds markers, the caret and the
-    // touch affordances are all view state the user did not author.
-    if (el.closest('.not-selectable, .do-not-spanify')) continue
+    // The bounds markers are the ONLY chrome that lives inside a block — the
+    // touch affordances are appended directly to `parts.doc`, a sibling of
+    // every block and never a descendant of one.
+    //
+    // There used to be a `.not-selectable, .do-not-spanify` skip here as well,
+    // and it was actively destructive: `closest()` matches the element ITSELF,
+    // so every atomic plugin widget — which EXTENSIBILITY.md tells authors to
+    // mark with exactly those two classes, and which the shipped `annotate`
+    // command uses — became invisible to this predicate along with its whole
+    // subtree, and the delete sweeps removed it with no mark and no error.
+    // Being unselectable is a statement about the CARET, not about whether
+    // the user authored the thing.
     if (el.matches('.sel-start, .sel-end, .caret')) continue
     // Anything that is not a pure inline WRAPPER is content, whether or not
     // it contains text. A wrapper holding nothing is not.
