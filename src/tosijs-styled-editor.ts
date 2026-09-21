@@ -1129,11 +1129,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * node to wrap — so split it out of the run first. `splitText` is exact
    * here; the caller has already established there is more than one character.
    */
-  private deleteEdgeCharacter(
-    text: Text,
-    end: 'start' | 'end',
-    gestureId?: string
-  ): void {
+  private deleteEdgeCharacter(text: Text, end: 'start' | 'end'): void {
     if (!this.trackChanges) {
       text.data = end === 'end' ? text.data.slice(0, -1) : text.data.slice(1)
       return
@@ -1146,7 +1142,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (text.parentElement?.closest(DEL_TAG)) return
     const char = end === 'end' ? text.splitText(text.data.length - 1) : text
     if (end === 'start') char.splitText(1)
-    this.trackDeletion([char], gestureId)
+    // No gesture id: every call here is a single keystroke deleting a single
+    // character, and each is its own change. (Coalescing a RUN of backspaces
+    // into one change, the way a run of typing coalesces into one insertion,
+    // is a separate job — TODO.md.)
+    this.trackDeletion([char])
   }
 
   /**
@@ -2744,8 +2744,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         !firstBlock.classList.contains('editor-table') &&
         !lastBlock.classList.contains('editor-table')
       ) {
-        while (firstBlock.firstChild) {
-          lastBlock.insertBefore(firstBlock.firstChild, lastBlock.firstChild)
+        // REVERSE ORDER. Repeatedly inserting `firstChild` before
+        // `lastChild.firstChild` puts each node in front of the previous one,
+        // so `A <b>B</b> C<i>D</i>` + `tail` merged to
+        // `<i>D</i> C<b>B</b>A tail`. Take a snapshot and insert before a
+        // fixed anchor instead.
+        const anchor = lastBlock.firstChild
+        for (const node of Array.from(firstBlock.childNodes)) {
+          lastBlock.insertBefore(node, anchor)
         }
         firstBlock.remove()
       }

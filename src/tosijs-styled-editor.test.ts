@@ -1317,6 +1317,25 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    test('merging the ends of a selection keeps the text in order', () => {
+      // `while (first.firstChild) last.insertBefore(first.firstChild,
+      // last.firstChild)` puts each node in FRONT of the previous one, so
+      // `A <b>B</b> C<i>D</i>` + `tail` merged to `<i>D</i> C<b>B</b>A tail`.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>A <b>B</b> C<i>D</i></p><p>tail</p>'
+      const blocks = [...el.parts.doc.querySelectorAll('p')]
+      blocks.forEach((p, i) => {
+        p.classList.add(
+          'selected-block',
+          i === 0 ? 'first-block' : 'last-block'
+        )
+      })
+
+      el.deleteSelection()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('A B CDtail')
+    })
+
     test('an annotation widget survives a delete that empties its block', () => {
       // End-to-end, not just the predicate: the destruction happened at the
       // CALL SITES. An annotation is exactly what the shipped `annotate`

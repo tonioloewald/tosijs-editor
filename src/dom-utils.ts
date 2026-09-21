@@ -458,6 +458,16 @@ const INLINE_WRAPPERS = new Set([
   'tt',
   'var',
   'wbr',
+  'rt',
+  'rp',
+  'code',
+  'kbd',
+  'samp',
+  'dfn',
+  'output',
+  'data',
+  'nobr',
+  'acronym',
 ])
 
 /**

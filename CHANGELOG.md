@@ -44,8 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<tosi-ins>`, and every deletion wraps in `<tosi-del>` — caret Backspace and
   Delete, selection deletes, cut, inside lists, inside table cells. Deletions
   that RESTRUCTURE rather than delete text are refused instead — block merges
-  (Backspace at the start of a paragraph, Delete at the end of one, Backspace
-  out of a list item) and table Delete Row / Delete Column. A change mark wraps
+  (a cross-paragraph selection delete, Backspace at the start of a
+  paragraph, Delete at the end of one, Backspace out of a list item) and table Delete Row / Delete Column. A change mark wraps
   content and structure is not content, so the honest answer until structural
   tracking exists is to decline rather than restructure the document with
   nothing in `changes` to show for it. A refusal fires a cancelable
