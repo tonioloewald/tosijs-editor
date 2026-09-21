@@ -74,6 +74,13 @@ function wordBoundsAt(text: string, offset: number): { start: number; end: numbe
  *
  *   **Snapping engages only once the drag LEAVES the word it began in.**
  *
+ * In practice that means it snaps **as soon as you cross a space**, which is
+ * more eager than it sounds and is the behaviour people like on trying it. It
+ * is structural rather than a tuned threshold: offsets BRACKET the space (in
+ * `the quick brown fox`, 9 ends `quick` and 10 starts `brown`), so there is no
+ * "crossed the gap but not yet arrived" position for it to wait in. Anything
+ * gentler would mean inventing a pixel margin to hold it back.
+ *
  * Inside the anchor word you keep character precision, so pulling `fix` out of
  * `prefix` still works. The moment you cross into another word, both ends snap
  * — including the anchor end, because a selection that spans words but starts

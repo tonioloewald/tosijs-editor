@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Drag selection is sticky at word boundaries.** The rule is one sentence:
-  snapping engages only once the drag LEAVES the word it began in. Inside that
-  word you keep character precision, so pulling `fix` out of `prefix` still
-  works; cross into another word and both ends snap — including the anchor,
+  snapping engages only once the drag LEAVES the word it began in — which in
+  practice means as soon as you cross a space, since offsets bracket the space
+  and there is no "crossed the gap but not yet arrived" position to wait in.
+  Inside that word you keep character precision, so pulling `fix` out of
+  `prefix` still works; cross into another word and both ends snap — including the anchor,
   because a selection spanning words that starts mid-word is almost never what
   was meant. Coming back inside the anchor word returns to precision.
   Punctuation comes along only when the pointer reaches it: the segmenter
