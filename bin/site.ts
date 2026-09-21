@@ -44,9 +44,32 @@ async function dropDanglingSourcemapRefs(): Promise<void> {
   }
 }
 
+/**
+ * Print what we are about to ask people to download.
+ *
+ * `libraryBuild` shells out to `bun build` with `.quiet()`, so a build printed
+ * no size at all — and three separate committed size claims had drifted by the
+ * time anyone checked. A number nobody sees is a number that goes stale.
+ * `practices/performance.md` cites this repo as the exemplar for printing it,
+ * which is exactly why it had to become true.
+ */
+async function reportBundleSizes(): Promise<void> {
+  const gzip = (bytes: Uint8Array): number => Bun.gzipSync(bytes).length
+  for (const path of ['dist/index.js', 'dist/module.js']) {
+    const file = Bun.file(path)
+    if (!(await file.exists())) continue
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const kb = (n: number): string => (n / 1024).toFixed(1).padStart(6)
+    console.log(`  ${path.padEnd(16)} ${kb(bytes.length)} kB  ${kb(gzip(bytes))} kB gzipped`)
+  }
+}
+
 if (process.argv.includes('--build')) {
   const ok = await buildSite(config)
-  if (ok) await dropDanglingSourcemapRefs()
+  if (ok) {
+    await dropDanglingSourcemapRefs()
+    await reportBundleSizes()
+  }
   process.exit(ok ? 0 : 1)
 }
 

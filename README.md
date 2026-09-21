@@ -684,10 +684,43 @@ Custom widgets you add follow the same rules and get translated too.
 | `widgets`   | `'none' \| 'minimal' \| 'default'`                  | Attribute — built-in toolbar preset                                   |
 | `localized` | `boolean`                                           | Attribute — translate the built-in widgets and show a language picker |
 
-| Method           | Description              |
-| ---------------- | ------------------------ |
-| `doCommand(str)` | Execute a command string |
-| `focus()`        | Focus the caret          |
+### Change tracking
+
+| Member                          | Type                               | Description                                                              |
+| ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
+| `trackChanges`                  | `boolean`                          | Record live edits as tracked changes                                     |
+| `changeAuthor`                  | `{ id, name? }`                    | Who the next change is attributed to                                     |
+| `sessionId`                     | `string` (readonly)                | Distinguishes this editing session from an earlier one by the same author |
+| `changes`                       | `TrackedChange[]`                  | Every change in the document, in document order                          |
+| `acceptChanges(id?)`            | `void`                             | Accept one change, or all of them with no argument                       |
+| `rejectChanges(id?)`            | `void`                             | Reject one change, or all of them with no argument                       |
+| `reviseWith(revise, author?)`   | `Promise<number>`                  | Round-trip the prose through a proofreader; returns changes introduced   |
+
+### Spell checking
+
+| Member                            | Type                                 | Description                                              |
+| --------------------------------- | ------------------------------------ | -------------------------------------------------------- |
+| `spellChecker`                    | `(words) => Set \| Promise<Set>`     | Supply a checker; without one, nothing is checked        |
+| `checkSpelling()`                 | `Promise<SpellingError[]>`           | Check now and mark what comes back wrong                 |
+| `spellingErrors`                  | `SpellingError[]`                    | The current errors — the query browsers refuse to answer |
+| `acceptWord(word, scope?)`        | `void`                               | `'document'` (default) or `'dictionary'`                 |
+| `documentWords` / `userDictionary` | `Set<string>`                       | The two accepted-word scopes, for persisting             |
+| `handleWordAccepted`              | `(word, scope) => void`              | Called when a word is accepted, so the host can persist  |
+| `clearSpelling()`                 | `void`                               | Drop every mark without changing the text                |
+
+### Other
+
+| Member           | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `doCommand(str)` | Execute a command string                                         |
+| `focus()`        | Focus the caret                                                  |
+| `sanitize`       | `(root: Element) => void` applied to pasted and dropped content   |
+
+Also exported from the package: `stickySelectionBounds`, `sanitizeInPlace` and
+`isSafeNavigationUrl` (re-exported from
+[tosijs-kilpi](https://www.npmjs.com/package/tosijs-kilpi)), `changeId`,
+`diffWords`, `acceptChange`/`rejectChange`, `checkSpelling`, `wordsIn`,
+`renumberFootnotes`, and the element classes behind the four content tags.
 
 ## License
 

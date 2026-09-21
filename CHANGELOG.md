@@ -79,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to persist the latter. In a jargon-heavy domain the normal answer to an
   unknown word is "that is a real word", not "I mistyped", so accepting has to
   be as cheap as correcting. No dictionary ships — which words are real is a
-  localization question, and a hunspell dictionary is ~40x the size of this
+  localization question, and a hunspell dictionary is ~35x the size of this
   editor.
   Marks are view state: cleared on every check and stripped from `value`, so
   they never reach the form value, an undo snapshot, or whatever the host

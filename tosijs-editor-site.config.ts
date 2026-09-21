@@ -111,7 +111,7 @@ export default defineSiteConfig({
     // The IIFE below bundles it, because that build assumes no installs.
     await $`bun build ./src/index.ts --outfile ${dist}/module.js --target browser --format esm --external tosijs --external tosijs-ui --external tosijs-kilpi`.quiet()
     // index.js is the drop-in <script> build, loaded as-is, so it IS minified:
-    // 83.5kB -> 70.8kB gzipped. `bun build` does not minify unless asked.
+    // 284.4kB -> 77.1kB gzipped at 0.5.0. `bun build` does not minify unless asked.
     await $`bun build ./src/index.ts --outfile ${dist}/index.js --target browser --format iife --minify`.quiet()
   },
 })

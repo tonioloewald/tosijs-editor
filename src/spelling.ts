@@ -14,7 +14,7 @@
  * for the same reason, no native right-click suggestion menu to inherit.
  *
  * WHAT THIS DOES NOT DO: ship a dictionary. A hunspell dictionary is ~1 MB
- * against a ~24 kB editor, and "which words are real" is a localization problem
+ * against a ~29 kB editor, and "which words are real" is a localization problem
  * with a different answer per document. The host supplies the checker:
  *
  * ```js
