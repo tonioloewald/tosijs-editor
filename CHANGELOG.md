@@ -30,7 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at the edge of your own earlier insertion opens a new change rather than
   silently merging into one bearing the older timestamp. Un-typing your own
   uncommitted text really removes it; re-deleting already-deleted text is a
-  no-op.
+  no-op. Cut and paste are tracked as well — a paste is ONE change rather than
+  one per word, since a reviewer accepts or rejects the paste, not its
+  individual words.
+  Accepting or rejecting **evaporates the mark entirely**: no wrapper, no
+  `data-change`, no attribution residue, and the text is re-normalized. A
+  document does not accumulate its own history — undo and the version store
+  already do that, and a document carrying every resolved edit becomes
+  unreadable and awkward to share.
 
 
 - **Spell checking, which this editor otherwise has none of.** Browsers only

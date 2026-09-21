@@ -370,6 +370,12 @@ own earlier tracked insertion opens a *new* change. That edit happened at a
 different time and a reviewer may want to treat it separately; without this they
 would silently merge into one change bearing the older timestamp.
 
+**Cut and paste are tracked too.** A cut wraps in `<tosi-del>` like any other
+deletion. A paste is **one** change rather than one per word — you did not build
+it a keystroke at a time, and a reviewer wants to accept or reject the paste, not
+its individual words — so it gets its own mark even mid-typing-run. Pasted
+content is still sanitized before it is marked.
+
 Two deletions behave specially, because the pedantic version would be noise:
 
 - text inside **your own current insertion** is really removed — you are
@@ -381,8 +387,16 @@ Two deletions behave specially, because the pedantic version would be noise:
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger
   decision — see `EXTENSIBILITY.md`.
-- **paste and drop are not yet tracked.** Typing and deletion are; inserted
-  transfers still land untracked.
+### Resolved changes leave nothing behind
+
+Accepting or rejecting a change **evaporates the mark entirely** — no wrapper, no
+`data-change`, no attribution residue, and the text is re-normalized rather than
+left fragmented. A document does not accumulate its own history.
+
+That is deliberate. Undo, and whatever version store the document lives in,
+already record past states; a document that carries every resolved edit becomes
+unreadable, larger than its content, and awkward to share with anyone who was not
+part of the review.
 
 ## Keyboard Behavior
 

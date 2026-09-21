@@ -867,6 +867,20 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (this.currentInsertion()) return
     const ip = this.insertionPoint()
     if (!ip || ip.closest(DEL_TAG)) return
+    const ins = this.openInsertion()
+    // Move the caret INTO the insertion, so the next character lands inside it.
+    if (ins) ins.appendChild(ip)
+  }
+
+  /**
+   * Create an empty insertion mark at the caret and return it.
+   *
+   * Shared by typing and by paste/drop, which differ only in what goes inside
+   * and whether the caret follows.
+   */
+  private openInsertion(): HTMLElement | null {
+    const ip = this.insertionPoint()
+    if (!ip || ip.closest(DEL_TAG)) return null
     defineChanges()
     const ins = document.createElement(INS_TAG)
     ins.setAttribute('data-change', `chg-${Date.now().toString(36)}`)
@@ -877,8 +891,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ins.setAttribute('data-session', this.sessionId)
     ins.setAttribute('data-time', new Date().toISOString())
     ip.before(ins)
-    // Move the caret INTO the insertion, so the next character lands inside it.
-    ins.appendChild(ip)
+    return ins
   }
 
   /**
@@ -2920,9 +2933,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const ip = this.insertionPoint()
     if (!ip) return false
 
+    // Pasted and dropped content is an insertion like any other. Unlike typing
+    // it is a SINGLE change rather than a run — you did not build it a keystroke
+    // at a time, and a reviewer wants to accept or reject the paste, not its
+    // individual words. So it gets its own mark regardless of what the caret
+    // was already inside.
+    const target = this.trackChanges ? this.openInsertion() : null
+    const before = (node: Node): void => {
+      if (target) target.appendChild(node)
+      else ip.before(node)
+    }
+
     if (this.pastemode === 'remove' || !html) {
-      if (!text) return false
-      ip.before(document.createTextNode(text))
+      if (!text) {
+        target?.remove()
+        return false
+      }
+      before(document.createTextNode(text))
     } else {
       const temp = document.createElement('div')
       temp.innerHTML = html
@@ -2931,9 +2958,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // anything that reaches the document from outside passes through here.
       this.sanitize(temp)
       while (temp.firstChild) {
-        ip.before(temp.firstChild)
+        before(temp.firstChild)
       }
     }
+    if (target && !target.firstChild) target.remove()
     return true
   }
 

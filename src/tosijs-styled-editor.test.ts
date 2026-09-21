@@ -997,6 +997,90 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.textContent).not.toContain('abc')
     })
 
+    const pasteInto = (el: TosijsStyledEditor, html: string): void => {
+      const data = {
+        getData: (t: string) => (t === 'text/html' ? html : 'plain'),
+        types: ['text/html', 'text/plain'],
+      }
+      const evt = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(evt, 'clipboardData', { value: data })
+      el.parts.doc.dispatchEvent(evt)
+    }
+
+    test('a paste is ONE change, not one per word', () => {
+      const el = typing()
+      pasteInto(el, 'several pasted words here')
+      const ins = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      expect(ins.length).toBe(1)
+      expect(ins[0].textContent).toBe('several pasted words here')
+      expect(ins[0].getAttribute('data-author')).toBe('alex')
+    })
+
+    test('a paste is its own change even mid-typing-run', () => {
+      const el = typing()
+      type(el, 'ab')
+      pasteInto(el, 'PASTED')
+      const ins = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      // the typing run and the paste are separately reviewable
+      expect(ins.length).toBe(2)
+      expect(ins.map((i) => i.textContent)).toContain('PASTED')
+    })
+
+    test('pasted markup is still sanitized before it is marked', () => {
+      const el = typing()
+      pasteInto(el, '<img src=x onerror="boom()">ok')
+      expect(el.value).not.toMatch(/onerror/i)
+      expect(el.parts.doc.querySelector('tosi-ins')).not.toBeNull()
+    })
+
+    test('rejecting a paste removes it entirely', () => {
+      const el = typing()
+      pasteInto(el, 'unwanted')
+      el.rejectChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).not.toContain(
+        'unwanted'
+      )
+      expect(el.changes.length).toBe(0)
+    })
+
+    test('cut wraps rather than removes, and leaves no residue once resolved', () => {
+      const el = typing()
+      const p = el.parts.doc.querySelector('p')!
+      const text = p.firstChild as Text
+      const span = document.createElement('span')
+      span.className = 'selected'
+      text.parentNode!.insertBefore(span, text)
+      span.appendChild(text)
+
+      el.parts.doc.dispatchEvent(
+        new Event('cut', { bubbles: true, cancelable: true })
+      )
+      const del = el.parts.doc.querySelector('tosi-del')
+      expect(del).not.toBeNull()
+      expect(del!.textContent).toContain('hello world')
+
+      // accepting a cut really removes it, and leaves nothing behind
+      el.acceptChanges()
+      expect(el.value).not.toMatch(/tosi-del/)
+      expect(el.value).not.toMatch(/data-change/)
+    })
+
+    test('resolved changes leave NO history in the document', async () => {
+      const el = typing()
+      type(el, 'abc')
+      pasteInto(el, 'def')
+      expect(el.changes.length).toBe(2)
+
+      el.acceptChanges()
+      const html = el.value
+      expect(html).not.toMatch(/tosi-ins|tosi-del|data-change|data-author|data-session/)
+      // and the text is fully normalized, not left fragmented
+      const p = el.parts.doc.querySelector('p')!
+      expect(p.querySelectorAll('*').length).toBe(
+        p.querySelectorAll('.sel-start, .sel-end').length
+      )
+    })
+
     test('tracked edits are ordinary changes — reviewable and resolvable', () => {
       const el = typing()
       type(el, 'xyz')

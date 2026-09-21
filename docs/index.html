@@ -335,6 +335,11 @@ elsewhere, an arrow key, a new line, a different author, a later session.</p>
 own earlier tracked insertion opens a <em>new</em> change. That edit happened at a
 different time and a reviewer may want to treat it separately; without this they
 would silently merge into one change bearing the older timestamp.</p>
+<p><strong>Cut and paste are tracked too.</strong> A cut wraps in <code>&lt;tosi-del&gt;</code> like any other
+deletion. A paste is <strong>one</strong> change rather than one per word — you did not build
+it a keystroke at a time, and a reviewer wants to accept or reject the paste, not
+its individual words — so it gets its own mark even mid-typing-run. Pasted
+content is still sanitized before it is marked.</p>
 <p>Two deletions behave specially, because the pedantic version would be noise:</p>
 <ul>
 <li>text inside <strong>your own current insertion</strong> is really removed — you are
@@ -346,9 +351,15 @@ un-typing something you just typed, not proposing to delete your own proposal</l
 <li><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
 but not collaborative merge. That needs an operation log, which is a larger
 decision — see <code>EXTENSIBILITY.md</code>.</li>
-<li><strong>paste and drop are not yet tracked.</strong> Typing and deletion are; inserted
-transfers still land untracked.</li>
 </ul>
+<h3>Resolved changes leave nothing behind</h3>
+<p>Accepting or rejecting a change <strong>evaporates the mark entirely</strong> — no wrapper, no
+<code>data-change</code>, no attribution residue, and the text is re-normalized rather than
+left fragmented. A document does not accumulate its own history.</p>
+<p>That is deliberate. Undo, and whatever version store the document lives in,
+already record past states; a document that carries every resolved edit becomes
+unreadable, larger than its content, and awkward to share with anyone who was not
+part of the review.</p>
 <h2>Keyboard Behavior</h2>
 <h3>General editing</h3>
 <table>
