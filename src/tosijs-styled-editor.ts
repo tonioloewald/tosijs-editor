@@ -1055,6 +1055,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** Accept one change by id, or every change when given none. */
   acceptChanges(id?: string): void {
+    // `undefined` means all; `''` does NOT. An empty string reaches here from
+    // `row.dataset.changeId` on a row that has no id, and "resolve everything
+    // in the document" is not a reasonable answer to "resolve this one".
+    if (id === '') return
     const targets = this.changes.filter((c) => !id || c.id === id)
     // A whole-block deletion marks the block's CONTENTS, so accepting it
     // empties the block rather than removing it — and an empty paragraph left
@@ -1079,6 +1083,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /** Reject one change by id, or every change when given none. */
   rejectChanges(id?: string): void {
+    if (id === '') return
     const targets = this.changes.filter((c) => !id || c.id === id)
     for (const change of targets) rejectChange(change.element)
     if (targets.length) {
@@ -3119,12 +3124,45 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // choke point for paste AND drop, which is why it is the right place:
       // anything that reaches the document from outside passes through here.
       this.sanitize(temp)
+      this.restampPastedChanges(temp)
       while (temp.firstChild) {
         before(temp.firstChild)
       }
     }
     if (target && !target.firstChild) target.remove()
     return true
+  }
+
+  /**
+   * Re-stamp any change marks arriving from outside.
+   *
+   * The sanitizer's job is to stop script running, and `<tosi-ins>` is a
+   * perfectly safe element — so pasted markup can carry `data-author`,
+   * `data-time` and `data-change` verbatim, and `editor.changes` would report
+   * whatever it said as fact. Two consequences, one cosmetic and one not: the
+   * attribution is forged, and a pasted `data-change` can COLLIDE with a live
+   * id, so accepting one change silently accepts the other.
+   *
+   * Attribution is client-asserted document content either way (see
+   * SECURITY.md) — there is no identity here to authenticate against. What we
+   * can guarantee is that a mark in this document says who put it there, which
+   * is the person pasting, now.
+   */
+  private restampPastedChanges(root: Element): void {
+    const marks = root.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)
+    if (!marks.length) return
+    const id = changeId()
+    for (const mark of Array.from(marks)) {
+      mark.setAttribute('data-change', id)
+      mark.setAttribute('data-author', this.changeAuthor.id)
+      if (this.changeAuthor.name) {
+        mark.setAttribute('data-author-name', this.changeAuthor.name)
+      } else {
+        mark.removeAttribute('data-author-name')
+      }
+      mark.setAttribute('data-session', this.sessionId)
+      mark.setAttribute('data-time', new Date().toISOString())
+    }
   }
 
   private handlePaste = (evt: ClipboardEvent): void => {

@@ -1268,6 +1268,45 @@ describe('TosijsStyledEditor', () => {
       expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
+    test('pasted change marks are re-stamped, not taken at their word', () => {
+      // <tosi-ins> is a safe element, so the sanitizer passes it and its
+      // attributes through. Taken at face value, `editor.changes` would report
+      // attacker-supplied attribution as fact — and a pasted data-change can
+      // collide with a live id, so accepting one silently accepts the other.
+      const el = typing()
+      const evt = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(evt, 'clipboardData', {
+        value: {
+          getData: (t: string) =>
+            t === 'text/html'
+              ? '<tosi-ins data-change="chg-forged" data-author="ceo" data-author-name="The CEO" data-time="2001-01-01T00:00:00.000Z">approved</tosi-ins>'
+              : 'approved',
+          types: ['text/html', 'text/plain'],
+        },
+      })
+      el.parts.doc.dispatchEvent(evt)
+
+      const marks = [...el.parts.doc.querySelectorAll('tosi-ins')]
+      expect(marks.length).toBeGreaterThan(0)
+      for (const m of marks) {
+        expect(m.getAttribute('data-author')).not.toBe('ceo')
+        expect(m.getAttribute('data-author-name')).not.toBe('The CEO')
+        expect(m.getAttribute('data-change')).not.toBe('chg-forged')
+        expect(m.getAttribute('data-time')).not.toBe('2001-01-01T00:00:00.000Z')
+      }
+      expect(el.changes.every((c) => c.author === 'alex')).toBe(true)
+    })
+
+    test('an empty change id does not resolve every change', () => {
+      // reachable from `row.dataset.changeId` on a row with no id
+      const el = typing()
+      type(el, 'abc')
+      expect(el.changes.length).toBe(1)
+      el.acceptChanges('')
+      el.rejectChanges('')
+      expect(el.changes.length).toBe(1)
+    })
+
     test('a deletion and its replacement get DIFFERENT ids', () => {
       // Typing over a selection deletes and inserts inside ONE synchronous
       // handler, so `Date.now()` alone collides. A collision means

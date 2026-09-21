@@ -121,13 +121,18 @@ function isCheckableText(node: Node): boolean {
 export function wordsIn(root: Element): WordHit[] {
   const hits: WordHit[] = []
   const Segmenter = (Intl as { Segmenter?: typeof Intl.Segmenter }).Segmenter
+  // Built ONCE, not per text node. Spelling marks split text nodes, so a
+  // checked document has many more of them than an unchecked one and this
+  // compounds with every pass.
+  const segmenter = Segmenter
+    ? new Segmenter(undefined, { granularity: 'word' })
+    : null
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let node: Node | null
   while ((node = walker.nextNode())) {
     if (!isCheckableText(node)) continue
     const text = node as Text
-    if (Segmenter) {
-      const segmenter = new Segmenter(undefined, { granularity: 'word' })
+    if (segmenter) {
       for (const piece of segmenter.segment(text.data)) {
         if (!piece.isWordLike) continue
         hits.push({
@@ -138,7 +143,11 @@ export function wordsIn(root: Element): WordHit[] {
         })
       }
     } else {
-      const re = /[^\s.,;:!?()[\]{}"'“”‘’—–]+/g
+      // Keeps the apostrophe: the doc comment above promises `don't` is one
+      // word, and excluding it made this fallback contradict the behaviour it
+      // is standing in for. (Bun and every current browser have Segmenter, so
+      // this path is only reached on old engines — and was never tested.)
+      const re = /[^\s.,;:!?()[\]{}"“”‘’—–]+/g
       let m: RegExpExecArray | null
       while ((m = re.exec(text.data))) {
         hits.push({
