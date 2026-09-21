@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=70529179a8e0" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=07bc32170599" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=723147b59fd8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=54add846fc62" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -373,6 +373,12 @@ unaffected and fully tracked.</p>
   <span class="token function">toast</span><span class="token punctuation">(</span><span class="token template-string"><span class="token template-punctuation string">`</span><span class="token string">Not tracked yet: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${</span>e<span class="token punctuation">.</span>detail<span class="token punctuation">.</span>reason<span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">. Turn off tracking to do this.</span><span class="token template-punctuation string">`</span></span><span class="token punctuation">)</span>
 <span class="token punctuation">}</span><span class="token punctuation">)</span>
 </code></pre>
+<p><code>detail.reason</code> is one of <code>merge-blocks-backward</code>, <code>merge-blocks-forward</code>,
+<code>remove-list-item</code>, <code>merge-list-items</code>, <code>delete-table-row</code>,
+<code>delete-table-col</code>. <strong>Calling <code>preventDefault()</code> performs the edit
+untracked</strong> — if tracking could have represented it, there would have been
+nothing to refuse. A custom command refuses the same way, through
+<code>ctx.refuseStructural(reason)</code>; see EXTENSIBILITY.md.</p>
 </li>
 <li><p><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
 but not collaborative merge. That needs an operation log, which is a larger
@@ -883,6 +889,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=70529179a8e0"></script>
+  <script type="module" src="hydrate.js?v=07bc32170599"></script>
 </body>
 </html>
