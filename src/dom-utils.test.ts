@@ -11,6 +11,7 @@ import {
   topSingleParentAncestor,
   closestSingleParentAncestor,
   allowSelection,
+  blockIsEmpty,
 } from './dom-utils'
 
 describe('makeFilter', () => {
@@ -301,3 +302,64 @@ describe('allowSelection', () => {
 // disagreeing about what is correct. What this package tests instead is that it
 // WIRES sanitization in: see `pasted and dropped content is sanitized` in
 // tosijs-styled-editor.test.ts.
+
+describe('blockIsEmpty', () => {
+  const block = (html: string): Element => {
+    const p = document.createElement('p')
+    p.innerHTML = html
+    return p
+  }
+
+  test('text is content', () => {
+    expect(blockIsEmpty(block('hi'))).toBe(false)
+    expect(blockIsEmpty(block('<b>hi</b>'))).toBe(false)
+  })
+
+  test('nothing is empty', () => {
+    expect(blockIsEmpty(block(''))).toBe(true)
+    expect(blockIsEmpty(block('   '))).toBe(true)
+    expect(blockIsEmpty(block('<b></b>'))).toBe(true)
+  })
+
+  test('ANY element with no text is still content', () => {
+    // This was a denylist of `img, hr, br, .editor-table, tosi-del, tosi-ins`
+    // and therefore answered "empty" for everything nobody listed. A
+    // predicate meaning "safe to delete" must fail toward KEEPING things, so
+    // it is an allowlist of inline wrappers and everything else is content.
+    for (const tag of [
+      'img',
+      'hr',
+      'br',
+      'svg',
+      'video',
+      'canvas',
+      'audio',
+      'iframe',
+      'object',
+      'embed',
+      'picture',
+      'input',
+      'progress',
+      'meter',
+      'tosi-del',
+      'tosi-ins',
+      'tosi-footnote',
+    ]) {
+      expect(blockIsEmpty(block(`<${tag}></${tag}>`))).toBe(false)
+    }
+  })
+
+  test('our own chrome is not content', () => {
+    expect(blockIsEmpty(block('<span class="sel-end caret"></span>'))).toBe(
+      true
+    )
+    expect(
+      blockIsEmpty(
+        block('<div class="touch-affordances not-selectable"><i>x</i></div>')
+      )
+    ).toBe(false) // it has TEXT; the point is the element itself is skipped
+    expect(blockIsEmpty(block('<div class="not-selectable"><img></div>'))).toBe(
+      true
+    )
+  })
+})

@@ -414,8 +414,8 @@ Two deletions behave specially, because the pedantic version would be noise:
   ```
 
   `detail.reason` is one of `merge-blocks-backward`, `merge-blocks-forward`,
-  `remove-list-item`, `merge-list-items`, `delete-table-row`,
-  `delete-table-col`. **Calling `preventDefault()` performs the edit
+  `merge-blocks-selection`, `remove-list-item`, `merge-list-items`,
+  `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
   untracked** — if tracking could have represented it, there would have been
   nothing to refuse. A custom command refuses the same way, through
   `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.

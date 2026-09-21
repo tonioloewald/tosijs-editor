@@ -419,6 +419,48 @@ export function caretGeometryAt(
 export { sanitizeInPlace, isSafeNavigationUrl } from 'tosijs-kilpi'
 
 /**
+ * Inline elements that carry no content of their own — they only decorate
+ * whatever is inside them. Anything NOT on this list is content.
+ *
+ * An allowlist, deliberately. The first version of `blockIsEmpty` was a
+ * DENYLIST of replaced elements (`img, hr, br, .editor-table, …`) and was
+ * therefore wrong for everything nobody thought of: it answered "empty" for a
+ * block containing an `<svg>`, a `<video>`, a `<canvas>` or an `<audio>`. A
+ * predicate whose job is "is it safe to delete this" must fail toward KEEPING
+ * things, and only an allowlist does that — a denylist is wrong by default for
+ * every element added to HTML after it was written.
+ */
+const INLINE_WRAPPERS = new Set([
+  'a',
+  'b',
+  'i',
+  'u',
+  's',
+  'em',
+  'strong',
+  'span',
+  'font',
+  'sub',
+  'sup',
+  'small',
+  'big',
+  'mark',
+  'abbr',
+  'cite',
+  'q',
+  'time',
+  'bdi',
+  'bdo',
+  'ruby',
+  'del',
+  'ins',
+  'strike',
+  'tt',
+  'var',
+  'wbr',
+])
+
+/**
  * A block with nothing left in it worth keeping.
  *
  * "No text" is not enough on its own: an image, a rule, a line break or a
@@ -429,5 +471,14 @@ export { sanitizeInPlace, isSafeNavigationUrl } from 'tosijs-kilpi'
  */
 export function blockIsEmpty(block: Element): boolean {
   if (block.textContent?.trim()) return false
-  return !block.querySelector('img, hr, br, .editor-table, tosi-del, tosi-ins')
+  for (const el of Array.from(block.querySelectorAll('*'))) {
+    // Our own chrome is not content: the bounds markers, the caret and the
+    // touch affordances are all view state the user did not author.
+    if (el.closest('.not-selectable, .do-not-spanify')) continue
+    if (el.matches('.sel-start, .sel-end, .caret')) continue
+    // Anything that is not a pure inline WRAPPER is content, whether or not
+    // it contains text. A wrapper holding nothing is not.
+    if (!INLINE_WRAPPERS.has(el.localName)) return false
+  }
+  return true
 }

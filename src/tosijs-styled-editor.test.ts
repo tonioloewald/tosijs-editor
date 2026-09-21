@@ -1317,12 +1317,54 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBe(1)
     })
 
+    test('splitting an insertion does not mint a PHANTOM change', () => {
+      // The DOM extract algorithm clones a partially-contained child into the
+      // fragment even when the extracted subrange is empty — so a caret at the
+      // end of <b>quick</b> yields a tail of <tosi-ins c1><b></b></tosi-ins>.
+      // Re-attached, that is a ghost row in `changes` sharing a LIVE id, which
+      // accumulates and survives accept.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p><tosi-ins data-change="c1" data-author="sam" data-session="other"><b>quick</b></tosi-ins></p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const b = el.parts.doc.querySelector('b')!
+      const range = document.createRange()
+      range.setStart(b.firstChild as Text, 5) // caret at the END of "quick"
+      range.collapse(true)
+      range.insertNode(el.selectable.createBounds())
+
+      type(el, 'X')
+      const ids = el.changes.map((c) => c.id)
+      expect(ids.length).toBe(2)
+      expect(new Set(ids).size).toBe(2)
+
+      // and nothing empty is left behind once resolved
+      el.acceptChanges()
+      const emptyInlines = [...el.parts.doc.querySelectorAll('b')].filter(
+        (b) => !b.firstChild
+      )
+      expect(emptyInlines.length).toBe(0)
+      expect(el.value).not.toMatch(/tosi-ins|data-change/)
+    })
+
     test('splitting an insertion does not drop a tail with no TEXT in it', () => {
       // extractContents() has already moved the tail out. Gating re-attachment
       // on textContent dropped an <img>/<br>/<hr> tail on the floor — no mark,
       // no entry in changes, no error. Reachable in one session: type,
       // insertImage, ArrowLeft, paste.
-      for (const html of ['<img src="x.png">', '<br>', '<hr>']) {
+      // svg/video/canvas matter as much as img: the shared emptiness predicate
+      // was a DENYLIST, so gating this line on it would have dropped exactly
+      // these tails — the same content loss, one media kind over.
+      for (const html of [
+        '<img src="x.png">',
+        '<br>',
+        '<hr>',
+        '<svg></svg>',
+        '<video></video>',
+        '<canvas></canvas>',
+      ]) {
         const el = tosijsStyledEditor() as TosijsStyledEditor
         container.appendChild(el)
         el.parts.doc.innerHTML = `<p><tosi-ins data-change="c1" data-author="sam" data-session="other">keep${html}</tosi-ins></p>`
@@ -1560,12 +1602,41 @@ describe('TosijsStyledEditor', () => {
       })
       el.parts.doc.dispatchEvent(evt)
       expect(
-        el.parts.doc.querySelector('tosi-del')?.hasAttribute('data-block-delete')
+        el.parts.doc
+          .querySelector('tosi-del')
+          ?.hasAttribute('data-block-delete')
       ).toBe(false)
 
       el.selectable.removeBounds()
       el.acceptChanges()
       expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
+    })
+
+    test('a cross-paragraph selection delete refuses audibly too', () => {
+      // keydown routes Backspace and Delete through deleteSelection FIRST, so
+      // a silent refusal here shadows the keystroke refusals for the gesture
+      // a user actually performs most: select across paragraphs, Backspace.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>xa</p><p>by</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const seen: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        seen.push((e as CustomEvent).detail.reason)
+      })
+      for (const p of el.parts.doc.querySelectorAll('p')) {
+        p.classList.add('selected-block')
+        const span = document.createElement('span')
+        span.className = 'selected'
+        const text = p.firstChild as Text
+        p.insertBefore(span, text)
+        span.appendChild(text)
+      }
+
+      el.deleteSelection()
+      expect(seen).toContain('merge-blocks-selection')
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
     test('a host can override a refusal with preventDefault', () => {

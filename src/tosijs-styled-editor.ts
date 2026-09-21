@@ -972,7 +972,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // This is exactly the mistake `blockIsEmpty()` was extracted to prevent,
     // made in the same commit that extracted it. "Has no text" and "is empty"
     // are different questions and the difference is always content.
-    if (tail.firstChild) ins.after(tail)
+    // Node presence is necessary but NOT sufficient. Per the DOM extract
+    // algorithm a Range whose start sits inside a partially-contained child
+    // clones that child into the fragment even when the extracted subrange is
+    // EMPTY — so a caret at the end of `<b>quick</b>` yields a tail of
+    // `<tosi-ins data-change="c1"><b></b></tosi-ins>`. Re-attaching that mints
+    // a phantom change sharing a live id, which `normalize()` does not
+    // collapse: `changes` grows a ghost row with a duplicate key, it
+    // accumulates with every edit, and it survives `acceptChanges()` as an
+    // empty `<b>` nobody authored.
+    //
+    // `blockIsEmpty` is the shared predicate, and it had to be corrected to an
+    // allowlist FIRST: as a denylist of replaced elements it answered "empty"
+    // for an <svg>/<video>/<canvas> tail, so gating on it would have
+    // re-introduced the very content loss this line was changed to fix, one
+    // media kind over.
+    if (tail.firstChild && !blockIsEmpty(tail)) ins.after(tail)
     return ins
   }
 
@@ -2687,8 +2702,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // Merge first and last blocks (if both still exist and aren't tables)
       const firstBlock = blocks[0]
       const lastBlock = blocks[blocks.length - 1]
+      // Selecting across paragraphs and pressing Backspace is the COMMONEST
+      // gesture in this class, and keydown routes both Backspace and Delete
+      // through deleteSelection() first — so this refusal shadowed the
+      // merge-blocks-backward/-forward ones for every selection delete. It was
+      // the last bare `!refusesStructuralDelete` left, and it made README's
+      // enumerated six reasons untrue for the case a user hits most.
+      const mayMerge =
+        !this.refusesStructuralDelete ||
+        !this.refuseStructural('merge-blocks-selection')
       if (
-        !this.refusesStructuralDelete &&
+        mayMerge &&
         this.parts.doc.contains(firstBlock) &&
         this.parts.doc.contains(lastBlock) &&
         !firstBlock.classList.contains('editor-table') &&
