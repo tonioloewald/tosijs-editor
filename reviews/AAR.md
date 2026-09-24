@@ -12,7 +12,7 @@ quarterly lens had to reconstruct seven reports by hand.
 
 ---
 
-## 0.5.0 — 2026-09-21
+## 0.5.0 — published 2026-09-25 (reviewed 2026-09-21)
 
 - **First full nine-lens pass on this repo.** Lens 8 (practices self-review) was skipped
   at 0.4.5 and at the review filed as `0.4.6-pre-release.md`, so its findings here are
@@ -76,6 +76,26 @@ quarterly lens had to reconstruct seven reports by hand.
   the first block's children (`A <b>B</b> C<i>D</i>` + `tail` → `<i>D</i> C<b>B</b>A tail`). Deferred and filed to `TODO.md`: line-break tracking, `reviseWith` batching
   (M6's other half), and the real-engine measurement of what spelling marks and inline
   change marks do to Arabic shaping — which is the most important open item.
+
+- **Two defects were found AFTER the tag, while verifying what would ship** — and both were
+  invisible to every gate that had already passed. The tarball carried
+  `dist/.metadata_never_index`, a zero-byte macOS artifact: untracked, so absent from a clean
+  checkout, from CI and from `git archive v0.5.0`, and publishable only from the one machine
+  that had it. `files` listed `dist` wholesale. Fixed with `!dist/.*`; 0.5.0 was unpublished,
+  so the tag was amended rather than a 0.5.1 minted (releasing.md: "never fix an unpublished
+  tag with a new version number").
+- **The tag was cut before the publish**, which is the reverse of the canonical flow — step 8
+  exists precisely because an earlier project ended up with a tag naming a version the
+  registry had never heard of. Here the publish landed and the tag was amended onto the
+  corrected commit, so nothing was lost, but the order was wrong and `release-doctor`'s
+  `tag/publish reconciliation` gate was red for four days saying so.
+- **A verification script produced a vacuous PASS** while checking the published tarball: a
+  regex for external imports assumed no space after `from`, matched nothing, and reported
+  "undeclared: none" from an empty set. Caught because an empty result list is implausible,
+  not because anything failed. Same family as the four falsification slips during the
+  remediation.
+- Final: npm 0.5.0, tag v0.5.0, repo all agree. 282 tests. 19 files / 155 kB packed.
+  release-doctor 0 failed, 0 warnings.
 
 ## 0.4.5 — backfilled
 
