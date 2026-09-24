@@ -45,7 +45,7 @@ quarterly lens had to reconstruct seven reports by hand.
 - **FOUR remediation re-reviews were needed, and the first three each found blockers
   introduced by the previous round's fix**: 4 blockers → 5 (3 mine) → 2 (both mine) →
   1 (mine) → 2 (both mine) → clean. Every one shipped with a fully green suite. The
-  subsystem is change tracking, and the recurring shape was a *policy gate* (refuse a
+  subsystem is change tracking, and the recurring shape was a _policy gate_ (refuse a
   structural edit; skip already-deleted text; decide what "empty" means) applied at one
   site while five others kept the old behaviour.
 - **The same defect was fixed three times before the fix was right**: "an overridden
@@ -54,10 +54,10 @@ quarterly lens had to reconstruct seven reports by hand.
   then selection deletes. Each fix was correct for its site and reproduced the bug one
   site over. The gate now exists in four shapes and collapsing them is the top TODO item.
 - **Writing a rule down does not apply it.** `blockIsEmpty()` was extracted with a doc
-  comment reading *"'No text' is not enough on its own: an image, a rule, a line break or
-  a table is content with no text content"* — and the same commit, 460 lines away, gated a
+  comment reading _"'No text' is not enough on its own: an image, a rule, a line break or
+  a table is content with no text content"_ — and the same commit, 460 lines away, gated a
   tail re-attachment on `tail.textContent` and silently destroyed `<img>` tails. Its
-  replacement was then a *denylist*, which answered "empty" for `<svg>`, `<video>` and
+  replacement was then a _denylist_, which answered "empty" for `<svg>`, `<video>` and
   `<canvas>`; and its chrome skip made every `.not-selectable` plugin widget invisible,
   destroying annotations the shipped `annotate` command builds. Three rounds on one
   predicate.

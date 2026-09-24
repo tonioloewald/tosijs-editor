@@ -55,16 +55,49 @@ async function dropDanglingSourcemapRefs(): Promise<void> {
  */
 async function reportBundleSizes(): Promise<void> {
   const gzip = (bytes: Uint8Array): number => Bun.gzipSync(bytes).length
+  const kb = (n: number): string => (n / 1024).toFixed(1).padStart(6)
+
+  // The baseline is committed, so the interesting number — the DELTA — is
+  // available without rebuilding the previous release by hand. An absolute
+  // size says nothing about a regression: tosijs-virta grew 3.8x across one
+  // release with the build printing absolute sizes the whole time.
+  const baselineFile = Bun.file('dist-sizes.json')
+  const baseline: Record<string, { bytes: number; gzip: number }> =
+    (await baselineFile.exists()) ? await baselineFile.json() : {}
+
+  const current: Record<string, { bytes: number; gzip: number }> = {}
   for (const path of ['dist/index.js', 'dist/module.js']) {
     const file = Bun.file(path)
     if (!(await file.exists())) continue
     const bytes = new Uint8Array(await file.arrayBuffer())
-    const kb = (n: number): string => (n / 1024).toFixed(1).padStart(6)
+    current[path] = { bytes: bytes.length, gzip: gzip(bytes) }
+
+    const was = baseline[path]
+    let delta = '(no baseline)'
+    if (was) {
+      const d = current[path].gzip - was.gzip
+      const sign = d > 0 ? '+' : ''
+      delta =
+        d === 0
+          ? '='
+          : `${sign}${(d / 1024).toFixed(1)} kB ${sign}${(
+              (d / was.gzip) *
+              100
+            ).toFixed(1)}%`
+    }
     console.log(
-      `  ${path.padEnd(16)} ${kb(bytes.length)} kB  ${kb(
-        gzip(bytes)
-      )} kB gzipped`
+      `  ${path.padEnd(16)} ${kb(current[path].bytes)} kB  ${kb(
+        current[path].gzip
+      )} kB gz  ${delta}`
     )
+  }
+
+  // `--record-sizes` rewrites the baseline. Deliberately NOT automatic: a
+  // baseline that updates itself on every build can never show a regression,
+  // which is the entire point of keeping one.
+  if (process.argv.includes('--record-sizes')) {
+    await Bun.write('dist-sizes.json', JSON.stringify(current, null, 2) + '\n')
+    console.log('  baseline recorded in dist-sizes.json')
   }
 }
 

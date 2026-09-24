@@ -1,0 +1,10 @@
+{
+  "dist/index.js": {
+    "bytes": 293807,
+    "gzip": 79778
+  },
+  "dist/module.js": {
+    "bytes": 151256,
+    "gzip": 31069
+  }
+}

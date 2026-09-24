@@ -1,5 +1,5 @@
-[ ] FROM THE FOUR 0.5.0 REMEDIATION RE-REVIEWS (reviews/0.5.0-remediation-rereview*.md).
-    Deferred and tracked, not "reviewed and fine".
+[ ] FROM THE FOUR 0.5.0 REMEDIATION RE-REVIEWS (reviews/0.5.0-remediation-rereview\*.md).
+Deferred and tracked, not "reviewed and fine".
 
     THE STRUCTURAL TWIN THAT KEEPS BITING — do this one first:
     - The refuse/override gate now exists in FOUR shapes: backspace(),

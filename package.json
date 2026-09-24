@@ -25,6 +25,7 @@
   "files": [
     "dist",
     "!dist/*.tsbuildinfo",
+    "!dist/.*",
     "README.md",
     "SECURITY.md",
     "CHANGELOG.md",
