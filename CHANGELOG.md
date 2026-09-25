@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Structural edits are tracked, not refused.** Merging paragraphs is recorded
+  the brute-force way — _these blocks out, these blocks in_. A change mark wraps
+  content and a paragraph break is not content, so merging two paragraphs
+  strikes both originals (`data-block-delete`) and proposes a third
+  (`data-block-insert`); all three share one `data-change` and resolve
+  **atomically**, because there is no coherent document in which you accept the
+  deletions but reject what replaced them. Covers Backspace at the start of a
+  block, Delete at the end of one, and a selection spanning blocks — where the
+  proposed block reads as the deletion _would_ read once accepted.
+  The cost is honest duplication: the text is present twice until someone
+  resolves it. A merge is **refused** when either block holds someone _else's_
+  unresolved change (`merge-blocks-has-pending-changes`), because the
+  replacement is built by copying content and copying their mark would report
+  their proposal twice; your own pending marks are folded into the copy instead,
+  since the attribution does not change.
+  `merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
+  no longer fire — those edits are now recorded. Lists and tables are still
+  refused.
+
+### Fixed
+
+- **A partially struck block was skipped, and its text then appeared twice.**
+  The "already entirely deleted" guard tested element children, so
+  `<p>keep <tosi-del>cut</tosi-del></p>` looked fully deleted — a text node is
+  not an element child. Accepting a merge then left the surviving text in both
+  the original and the replacement.
+- **Rejecting a block-scoped insertion left an empty paragraph** where the
+  proposal had been, and took the caret with it — the mirror of a fix already
+  made on the accept side. The caret is now rescued out before the block goes.
+
 ## [0.5.0] - 2026-09-21
 
 ### Added

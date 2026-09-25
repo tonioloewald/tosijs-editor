@@ -40,6 +40,25 @@ export interface TrackedChange {
 export const INS_TAG = 'tosi-ins'
 export const DEL_TAG = 'tosi-del'
 
+/**
+ * Marks whose scope is a whole BLOCK rather than a run of text.
+ *
+ * A structural edit is recorded the brute-force way — *these blocks out, these
+ * blocks in* — because a change mark wraps content and a paragraph break is not
+ * content. Merging two paragraphs therefore strikes both originals and proposes
+ * a third; splitting one strikes it and proposes two. Accepting removes the
+ * struck blocks entirely rather than leaving them empty, which is what these
+ * attributes tell `acceptChanges` to do, and the whole group shares one
+ * `data-change` so it resolves atomically.
+ *
+ * The cost is honest duplication: the text appears twice until someone resolves
+ * it. The alternative — a sentinel marking the break itself — avoids that but
+ * means the pre-accept DOM does not represent the proposed document, so
+ * anything without the styling reads it wrongly.
+ */
+export const BLOCK_DELETE_ATTR = 'data-block-delete'
+export const BLOCK_INSERT_ATTR = 'data-block-insert'
+
 let changeSeq = 0
 /**
  * A new change id.
@@ -104,7 +123,7 @@ export function changesIn(root: Element): TrackedChange[] {
 }
 
 /** Unwrap an element, leaving its children where it was. */
-function unwrap(el: Element): void {
+export function unwrap(el: Element): void {
   const parent = el.parentNode
   if (!parent) return
   while (el.firstChild) parent.insertBefore(el.firstChild, el)

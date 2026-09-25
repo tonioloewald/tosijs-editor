@@ -141,6 +141,9 @@ import {
   type ChangeAuthor,
   type TrackedChange,
   changeId,
+  unwrap,
+  BLOCK_DELETE_ATTR,
+  BLOCK_INSERT_ATTR,
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
@@ -1039,12 +1042,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
           ? (node as Element)
           : null
       if (asBlock && !asBlock.firstChild) continue
-      if (
-        asBlock?.firstElementChild?.matches?.(DEL_TAG) &&
-        asBlock.children.length === 1
-      ) {
-        continue // already entirely deleted
-      }
+      if (asBlock && this.isFullyStruck(asBlock)) continue
 
       const del = document.createElement(DEL_TAG)
       del.setAttribute('data-change', id)
@@ -1061,7 +1059,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         // and that cannot be INFERRED later from "the block is now empty",
         // because an ordinary inline deletion of all a block's text looks
         // identical and must leave the empty block (and its caret) standing.
-        del.setAttribute('data-block-delete', '')
+        del.setAttribute(BLOCK_DELETE_ATTR, '')
         while (asBlock.firstChild) del.appendChild(asBlock.firstChild)
         asBlock.appendChild(del)
       } else {
@@ -1173,6 +1171,188 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * `detail.reason` names which edit was refused.
    */
   /**
+   * Move the bounds markers out of a block that is about to be removed.
+   *
+   * A block proposed by a structural edit is pure proposal, so rejecting it
+   * MUST take the block — but the caret is sitting in it, and an editor with no
+   * insertion point silently swallows everything typed into it. So the caret
+   * moves to the end of the preceding block, which for a rejected merge is
+   * where the restored text now ends.
+   */
+  private rescueCaretFrom(block: Element): void {
+    const markers = Array.from(
+      block.querySelectorAll('.sel-start, .sel-end, .caret')
+    )
+    if (!markers.length) return
+    // Hop out to a block that will survive: the mark's own block is going too
+    // when this is a block-scoped proposal.
+    const from =
+      block.parentElement?.parentNode === this.parts.doc
+        ? (block.parentElement as Element)
+        : block
+    const host = from.previousElementSibling ?? from.nextElementSibling
+    for (const marker of markers) {
+      if (host) host.appendChild(marker)
+      else marker.remove()
+    }
+  }
+
+  /**
+   * Is everything in this block already inside a `<tosi-del>`?
+   *
+   * Asked before striking a block, so a second pass does not nest a mark
+   * inside a mark. It has to look at CONTENT, not element children: the first
+   * version tested `firstElementChild.matches(DEL_TAG) && children.length === 1`
+   * and so answered "already deleted" for `<p>keep <tosi-del>cut</tosi-del></p>`
+   * — the text node is not an element child. The block was then skipped, its
+   * surviving text stayed put, and accepting the merge left that text in the
+   * document TWICE, once in the original and once in the replacement.
+   */
+  private isFullyStruck(block: Element): boolean {
+    const probe = document.createElement('div')
+    for (const child of Array.from(block.childNodes)) {
+      probe.appendChild(child.cloneNode(true))
+    }
+    for (const el of Array.from(probe.querySelectorAll(DEL_TAG))) el.remove()
+    for (const el of Array.from(
+      probe.querySelectorAll('.sel-start, .sel-end, .caret')
+    )) {
+      el.remove()
+    }
+    return blockIsEmpty(probe)
+  }
+
+  /** Is this mark mine, from this session? */
+  private isMine(mark: Element): boolean {
+    return (
+      mark.getAttribute('data-author') === this.changeAuthor.id &&
+      mark.getAttribute('data-session') === this.sessionId
+    )
+  }
+
+  /**
+   * A block's content as it would read if MY pending changes were accepted.
+   *
+   * Cloned, so the original is untouched. My insertions become plain text and
+   * my deletions really go, because the block-level mark about to wrap this
+   * carries the same attribution and subsumes them — leaving them nested would
+   * report one proposal twice in `changes`. Selection chrome is dropped: the
+   * caret is placed deliberately at the join afterwards, and a cloned marker
+   * would be a second caret.
+   */
+  private resolvedClone(block: Element): DocumentFragment {
+    const frag = document.createDocumentFragment()
+    for (const child of Array.from(block.childNodes)) {
+      frag.appendChild(child.cloneNode(true))
+    }
+    for (const el of Array.from(
+      frag.querySelectorAll('.sel-start, .sel-end, .caret')
+    )) {
+      el.remove()
+    }
+    for (const del of Array.from(frag.querySelectorAll(DEL_TAG))) del.remove()
+    for (const ins of Array.from(frag.querySelectorAll(INS_TAG))) unwrap(ins)
+    return frag
+  }
+
+  /**
+   * A block like `model`, without the selection state stuck to it.
+   *
+   * `.selected-block` / `.first-block` / `.last-block` describe a selection in
+   * flight, not the document, and copying them onto a newly proposed block
+   * makes it look selected to every subsequent query.
+   */
+  private blockLike(model: Element): Element {
+    const block = document.createElement(model.tagName)
+    for (const attr of Array.from(model.attributes)) {
+      block.setAttribute(attr.name, attr.value)
+    }
+    block.classList.remove(
+      'selected-block',
+      'first-block',
+      'last-block',
+      'selected'
+    )
+    if (!block.getAttribute('class')) block.removeAttribute('class')
+    return block
+  }
+
+  /**
+   * Does any of these blocks hold a change that is NOT mine, this session?
+   *
+   * The question a structural edit has to answer BEFORE it mutates anything.
+   * The replacement is built by copying content, and copying someone else's
+   * mark would report their proposal twice and let accepting ours accept theirs
+   * by proxy. My own pending marks are fine — `resolvedClone` folds them in,
+   * and the attribution does not change because it is the same author and the
+   * same session.
+   */
+  private hasForeignChanges(blocks: Element[]): boolean {
+    return blocks.some((b) =>
+      Array.from(b.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)).some(
+        (m) => !this.isMine(m)
+      )
+    )
+  }
+
+  /**
+   * Record a structural edit the brute-force way: BLOCKS OUT, BLOCKS IN.
+   *
+   * `blocksOut` are struck whole (`data-block-delete`, so accepting removes
+   * them rather than leaving them empty) and one new block is proposed
+   * (`data-block-insert`). The whole group shares one `data-change`, so
+   * `acceptChanges(id)` / `rejectChanges(id)` resolve it atomically — there is
+   * no coherent document in which you accept the deletions but reject their
+   * replacement.
+   *
+   * REFUSES when any affected block holds someone ELSE'S unresolved change.
+   * The replacement is built by copying content, and copying their mark would
+   * report their proposal twice and let accepting ours accept theirs by proxy.
+   * My own pending marks are fine — `resolvedClone` folds them in, and the
+   * attribution is unchanged because it is the same author and session.
+   *
+   * Returns false when nothing was recorded, so the caller can fall through to
+   * its untracked path.
+   */
+  private trackStructuralEdit(
+    blocksOut: Element[],
+    gestureId?: string
+  ): { ins: HTMLElement; caret: DocumentFragment } {
+    defineChanges()
+    // One GESTURE, one id — including when the caller already minted one for
+    // the text deletion that precedes this. Without that the group is not
+    // atomic, and `acceptChanges(id)` can accept the deletions while leaving
+    // their replacement pending, which is not a document anyone proposed.
+    const id = gestureId ?? changeId()
+    const ins = document.createElement(INS_TAG)
+    ins.setAttribute('data-change', id)
+    ins.setAttribute('data-author', this.changeAuthor.id)
+    if (this.changeAuthor.name) {
+      ins.setAttribute('data-author-name', this.changeAuthor.name)
+    }
+    ins.setAttribute('data-session', this.sessionId)
+    ins.setAttribute('data-time', new Date().toISOString())
+    ins.setAttribute(BLOCK_INSERT_ATTR, '')
+
+    // Content first, marks second: striking the originals would otherwise put
+    // a <tosi-del> inside the copy.
+    const caret = this.selectable.createBounds()
+    const parts = blocksOut.map((b) => this.resolvedClone(b))
+    const merged = this.blockLike(blocksOut[0])
+    parts.forEach((frag, i) => {
+      // The caret lands at the JOIN — where the user's next keystroke belongs.
+      if (i === 1) ins.appendChild(caret)
+      ins.appendChild(frag)
+    })
+    merged.appendChild(ins)
+
+    this.selectable.removeBounds()
+    this.trackDeletion(blocksOut, id)
+    blocksOut[blocksOut.length - 1].after(merged)
+    return { ins, caret }
+  }
+
+  /**
    * Run a gesture with tracking suspended.
    *
    * For the one case where a host has OVERRIDDEN a structural refusal. The
@@ -1232,8 +1412,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // caret-based command silently bailed.
     const emptied = targets
       .filter(
-        (c) =>
-          c.kind === 'delete' && c.element.hasAttribute('data-block-delete')
+        (c) => c.kind === 'delete' && c.element.hasAttribute(BLOCK_DELETE_ATTR)
       )
       .map((c) => c.element.parentElement)
       .filter(
@@ -1263,7 +1442,34 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   rejectChanges(id?: string): void {
     if (id === '') return
     const targets = this.changes.filter((c) => !id || c.id === id)
+    // The mirror of `acceptChanges`' emptied sweep. A block-scoped INSERTION
+    // proposed a whole block, so rejecting it takes the block with it —
+    // removing only the mark left an empty paragraph standing where the
+    // proposal had been.
+    const proposed = targets
+      .filter(
+        (c) => c.kind === 'insert' && c.element.hasAttribute(BLOCK_INSERT_ATTR)
+      )
+      .map((c) => c.element.parentElement)
+      .filter(
+        (el): el is HTMLElement => !!el && el.parentNode === this.parts.doc
+      )
+
+    // BEFORE rejecting: `rejectChange` removes an insertion outright, and the
+    // caret is inside it. Rescued after the fact there is nothing left to
+    // rescue from, and an editor with no insertion point silently swallows
+    // everything typed into it.
+    for (const change of targets) {
+      if (change.kind === 'insert') this.rescueCaretFrom(change.element)
+    }
+
     for (const change of targets) rejectChange(change.element)
+
+    for (const block of proposed) {
+      // Unlike the accept sweep this block cannot be kept — it exists only
+      // because the rejected change proposed it.
+      if (block.isConnected && blockIsEmpty(block)) block.remove()
+    }
     if (targets.length) {
       this.normalize()
       this.updateUndo('new', 'reject-changes')
@@ -2527,14 +2733,28 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         caretBlock &&
         deletionBlock !== caretBlock
       )
-      if (
-        this.refusesStructuralDelete &&
-        crossesBlocks &&
-        this.refuseStructural('merge-blocks-backward')
-      ) {
-        return
+      // A deletion that crosses a block boundary deletes a paragraph BREAK, and
+      // a change mark wraps content. So record it the brute-force way instead:
+      // both blocks out, one merged block in. `deletionBlock` is the earlier of
+      // the two in document order either way — Backspace looks back, Delete
+      // looks forward — so the pair is ordered here, not at the primitive.
+      let overridden = false
+      if (this.trackChanges && crossesBlocks) {
+        const pair = [deletionBlock as Element, caretBlock as Element]
+        // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
+        // the gesture half-applied, which is the shape that had to be fixed
+        // three times before it stuck.
+        if (this.hasForeignChanges(pair)) {
+          if (this.refuseStructural('merge-blocks-has-pending-changes')) return
+          overridden = true // the host asked for it anyway: untracked, whole
+        } else {
+          this.trackStructuralEdit(pair)
+          this.normalize()
+          this.focus()
+          this.updateUndo('new', 'merge-blocks')
+          return
+        }
       }
-      const overridden = this.refusesStructuralDelete && crossesBlocks
 
       const run = <T>(fn: () => T): T =>
         overridden ? this.asUntracked(fn) : fn()
@@ -2586,14 +2806,28 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         caretBlock &&
         deletionBlock !== caretBlock
       )
-      if (
-        this.refusesStructuralDelete &&
-        crossesBlocks &&
-        this.refuseStructural('merge-blocks-forward')
-      ) {
-        return
+      // A deletion that crosses a block boundary deletes a paragraph BREAK, and
+      // a change mark wraps content. So record it the brute-force way instead:
+      // both blocks out, one merged block in. `deletionBlock` is the earlier of
+      // the two in document order either way — Backspace looks back, Delete
+      // looks forward — so the pair is ordered here, not at the primitive.
+      let overridden = false
+      if (this.trackChanges && crossesBlocks) {
+        const pair = [caretBlock as Element, deletionBlock as Element]
+        // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
+        // the gesture half-applied, which is the shape that had to be fixed
+        // three times before it stuck.
+        if (this.hasForeignChanges(pair)) {
+          if (this.refuseStructural('merge-blocks-has-pending-changes')) return
+          overridden = true // the host asked for it anyway: untracked, whole
+        } else {
+          this.trackStructuralEdit(pair)
+          this.normalize()
+          this.focus()
+          this.updateUndo('new', 'merge-blocks')
+          return
+        }
       }
-      const overridden = this.refusesStructuralDelete && crossesBlocks
 
       const run = <T>(fn: () => T): T =>
         overridden ? this.asUntracked(fn) : fn()
@@ -2638,14 +2872,31 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // this exact shape has appeared — on the keystroke paths, on the table
     // commands, and here — so the ordering is the fix, not another special
     // case: resolve the refusal, then run the whole gesture in one mode.
+    // A cross-block selection delete is now RECORDED rather than refused: the
+    // text deletion is marked inline as before, and the merge of what is left
+    // of the first and last blocks is recorded structurally — both blocks out,
+    // one block in, sharing the gesture's id. The marks nest (an inline
+    // <tosi-del> inside the block-scoped one), which is safe precisely because
+    // the group is atomic: accepting removes the blocks and their contents
+    // together, rejecting unwraps outer then inner and restores everything.
     const crossesBlocks = blocks.length > 1
-    const refusing = this.refusesStructuralDelete && crossesBlocks
-    const overridden =
-      refusing && !this.refuseStructural('merge-blocks-selection')
+    if (!this.trackChanges || !crossesBlocks) {
+      return this.runDeleteSelection(blocks, 'raw')
+    }
 
-    return overridden
-      ? this.asUntracked(() => this.runDeleteSelection(blocks, true))
-      : this.runDeleteSelection(blocks, !refusing)
+    // ASK FIRST, BEFORE ANYTHING IS MUTATED — the ends are the blocks whose
+    // remnants get merged, so they are the ones whose pending changes matter.
+    const ends = [blocks[0], blocks[blocks.length - 1]]
+    if (this.hasForeignChanges(ends)) {
+      if (this.refuseStructural('merge-blocks-has-pending-changes')) {
+        // Delete the selected TEXT — that part is perfectly trackable — and
+        // leave the blocks apart. Refusing the merge is not refusing the edit.
+        return this.runDeleteSelection(blocks, 'none')
+      }
+      // Overridden: the WHOLE gesture goes untracked, never half of it.
+      return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
+    }
+    return this.runDeleteSelection(blocks, 'tracked')
   }
 
   /**
@@ -2654,7 +2905,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * `mayMerge` is decided by the caller so that this never has to ask midway
    * through its own mutations.
    */
-  private runDeleteSelection(blocks: Element[], mayMerge: boolean): boolean {
+  private runDeleteSelection(
+    blocks: Element[],
+    merge: 'raw' | 'tracked' | 'none'
+  ): boolean {
     let wasAnythingDeleted = false
     // One selection delete is ONE change, however many nodes and blocks it
     // spans. A reviewer accepts or rejects the deletion, not its fragments.
@@ -2737,13 +2991,18 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // the merge-blocks-backward/-forward ones for every selection delete,
       // and made README's enumerated reasons untrue for the case a user hits
       // most. `mayMerge` is settled by the caller, before any mutation.
-      if (
-        mayMerge &&
+      const mergeable =
         this.parts.doc.contains(firstBlock) &&
         this.parts.doc.contains(lastBlock) &&
         !firstBlock.classList.contains('editor-table') &&
         !lastBlock.classList.contains('editor-table')
-      ) {
+
+      if (mergeable && merge === 'tracked') {
+        // Both remnants out, one merged block in. `resolvedClone` inside the
+        // primitive drops the <tosi-del>s the loop above just created, so the
+        // proposed block reads as the deletion WOULD read once accepted.
+        this.trackStructuralEdit([firstBlock, lastBlock], gesture)
+      } else if (mergeable && merge === 'raw') {
         // REVERSE ORDER. Repeatedly inserting `firstChild` before
         // `lastChild.firstChild` puts each node in front of the previous one,
         // so `A <b>B</b> C<i>D</i>` + `tail` merged to
@@ -3438,7 +3697,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // attribute, so no hand-crafted HTML is needed to reach it. Left in
       // place, a later `acceptChanges()` would delete the pasting document's
       // paragraph.
-      mark.removeAttribute('data-block-delete')
+      mark.removeAttribute(BLOCK_DELETE_ATTR)
+      mark.removeAttribute(BLOCK_INSERT_ATTR)
     }
   }
 

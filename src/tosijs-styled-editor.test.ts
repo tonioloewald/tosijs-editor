@@ -1455,34 +1455,6 @@ describe('TosijsStyledEditor', () => {
       expect(new Set(ids).size).toBe(1)
     })
 
-    test('a refused structural edit is observable', () => {
-      // preventDefault() has already run by the time the refusal happens, so
-      // without a signal the key is simply dead and no host can explain why.
-      const el = typing()
-      const seen: string[] = []
-      el.addEventListener('structural-edit-refused', (e) => {
-        seen.push((e as CustomEvent).detail.reason)
-      })
-      const p = el.parts.doc.querySelector('p')!
-      el.parts.doc.insertBefore(document.createElement('p'), p)
-      el.parts.doc.firstElementChild!.textContent = 'before'
-      const range = document.createRange()
-      range.setStart(p.firstChild as Text, 0)
-      range.collapse(true)
-      el.selectable.removeBounds()
-      range.insertNode(el.selectable.createBounds())
-
-      press(el, 'Backspace')
-      expect(seen).toContain('merge-blocks-backward')
-      // and the blocks really were not merged
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
-    })
-
-    // --- regressions introduced by the B3 remediation (a0e2c43) -------------
-    // Every one of these shipped green. The original B3 test asserted only
-    // that textContent was unchanged, which a DEAD KEY satisfies just as well
-    // as a tracked deletion.
-
     test('repeated Backspace keeps deleting — the mark is not a wall', () => {
       const el = typing()
       press(el, 'Backspace')
@@ -1597,35 +1569,6 @@ describe('TosijsStyledEditor', () => {
       expect(refused).toEqual(['delete-table-row', 'delete-table-col'])
     })
 
-    test('overriding a block-merge refusal gives a clean UNTRACKED edit', () => {
-      // Half-applying is the failure: the merge itself is a raw DOM move with
-      // nothing in `changes`, while the character riding along on the same
-      // keystroke gets MARKED — leaving the document mid-merge AND
-      // mid-proposal, where neither accepting nor rejecting reproduces a
-      // document either party proposed.
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML = '<p>one</p><p>two</p>'
-      el.changeAuthor = { id: 'alex', name: 'Alex' }
-      el.trackChanges = true
-      const second = el.parts.doc.querySelectorAll('p')[1]
-      const range = document.createRange()
-      range.setStart(second.firstChild as Text, 0)
-      range.collapse(true)
-      el.selectable.removeBounds()
-      range.insertNode(el.selectable.createBounds())
-      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
-
-      press(el, 'Backspace')
-
-      // one paragraph, no marks anywhere, nothing pending review
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
-      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
-      expect(el.changes.length).toBe(0)
-      // and tracking is back on for the next edit
-      expect(el.trackChanges).toBe(true)
-    })
-
     test('pasted markup cannot assert that it deletes a whole block', () => {
       // A tracked whole-block delete copied out of ANOTHER editor carries
       // data-block-delete, and kilpi is an attribute blocklist so data-* is
@@ -1649,73 +1592,14 @@ describe('TosijsStyledEditor', () => {
         },
       })
       el.parts.doc.dispatchEvent(evt)
-      expect(
-        el.parts.doc
-          .querySelector('tosi-del')
-          ?.hasAttribute('data-block-delete')
-      ).toBe(false)
+      const pasted = el.parts.doc.querySelector('tosi-del')!
+      expect(pasted.hasAttribute('data-block-delete')).toBe(false)
+      // and the insert side too — it changes what accepting does
+      expect(pasted.hasAttribute('data-block-insert')).toBe(false)
 
       el.selectable.removeBounds()
       el.acceptChanges()
       expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
-    })
-
-    test('overriding a selection-delete refusal is all-or-nothing', () => {
-      // The refusal used to be resolved AFTER the tracked deletions had run,
-      // so an override left the text wrapped in <tosi-del> and pending review
-      // while the paragraph break had already gone raw — rejectChanges() then
-      // put the words back into a document whose structure had changed.
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML = '<p>hello world</p><p>second para</p>'
-      el.changeAuthor = { id: 'alex', name: 'Alex' }
-      el.trackChanges = true
-      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
-      const blocks = [...el.parts.doc.querySelectorAll('p')]
-      blocks.forEach((p, i) => {
-        p.classList.add('selected-block')
-        p.classList.add(i === 0 ? 'first-block' : 'last-block')
-        const span = document.createElement('span')
-        span.className = 'selected'
-        const text = p.firstChild as Text
-        p.insertBefore(span, text)
-        span.appendChild(text)
-      })
-
-      el.deleteSelection()
-
-      // one mode, not two: the merge happened, so the deletion is untracked
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
-      expect(el.changes.length).toBe(0)
-      expect(el.parts.doc.querySelector('tosi-del')).toBeNull()
-      expect(el.trackChanges).toBe(true)
-    })
-
-    test('a cross-paragraph selection delete refuses audibly too', () => {
-      // keydown routes Backspace and Delete through deleteSelection FIRST, so
-      // a silent refusal here shadows the keystroke refusals for the gesture
-      // a user actually performs most: select across paragraphs, Backspace.
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML = '<p>xa</p><p>by</p>'
-      el.changeAuthor = { id: 'alex', name: 'Alex' }
-      el.trackChanges = true
-      const seen: string[] = []
-      el.addEventListener('structural-edit-refused', (e) => {
-        seen.push((e as CustomEvent).detail.reason)
-      })
-      for (const p of el.parts.doc.querySelectorAll('p')) {
-        p.classList.add('selected-block')
-        const span = document.createElement('span')
-        span.className = 'selected'
-        const text = p.firstChild as Text
-        p.insertBefore(span, text)
-        span.appendChild(text)
-      }
-
-      el.deleteSelection()
-      expect(seen).toContain('merge-blocks-selection')
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
     test('a host can override a refusal with preventDefault', () => {
@@ -1750,6 +1634,217 @@ describe('TosijsStyledEditor', () => {
       // reads as "the editor stopped accepting input", inside their app.
       expect(el.insertionPoint()).not.toBeNull()
       expect(el.parts.doc.querySelectorAll('.sel-end').length).toBe(1)
+    })
+
+    // --- STRUCTURAL edits: blocks out, blocks in ---------------------------
+    // A change mark wraps content and a paragraph break is not content, so a
+    // merge is recorded the brute-force way: both originals struck, one merged
+    // block proposed, the whole group sharing one id so it resolves atomically.
+    const twoParas = (): TosijsStyledEditor => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      return el
+    }
+    const caretAtStartOfSecond = (el: TosijsStyledEditor): void => {
+      const second = el.parts.doc.querySelectorAll('p')[1]
+      const range = document.createRange()
+      range.setStart(second.firstChild as Text, 0)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+    }
+
+    test('a block merge is recorded as two blocks out, one block in', () => {
+      const el = twoParas()
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+
+      const dels = [
+        ...el.parts.doc.querySelectorAll('tosi-del[data-block-delete]'),
+      ]
+      const ins = el.parts.doc.querySelector('tosi-ins[data-block-insert]')
+      expect(dels.map((d) => d.textContent)).toEqual(['Alpha.', 'Beta.'])
+      expect(ins).not.toBeNull()
+      expect(ins!.textContent).toBe('Alpha.Beta.')
+      // ONE gesture, so ONE id — otherwise a reviewer could accept the
+      // deletions and leave their replacement pending.
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+      expect(el.changes.length).toBe(3)
+    })
+
+    test('accepting a merge leaves one paragraph and no residue', () => {
+      const el = twoParas()
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+      el.acceptChanges()
+
+      const paras = [...el.parts.doc.querySelectorAll('p')]
+      expect(paras.length).toBe(1)
+      expect(paras[0].textContent).toBe('Alpha.Beta.')
+      expect(el.value).not.toMatch(/tosi-|data-change|data-block/)
+      expect(el.insertionPoint()).not.toBeNull()
+    })
+
+    test('rejecting a merge restores both paragraphs and keeps the caret', () => {
+      const el = twoParas()
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+      el.rejectChanges()
+
+      const paras = [...el.parts.doc.querySelectorAll('p')]
+      expect(paras.map((p) => p.textContent)).toEqual(['Alpha.', 'Beta.'])
+      expect(el.value).not.toMatch(/tosi-|data-change|data-block/)
+      // the proposed block goes, so the caret has to be rescued out of it
+      expect(el.insertionPoint()).not.toBeNull()
+    })
+
+    test('Delete at the end of a block merges forward, same shape', () => {
+      const el = twoParas()
+      const first = el.parts.doc.querySelector('p')!
+      const text = first.firstChild as Text
+      const range = document.createRange()
+      range.setStart(text, text.data.length)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+
+      press(el, 'Delete')
+      expect(
+        el.parts.doc.querySelector('tosi-ins[data-block-insert]')!.textContent
+      ).toBe('Alpha.Beta.')
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+    })
+
+    test('a cross-paragraph selection delete is tracked, not refused', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>keep1 cut1</p><p>cut2 keep2</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const ps = [...el.parts.doc.querySelectorAll('p')]
+      ps[0].classList.add('selected-block', 'first-block')
+      ps[1].classList.add('selected-block', 'last-block')
+      const t1 = ps[0].firstChild as Text
+      const t2 = ps[1].firstChild as Text
+      const cut1 = t1.splitText(6)
+      t2.splitText(4)
+      for (const node of [cut1, t2]) {
+        const sp = document.createElement('span')
+        sp.className = 'selected'
+        node.parentNode!.insertBefore(sp, node)
+        sp.appendChild(node)
+      }
+
+      el.deleteSelection()
+      // the proposed block reads as the deletion WOULD read once accepted
+      expect(
+        el.parts.doc.querySelector('tosi-ins[data-block-insert]')!.textContent
+      ).toBe('keep1  keep2')
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+
+      el.acceptChanges()
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+      // the deleted words are gone, and the kept words appear ONCE
+      const text = el.parts.doc.querySelector('p')!.textContent!
+      expect(text).toBe('keep1  keep2')
+      expect(text).not.toContain('cut')
+    })
+
+    test('a partially struck block is still struck as a whole', () => {
+      // The "already entirely deleted" guard tested element children, so
+      // `<p>keep <tosi-del>cut</tosi-del></p>` looked fully deleted — the text
+      // node is not an element child. The block was skipped and its surviving
+      // text then appeared TWICE after accepting: once in the original, once in
+      // the replacement.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>keep1 cut1</p><p>cut2 keep2</p>'
+      el.changeAuthor = { id: 'alex' }
+      el.trackChanges = true
+      const ps = [...el.parts.doc.querySelectorAll('p')]
+      ps[0].classList.add('selected-block', 'first-block')
+      ps[1].classList.add('selected-block', 'last-block')
+      const t1 = ps[0].firstChild as Text
+      const t2 = ps[1].firstChild as Text
+      const cut1 = t1.splitText(6)
+      t2.splitText(4)
+      for (const node of [cut1, t2]) {
+        const sp = document.createElement('span')
+        sp.className = 'selected'
+        node.parentNode!.insertBefore(sp, node)
+        sp.appendChild(node)
+      }
+      el.deleteSelection()
+      // the precondition: both originals carry a block-scoped mark
+      expect(
+        el.parts.doc.querySelectorAll('tosi-del[data-block-delete]').length
+      ).toBe(2)
+      el.acceptChanges()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('keep1  keep2')
+    })
+
+    test('a merge is REFUSED when the blocks hold another author s change', () => {
+      // The replacement is built by copying content, so copying their mark
+      // would report their proposal twice and let accepting ours accept theirs.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const seen: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        seen.push((e as CustomEvent).detail.reason)
+      })
+      caretAtStartOfSecond(el)
+
+      press(el, 'Backspace')
+      expect(seen).toEqual(['merge-blocks-has-pending-changes'])
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+      expect(
+        el.parts.doc.querySelector('tosi-ins[data-block-insert]')
+      ).toBeNull()
+      // and THEIR change is untouched
+      expect(el.changes.map((c) => c.author)).toEqual(['sam'])
+    })
+
+    test('MY own pending change does not block a merge; it is folded in', () => {
+      const el = twoParas()
+      // type into the second paragraph first, creating my own insertion
+      const second = el.parts.doc.querySelectorAll('p')[1]
+      second.appendChild(el.selectable.createBounds())
+      type(el, 'xy')
+      expect(el.parts.doc.querySelector('tosi-ins')).not.toBeNull()
+
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+      const ins = el.parts.doc.querySelector('tosi-ins[data-block-insert]')
+      expect(ins).not.toBeNull()
+      // my typed text is present as plain text inside the proposal, not as a
+      // nested mark reporting the same proposal twice
+      expect(ins!.textContent).toContain('xy')
+      expect(ins!.querySelector('tosi-ins')).toBeNull()
+    })
+
+    test('overriding the pending-changes refusal merges UNTRACKED, whole', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
+      el.changeAuthor = { id: 'alex' }
+      el.trackChanges = true
+      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
+      caretAtStartOfSecond(el)
+
+      press(el, 'Backspace')
+      // one paragraph, and nothing NEW pending — theirs is still theirs
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+      expect(el.parts.doc.querySelector('[data-block-insert]')).toBeNull()
+      expect(el.changes.map((c) => c.author)).toEqual(['sam'])
+      expect(el.trackChanges).toBe(true)
     })
 
     test('a deletion and its replacement get DIFFERENT ids', () => {

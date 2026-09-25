@@ -387,21 +387,13 @@ Two deletions behave specially, because the pedantic version would be noise:
 
 ### Not implemented
 
-- **no structural tracking.** A change mark wraps _content_, and structure is
-  not content. So while `trackChanges` is on, edits that restructure rather
-  than delete text are **refused** rather than performed:
-
-  - Backspace at the start of a paragraph, Delete at the end of one, and
-    Backspace out of a list item (each deletes a paragraph break)
-  - **Delete Row** and **Delete Column** on a table — a grid table has no row
-    elements, so row and column are derived from `cellIndex`, and a
-    `<tosi-del>` around a cell would itself become a grid item and shift every
-    later cell
-
-  Refusing is deliberate: the alternative is silently restructuring the
-  document with nothing in `changes` to show for it, which is the failure this
-  feature exists to prevent. Text deletion inside a block or a cell is
-  unaffected and fully tracked.
+- **lists and tables are still refused.** Backspace out of a list item, and
+  **Delete Row** / **Delete Column** on a table — a grid table has no row
+  elements, so row and column are derived from `cellIndex`, and a `<tosi-del>`
+  around a cell would itself become a grid item and shift every later cell.
+  Refusing beats silently restructuring with nothing in `changes` to show for
+  it. Text deletion inside a list item or a cell is unaffected and fully
+  tracked. (Paragraph merges ARE tracked — see Structural edits above.)
 
   A refusal fires a cancelable **`structural-edit-refused`** event carrying
   `detail.reason`, so the key is not simply dead — show a note, or call
@@ -413,9 +405,9 @@ Two deletions behave specially, because the pedantic version would be noise:
   })
   ```
 
-  `detail.reason` is one of `merge-blocks-backward`, `merge-blocks-forward`,
-  `merge-blocks-selection`, `remove-list-item`, `merge-list-items`,
-  `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
+  `detail.reason` is one of `merge-blocks-has-pending-changes`,
+  `remove-list-item`, `merge-list-items`, `delete-table-row`,
+  `delete-table-col`. **Calling `preventDefault()` performs the edit
   untracked** — if tracking could have represented it, there would have been
   nothing to refuse. A custom command refuses the same way, through
   `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.

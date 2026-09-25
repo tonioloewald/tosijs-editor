@@ -294,12 +294,21 @@ Three things that are easy to undo by accident:
   `trackDeletion` once had a single call site and six other paths deleted raw, so
   content left the document with no `<tosi-del>` and no entry in `changes`. Never write
   a bare `removeChild` in a deletion path; a tracking gate that fails open is worse
-  than no gate. Deletions that would MERGE blocks are refused while tracking, because a
-  change mark wraps content and a paragraph break is not content.
+  than no gate. A deletion that would MERGE blocks is not refused — it is recorded
+  structurally; see below.
 - **A whole-block deletion marks the block's CONTENTS, never the block.**
   `<tosi-del><p>…</p></tosi-del>` lands at document top level and then `block()` answers
   `tosi-del` for everything inside it, mis-targeting `setBlockType`, `selectedBlocks`
   and Enter handling.
+- **A STRUCTURAL edit is blocks out, blocks in** — `trackStructuralEdit`. A change mark
+  wraps content and a paragraph break is not content, so a merge strikes both originals
+  (`data-block-delete`) and proposes a third (`data-block-insert`), all sharing one
+  `data-change` so the group resolves atomically. Two rules keep it honest: **ask before
+  mutating** (a refusal resolved midway leaves the gesture half-applied — that shape had
+  to be fixed three times before it stuck), and **refuse when a block holds a foreign
+  change**, because the replacement is built by copying content and copying someone
+  else's mark reports their proposal twice. `resolvedClone` folds MY pending marks into
+  the copy, which is safe only because the attribution is unchanged.
 
 **Anything that reads the document as LANGUAGE must call `Selectable.withoutBounds()`.**
 The bounds markers are real elements, so they split the text node they sit in: with the
