@@ -355,6 +355,47 @@ editor.changeAuthor = { id: 'alex', name: 'Alex' }
 editor.trackChanges = true
 ```
 
+### Structural edits
+
+**Merging paragraphs is tracked too**, the brute-force way: _these blocks out,
+these blocks in_. A change mark wraps content and a paragraph break is not
+content, so merging two paragraphs strikes both originals and proposes a third:
+
+```xml
+<p><tosi-del data-change="c1" data-block-delete>Alpha.</tosi-del></p>
+<p><tosi-del data-change="c1" data-block-delete>Beta.</tosi-del></p>
+<p><tosi-ins data-change="c1" data-block-insert>Alpha. Beta.</tosi-ins></p>
+```
+
+All three share one `data-change`, so the group resolves **atomically** —
+accepting removes the struck blocks and keeps the replacement, rejecting
+restores the originals and drops the proposal. There is no coherent document in
+which you accept the deletions but reject what replaced them. Covers Backspace
+at the start of a block, Delete at the end of one, and a selection spanning
+blocks (where the proposal reads as the deletion _would_ read once accepted).
+
+**The text is present twice until someone resolves it.** That is the cost of
+the brute-force representation, and it is worth knowing before you persist
+`value` on every keystroke: a document mid-merge serializes both the originals
+and the proposal.
+
+**`data-block-delete` / `data-block-insert` say a mark's scope is a whole
+block** rather than a run of text, and they are what tell `acceptChanges` to
+remove the struck block instead of leaving it empty. A downstream sanitizer
+that strips unknown `data-*` attributes turns a proposed merge back into three
+ordinary blocks.
+
+**A merge is refused if either block already holds an unresolved change** —
+`merge-blocks-has-pending-changes`, including your own. The replacement is
+built by _copying_ content, and a copy cannot carry a mark's identity: copying
+a resolvable mark would let the same proposal be resolved twice, in two places,
+with the two answers disagreeing. Resolve what is pending in those paragraphs
+first. Lists and grid tables refuse for a different reason
+(`merge-blocks-not-mergeable`): merging them produces loose text inside a
+`<ul>`, or a mark that becomes a grid item and shifts every cell.
+
+### Everything else
+
 Typing then lands inside a `<tosi-ins>`, and **every** deletion wraps in
 `<tosi-del>` instead of removing — caret Backspace and Delete, a selection
 delete, a cut, inside a list, inside a table cell. Nothing leaves the document
@@ -406,8 +447,8 @@ Two deletions behave specially, because the pedantic version would be noise:
   ```
 
   `detail.reason` is one of `merge-blocks-has-pending-changes`,
-  `remove-list-item`, `merge-list-items`, `delete-table-row`,
-  `delete-table-col`. **Calling `preventDefault()` performs the edit
+  `merge-blocks-not-mergeable`, `remove-list-item`, `merge-list-items`,
+  `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
   untracked** — if tracking could have represented it, there would have been
   nothing to refuse. A custom command refuses the same way, through
   `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.

@@ -1222,23 +1222,18 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     return blockIsEmpty(probe)
   }
 
-  /** Is this mark mine, from this session? */
-  private isMine(mark: Element): boolean {
-    return (
-      mark.getAttribute('data-author') === this.changeAuthor.id &&
-      mark.getAttribute('data-session') === this.sessionId
-    )
-  }
-
   /**
    * A block's content as it would read if MY pending changes were accepted.
    *
-   * Cloned, so the original is untouched. My insertions become plain text and
-   * my deletions really go, because the block-level mark about to wrap this
-   * carries the same attribution and subsumes them — leaving them nested would
-   * report one proposal twice in `changes`. Selection chrome is dropped: the
-   * caret is placed deliberately at the join afterwards, and a cloned marker
-   * would be a second caret.
+   * Cloned, so the original is untouched. Insertions become plain text and
+   * deletions really go — which is safe ONLY because `hasPendingChanges` has
+   * already refused any block holding an unresolved mark, so the only marks
+   * that can be here are ones this same gesture just created (the selection
+   * path marks the deleted text inline before merging). A copy cannot carry a
+   * mark's identity, so anything still independently resolvable must never
+   * reach this function. Selection chrome is dropped: the caret is placed
+   * deliberately at the join afterwards, and a cloned marker would be a second
+   * caret.
    */
   private resolvedClone(block: Element): DocumentFragment {
     const frag = document.createDocumentFragment()
@@ -1278,20 +1273,53 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   }
 
   /**
-   * Does any of these blocks hold a change that is NOT mine, this session?
+   * Can this pair of blocks be merged into one block at all?
    *
-   * The question a structural edit has to answer BEFORE it mutates anything.
-   * The replacement is built by copying content, and copying someone else's
-   * mark would report their proposal twice and let accepting ours accept theirs
-   * by proxy. My own pending marks are fine — `resolvedClone` folds them in,
-   * and the attribution does not change because it is the same author and the
-   * same session.
+   * A list is not a paragraph: merging `<ul>` with `<p>` produces loose text as
+   * a direct child of the list, and on a grid table the mark becomes a grid
+   * item and shifts every `cellIndex`. Reproduced before this guard existed:
+   * a Backspace joining a table and a paragraph accepted to a document with
+   * the paragraph's text *gone entirely*.
+   *
+   * v0.5.0 refused every cross-block merge, so replacing that blanket refusal
+   * with a tracked merge silently widened what the editor would attempt. The
+   * guard has to live on ALL THREE paths — both keystrokes and the selection —
+   * which is exactly the kind of "applied at one site, missed at five" shape
+   * this subsystem keeps producing.
    */
-  private hasForeignChanges(blocks: Element[]): boolean {
-    return blocks.some((b) =>
-      Array.from(b.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)).some(
-        (m) => !this.isMine(m)
-      )
+  private canMergeBlocks(blocks: Element[]): boolean {
+    return blocks.every(
+      (b) =>
+        !!b &&
+        !/^(ul|ol|dl|table)$/.test(b.localName) &&
+        !b.classList.contains('editor-table')
+    )
+  }
+
+  /**
+   * Does any of these blocks hold an UNRESOLVED change of any kind?
+   *
+   * The question a structural edit has to answer BEFORE it mutates anything,
+   * and it fails CLOSED: any pending mark at all, mine included, refuses.
+   *
+   * The narrower version — refuse only on marks that are not mine, and fold my
+   * own into the copy — corrupted the document two ways, both reproduced:
+   *
+   *  - A SECOND merge over a block this feature had itself proposed struck the
+   *    proposal and copied it again, so resolving the two groups in either
+   *    order left the text duplicated with no marks remaining to explain it.
+   *  - Folding my own pending insertion into the copy baked it in as plain
+   *    text, so rejecting that insertion and then accepting the merge put text
+   *    the reviewer had explicitly REJECTED into the accepted document.
+   *
+   * Both are the same root cause: a copy cannot carry a mark's identity, so
+   * anything still resolvable must not be copied. Absorbing the pending change
+   * into the merge's own id is the better answer and is filed (TODO.md); this
+   * is the version that cannot silently lose or duplicate a word.
+   */
+  private hasPendingChanges(blocks: Element[]): boolean {
+    return blocks.some(
+      (b) => b.querySelector(`${INS_TAG}, ${DEL_TAG}`) !== null
     )
   }
 
@@ -1459,16 +1487,30 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // caret is inside it. Rescued after the fact there is nothing left to
     // rescue from, and an editor with no insertion point silently swallows
     // everything typed into it.
+    // Rejecting an insertion REMOVES it, caret and all, so the markers have to
+    // come out first — afterwards there is nothing left to take them from.
+    // In place, right where the mark was: that is the position the user was
+    // editing. A block-scoped proposal ALSO loses its block, and the sweep
+    // below hops the caret out to a surviving block at that point.
     for (const change of targets) {
-      if (change.kind === 'insert') this.rescueCaretFrom(change.element)
+      if (change.kind !== 'insert') continue
+      const mark = change.element
+      for (const marker of Array.from(
+        mark.querySelectorAll('.sel-start, .sel-end, .caret')
+      )) {
+        mark.parentNode?.insertBefore(marker, mark)
+      }
     }
 
     for (const change of targets) rejectChange(change.element)
 
     for (const block of proposed) {
       // Unlike the accept sweep this block cannot be kept — it exists only
-      // because the rejected change proposed it.
-      if (block.isConnected && blockIsEmpty(block)) block.remove()
+      // because the rejected change proposed it. So move the caret to a block
+      // that survives rather than declining to remove it.
+      if (!block.isConnected || !blockIsEmpty(block)) continue
+      this.rescueCaretFrom(block)
+      block.remove()
     }
     if (targets.length) {
       this.normalize()
@@ -2744,7 +2786,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
         // the gesture half-applied, which is the shape that had to be fixed
         // three times before it stuck.
-        if (this.hasForeignChanges(pair)) {
+        if (!this.canMergeBlocks(pair)) {
+          if (this.refuseStructural('merge-blocks-not-mergeable')) return
+          overridden = true
+        } else if (this.hasPendingChanges(pair)) {
           if (this.refuseStructural('merge-blocks-has-pending-changes')) return
           overridden = true // the host asked for it anyway: untracked, whole
         } else {
@@ -2817,7 +2862,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
         // the gesture half-applied, which is the shape that had to be fixed
         // three times before it stuck.
-        if (this.hasForeignChanges(pair)) {
+        if (!this.canMergeBlocks(pair)) {
+          if (this.refuseStructural('merge-blocks-not-mergeable')) return
+          overridden = true
+        } else if (this.hasPendingChanges(pair)) {
           if (this.refuseStructural('merge-blocks-has-pending-changes')) return
           overridden = true // the host asked for it anyway: untracked, whole
         } else {
@@ -2887,7 +2935,13 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // ASK FIRST, BEFORE ANYTHING IS MUTATED — the ends are the blocks whose
     // remnants get merged, so they are the ones whose pending changes matter.
     const ends = [blocks[0], blocks[blocks.length - 1]]
-    if (this.hasForeignChanges(ends)) {
+    if (!this.canMergeBlocks(ends)) {
+      if (this.refuseStructural('merge-blocks-not-mergeable')) {
+        return this.runDeleteSelection(blocks, 'none')
+      }
+      return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
+    }
+    if (this.hasPendingChanges(ends)) {
       if (this.refuseStructural('merge-blocks-has-pending-changes')) {
         // Delete the selected TEXT — that part is perfectly trackable — and
         // leave the blocks apart. Refusing the merge is not refusing the edit.

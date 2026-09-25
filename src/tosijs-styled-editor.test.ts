@@ -1811,22 +1811,118 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.map((c) => c.author)).toEqual(['sam'])
     })
 
-    test('MY own pending change does not block a merge; it is folded in', () => {
+    test('rejecting an INLINE insertion leaves the caret in its paragraph', () => {
+      // rescueCaretFrom fired for every insertion and hopped a level, so in a
+      // single-block document the markers landed in `.touch-affordances` —
+      // where `insertionPoint()` still answers non-null and the next keystroke
+      // builds text into UI furniture.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>Alpha.</p>'
+      el.changeAuthor = { id: 'alex' }
+      el.trackChanges = true
+      el.parts.doc.querySelector('p')!.appendChild(el.selectable.createBounds())
+      type(el, 'xy')
+      el.rejectChanges()
+
+      const ip = el.insertionPoint()
+      expect(ip).not.toBeNull()
+      expect(ip!.closest('.touch-affordances')).toBeNull()
+      expect(ip!.closest('p')).not.toBeNull()
+      expect(el.parts.doc.querySelector('p')!.textContent).toBe('Alpha.')
+    })
+
+    test('a merge refuses when ANY change is pending, mine included', () => {
+      // Fails CLOSED. The narrower rule — fold my own marks into the copy —
+      // baked an unresolved insertion into the proposal as plain text, so
+      // rejecting that insertion and then accepting the merge put REJECTED
+      // text into the accepted document.
       const el = twoParas()
-      // type into the second paragraph first, creating my own insertion
       const second = el.parts.doc.querySelectorAll('p')[1]
       second.appendChild(el.selectable.createBounds())
       type(el, 'xy')
       expect(el.parts.doc.querySelector('tosi-ins')).not.toBeNull()
 
+      const seen: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        seen.push((e as CustomEvent).detail.reason)
+      })
       caretAtStartOfSecond(el)
       press(el, 'Backspace')
-      const ins = el.parts.doc.querySelector('tosi-ins[data-block-insert]')
-      expect(ins).not.toBeNull()
-      // my typed text is present as plain text inside the proposal, not as a
-      // nested mark reporting the same proposal twice
-      expect(ins!.textContent).toContain('xy')
-      expect(ins!.querySelector('tosi-ins')).toBeNull()
+
+      expect(seen).toEqual(['merge-blocks-has-pending-changes'])
+      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+      expect(el.parts.doc.querySelector('[data-block-insert]')).toBeNull()
+    })
+
+    test('a SECOND merge over my own proposal is refused, not stacked', () => {
+      // Stacking struck the first proposal and copied it again, so resolving
+      // the two groups in either order left the text duplicated with no marks
+      // left to explain it.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const paras = () => [...el.parts.doc.querySelectorAll('p')]
+      const caretAtStartOf = (p: Element): void => {
+        const range = document.createRange()
+        range.setStart(p.firstChild as Text, 0)
+        range.collapse(true)
+        el.selectable.removeBounds()
+        range.insertNode(el.selectable.createBounds())
+      }
+      caretAtStartOf(paras()[1])
+      press(el, 'Backspace')
+      const afterFirst = new Set(el.changes.map((c) => c.id))
+      expect(afterFirst.size).toBe(1)
+
+      // caret at the start of Gamma., whose previous block is my proposal
+      const gamma = paras().find((p) => p.textContent === 'Gamma.')!
+      caretAtStartOf(gamma)
+      press(el, 'Backspace')
+
+      // still ONE change group; nothing stacked
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+      el.acceptChanges()
+      const text = el.parts.doc.textContent!.replace('\u22ee', '')
+      // every word exactly once — the duplication was the whole defect
+      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
+        expect(text.split(word).length - 1).toBe(1)
+      }
+    })
+
+    test('a merge with a list or a grid table is refused, not attempted', () => {
+      // v0.5.0 refused every cross-block merge, so replacing that blanket
+      // refusal silently widened what the editor would attempt: joining a grid
+      // table to a paragraph accepted to a document with the paragraph's text
+      // GONE, and joining a plain list produced loose text inside <ul>.
+      for (const before of [
+        '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>',
+        '<ul><li>one</li><li>two</li></ul>',
+      ]) {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML = `${before}<p>Beta.</p>`
+        el.changeAuthor = { id: 'alex' }
+        el.trackChanges = true
+        const seen: string[] = []
+        el.addEventListener('structural-edit-refused', (e) => {
+          seen.push((e as CustomEvent).detail.reason)
+        })
+        const p = el.parts.doc.querySelector('p')!
+        const range = document.createRange()
+        range.setStart(p.firstChild as Text, 0)
+        range.collapse(true)
+        el.selectable.removeBounds()
+        range.insertNode(el.selectable.createBounds())
+
+        press(el, 'Backspace')
+        expect(seen).toEqual(['merge-blocks-not-mergeable'])
+        expect(el.parts.doc.querySelector('[data-block-insert]')).toBeNull()
+        // and the paragraph's text is still in the document
+        expect(el.parts.doc.textContent).toContain('Beta.')
+      }
     })
 
     test('overriding the pending-changes refusal merges UNTRACKED, whole', () => {
