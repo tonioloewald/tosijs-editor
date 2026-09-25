@@ -1832,27 +1832,133 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.querySelector('p')!.textContent).toBe('Alpha.')
     })
 
-    test('a merge refuses when ANY change is pending, mine included', () => {
-      // Fails CLOSED. The narrower rule — fold my own marks into the copy —
-      // baked an unresolved insertion into the proposal as plain text, so
-      // rejecting that insertion and then accepting the merge put REJECTED
-      // text into the accepted document.
+    test('my own pending edits are ABSORBED into the merge, not refused', () => {
+      // Refusing on them was correct but crippling: holding Backspace to the
+      // start of a paragraph you had just edited made the headline gesture
+      // unreachable. Absorbing re-stamps my marks with the merge's id, so
+      // nothing inside the struck blocks stays independently resolvable — which
+      // is what made the corruption possible.
       const el = twoParas()
       const second = el.parts.doc.querySelectorAll('p')[1]
       second.appendChild(el.selectable.createBounds())
       type(el, 'xy')
       expect(el.parts.doc.querySelector('tosi-ins')).not.toBeNull()
 
-      const seen: string[] = []
-      el.addEventListener('structural-edit-refused', (e) => {
-        seen.push((e as CustomEvent).detail.reason)
-      })
       caretAtStartOfSecond(el)
       press(el, 'Backspace')
 
-      expect(seen).toEqual(['merge-blocks-has-pending-changes'])
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
-      expect(el.parts.doc.querySelector('[data-block-insert]')).toBeNull()
+      // one atomic group, and the typed text carried into the proposal
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+      expect(
+        el.parts.doc.querySelector('tosi-ins[data-block-insert]')!.textContent
+      ).toBe('Alpha.Beta.xy')
+    })
+
+    test('absorbed typing resolves WITH the merge, both ways', () => {
+      const build = (): TosijsStyledEditor => {
+        const el = twoParas()
+        el.parts.doc
+          .querySelectorAll('p')[1]
+          .appendChild(el.selectable.createBounds())
+        type(el, 'xy')
+        caretAtStartOfSecond(el)
+        press(el, 'Backspace')
+        return el
+      }
+      // PER-ID, not accept-all. Accept-all and reject-all are clean whether or
+      // not the typing was absorbed, which is exactly why the corruption
+      // survived a green suite: it needs the documented `acceptChanges(id)` /
+      // `rejectChanges(id)` API to show itself.
+      const accepted = build()
+      const ids = [...new Set(accepted.changes.map((c) => c.id))]
+      expect(ids.length).toBe(1) // nothing left resolvable on its own
+      accepted.acceptChanges(ids[0])
+      expect(accepted.changes.length).toBe(0)
+      expect(accepted.parts.doc.textContent).toContain('Alpha.Beta.xy')
+
+      const rejected = build()
+      const rIds = [...new Set(rejected.changes.map((c) => c.id))]
+      expect(rIds.length).toBe(1)
+      rejected.rejectChanges(rIds[0])
+      expect(rejected.changes.length).toBe(0)
+      // the typing goes with the merge — it was absorbed into that change
+      expect(rejected.parts.doc.textContent).not.toContain('xy')
+      expect(
+        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
+      ).toEqual(['Alpha.', 'Beta.'])
+      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
+    })
+
+    test('a CHAIN of merges stays ONE atomic change', () => {
+      // Stacking struck the previous proposal and copied it again, so resolving
+      // the groups in either order duplicated text with no marks left to
+      // explain it. A superseded proposal is now dropped, not struck — it never
+      // existed in the document anyone is reviewing, so rejecting must not
+      // resurrect it.
+      const build = (): TosijsStyledEditor => {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
+        el.changeAuthor = { id: 'alex', name: 'Alex' }
+        el.trackChanges = true
+        const at = (p: Element): void => {
+          const range = document.createRange()
+          range.setStart(p.firstChild as Text, 0)
+          range.collapse(true)
+          el.selectable.removeBounds()
+          range.insertNode(el.selectable.createBounds())
+        }
+        at(el.parts.doc.querySelectorAll('p')[1])
+        press(el, 'Backspace')
+        const gamma = [...el.parts.doc.querySelectorAll('p')].find(
+          (p) => p.textContent === 'Gamma.'
+        )!
+        at(gamma)
+        press(el, 'Backspace')
+        return el
+      }
+
+      const el = build()
+      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
+      // three struck originals and one proposal — no intermediate proposal left
+      expect(
+        el.parts.doc.querySelectorAll('tosi-del[data-block-delete]').length
+      ).toBe(3)
+      expect(
+        el.parts.doc.querySelectorAll('tosi-ins[data-block-insert]').length
+      ).toBe(1)
+
+      // Resolve BY ID and in BOTH orders — stacking corrupted only under per-id
+      // resolution, so accept-all could never have caught it.
+      for (const order of ['accept-first', 'reject-first'] as const) {
+        const e = build()
+        const ids = [...new Set(e.changes.map((c) => c.id))]
+        expect(ids.length).toBe(1)
+        if (order === 'accept-first') e.acceptChanges(ids[0])
+        else e.rejectChanges(ids[0])
+        const text = e.parts.doc.textContent!
+        for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
+          // exactly once either way: accepted into one paragraph, or restored
+          expect(text.split(word).length - 1).toBe(1)
+        }
+        expect(e.changes.length).toBe(0)
+      }
+
+      const accepted = build()
+      accepted.acceptChanges()
+      const text = accepted.parts.doc.textContent!
+      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
+        expect(text.split(word).length - 1).toBe(1)
+      }
+      expect(accepted.parts.doc.querySelectorAll('p').length).toBe(1)
+
+      const rejected = build()
+      rejected.rejectChanges()
+      expect(
+        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
+      ).toEqual(['Alpha.', 'Beta.', 'Gamma.'])
+      expect(rejected.insertionPoint()).not.toBeNull()
+      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
     })
 
     test('a SECOND merge over my own proposal is refused, not stacked', () => {
@@ -1889,6 +1995,34 @@ describe('TosijsStyledEditor', () => {
       // every word exactly once — the duplication was the whole defect
       for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
         expect(text.split(word).length - 1).toBe(1)
+      }
+    })
+
+    test('UNTRACKED, a list is not merged into a paragraph either', () => {
+      // The mergeability guard was wired only into the tracked branch, so the
+      // DEFAULT mode still produced loose text as a direct child of the <ul>.
+      // Same raw merge, equally wrong with nobody tracking it.
+      for (const before of [
+        '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>',
+        '<ul><li>one</li><li>two</li></ul>',
+      ]) {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML = `${before}<p>Beta.</p>`
+        // trackChanges stays OFF
+        const p = el.parts.doc.querySelector('p')!
+        const range = document.createRange()
+        range.setStart(p.firstChild as Text, 0)
+        range.collapse(true)
+        el.selectable.removeBounds()
+        range.insertNode(el.selectable.createBounds())
+
+        press(el, 'Backspace')
+        const html = el.parts.doc.innerHTML
+        // the paragraph is still a paragraph, and nothing loose is in the list
+        expect(el.parts.doc.querySelector('p')).not.toBeNull()
+        expect(html).toContain('Beta.')
+        expect(/<\/li>\s*[A-Za-z]/.test(html)).toBe(false)
       }
     })
 

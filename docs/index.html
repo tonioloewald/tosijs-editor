@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=1a6050608799" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=0f12b0a1ee3e" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=dd2f13b4656b" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=bfd9c95f0db8" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -346,14 +346,19 @@ block</strong> rather than a run of text, and they are what tell <code>acceptCha
 remove the struck block instead of leaving it empty. A downstream sanitizer
 that strips unknown <code>data-*</code> attributes turns a proposed merge back into three
 ordinary blocks.</p>
-<p><strong>A merge is refused if either block already holds an unresolved change</strong> —
-<code>merge-blocks-has-pending-changes</code>, including your own. The replacement is
-built by <em>copying</em> content, and a copy cannot carry a mark&#39;s identity: copying
-a resolvable mark would let the same proposal be resolved twice, in two places,
-with the two answers disagreeing. Resolve what is pending in those paragraphs
-first. Lists and grid tables refuse for a different reason
-(<code>merge-blocks-not-mergeable</code>): merging them produces loose text inside a
-<code>&lt;ul&gt;</code>, or a mark that becomes a grid item and shifts every cell.</p>
+<p><strong>Your own unresolved edits in those paragraphs are absorbed into the merge.</strong>
+They are re-stamped with the merge&#39;s <code>data-change</code>, so they resolve with it and
+stop existing as a separate change: accepting keeps your edit, rejecting undoes
+it along with the merge. Chaining merges stays one atomic change too — a
+superseded proposal is dropped rather than struck, because it never existed in
+the document anyone is reviewing.</p>
+<p><strong>A merge is refused when either block holds someone <em>else&#39;s</em> unresolved
+change</strong> (<code>merge-blocks-has-pending-changes</code>). The replacement is built by
+<em>copying</em> content, and a copy cannot carry a mark&#39;s identity: their proposal
+would become resolvable in two places, with the two answers free to disagree.
+Resolve theirs first. Lists and grid tables refuse for a different reason
+(<code>merge-blocks-not-mergeable</code>): merging them produces loose text as a direct
+child of a <code>&lt;ul&gt;</code>, or a mark that becomes a grid item and shifts every cell.</p>
 <h3>Everything else</h3>
 <p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code>, and <strong>every</strong> deletion wraps in
 <code>&lt;tosi-del&gt;</code> instead of removing — caret Backspace and Delete, a selection
@@ -913,6 +918,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=1a6050608799"></script>
+  <script type="module" src="hydrate.js?v=0f12b0a1ee3e"></script>
 </body>
 </html>

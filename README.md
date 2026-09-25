@@ -385,14 +385,20 @@ remove the struck block instead of leaving it empty. A downstream sanitizer
 that strips unknown `data-*` attributes turns a proposed merge back into three
 ordinary blocks.
 
-**A merge is refused if either block already holds an unresolved change** —
-`merge-blocks-has-pending-changes`, including your own. The replacement is
-built by _copying_ content, and a copy cannot carry a mark's identity: copying
-a resolvable mark would let the same proposal be resolved twice, in two places,
-with the two answers disagreeing. Resolve what is pending in those paragraphs
-first. Lists and grid tables refuse for a different reason
-(`merge-blocks-not-mergeable`): merging them produces loose text inside a
-`<ul>`, or a mark that becomes a grid item and shifts every cell.
+**Your own unresolved edits in those paragraphs are absorbed into the merge.**
+They are re-stamped with the merge's `data-change`, so they resolve with it and
+stop existing as a separate change: accepting keeps your edit, rejecting undoes
+it along with the merge. Chaining merges stays one atomic change too — a
+superseded proposal is dropped rather than struck, because it never existed in
+the document anyone is reviewing.
+
+**A merge is refused when either block holds someone _else's_ unresolved
+change** (`merge-blocks-has-pending-changes`). The replacement is built by
+_copying_ content, and a copy cannot carry a mark's identity: their proposal
+would become resolvable in two places, with the two answers free to disagree.
+Resolve theirs first. Lists and grid tables refuse for a different reason
+(`merge-blocks-not-mergeable`): merging them produces loose text as a direct
+child of a `<ul>`, or a mark that becomes a grid item and shifts every cell.
 
 ### Everything else
 

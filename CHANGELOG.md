@@ -19,14 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   block, Delete at the end of one, and a selection spanning blocks — where the
   proposed block reads as the deletion _would_ read once accepted.
   The cost is honest duplication: the text is present twice until someone
-  resolves it. A merge is **refused** when either block holds someone _else's_
-  unresolved change (`merge-blocks-has-pending-changes`), because the
-  replacement is built by copying content and copying their mark would report
-  their proposal twice; your own pending marks are folded into the copy instead,
-  since the attribution does not change.
+  resolves it.
+  A merge is **refused** when either block holds someone _else's_ unresolved
+  change (`merge-blocks-has-pending-changes`): the replacement is built by
+  _copying_ content, and a copy cannot carry a mark's identity, so their
+  proposal would become resolvable in two places with the two answers free to
+  disagree. **Your own** pending marks do not refuse — they are _absorbed_ into
+  the merge, re-stamped with its id, so they resolve with it and no longer exist
+  as a separate change: accepting keeps your edit, rejecting undoes it along
+  with the merge. Chaining merges stays one atomic change, because a superseded
+  proposal is dropped rather than struck — it never existed in the document
+  anyone is reviewing, so rejecting must not resurrect it.
+  Lists and grid tables refuse with `merge-blocks-not-mergeable`: merging them
+  produces loose text as a direct child of a `<ul>`, or a mark that becomes a
+  grid item and shifts every `cellIndex`. That guard applies with tracking
+  **off** as well, where the same raw merge was equally wrong.
   `merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
-  no longer fire — those edits are now recorded. Lists and tables are still
-  refused.
+  no longer fire — those edits are recorded now.
 
 ### Fixed
 

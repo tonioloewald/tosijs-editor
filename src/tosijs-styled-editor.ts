@@ -1184,16 +1184,46 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       block.querySelectorAll('.sel-start, .sel-end, .caret')
     )
     if (!markers.length) return
-    // Hop out to a block that will survive: the mark's own block is going too
-    // when this is a block-scoped proposal.
-    const from =
-      block.parentElement?.parentNode === this.parts.doc
-        ? (block.parentElement as Element)
-        : block
-    const host = from.previousElementSibling ?? from.nextElementSibling
+
+    // Walk OUT to the top-level block, however deep the doomed node sits. The
+    // first version tested exactly ONE level, so a mark nested inside another
+    // left `from` pointing at a node whose siblings were both null — and the
+    // fallback branch DELETED the caret, leaving an editor that silently
+    // swallowed every keystroke.
+    let top: Element = block
+    while (top.parentElement && top.parentElement !== this.parts.doc) {
+      top = top.parentElement
+    }
+
+    // A survivor: a real block that is staying, skipping our own chrome. The
+    // affordance div is a sibling of every block, so a naive
+    // `nextElementSibling` parked the caret inside `.touch-affordances`, where
+    // `insertionPoint()` still answers non-null and the next keystroke builds
+    // text into UI furniture.
+    const survives = (el: Element | null): el is Element =>
+      !!el &&
+      !el.classList.contains('not-selectable') &&
+      !el.classList.contains('do-not-spanify') &&
+      !block.contains(el) &&
+      !el.contains(block)
+
+    const hop = (
+      from: Element,
+      step: (el: Element) => Element | null
+    ): Element | null => {
+      let el = step(from)
+      while (el && !survives(el)) el = step(el)
+      return el
+    }
+    const host =
+      hop(top, (el) => el.previousElementSibling) ??
+      hop(top, (el) => el.nextElementSibling)
+
     for (const marker of markers) {
+      // NEVER drop it. An editor with no insertion point accepts no input, and
+      // there is no blur handler to re-seed one.
       if (host) host.appendChild(marker)
-      else marker.remove()
+      else this.parts.doc.appendChild(marker)
     }
   }
 
@@ -1226,7 +1256,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * A block's content as it would read if MY pending changes were accepted.
    *
    * Cloned, so the original is untouched. Insertions become plain text and
-   * deletions really go — which is safe ONLY because `hasPendingChanges` has
+   * deletions really go — which is safe ONLY because `hasForeignChanges` has
    * already refused any block holding an unresolved mark, so the only marks
    * that can be here are ones this same gesture just created (the selection
    * path marks the deleted text inline before merging). A copy cannot carry a
@@ -1296,11 +1326,30 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     )
   }
 
+  /** Is this mark mine, from this session? */
+  private isMine(mark: Element): boolean {
+    return (
+      mark.getAttribute('data-author') === this.changeAuthor.id &&
+      mark.getAttribute('data-session') === this.sessionId
+    )
+  }
+
   /**
-   * Does any of these blocks hold an UNRESOLVED change of any kind?
+   * Does any of these blocks hold a change that is NOT mine, this session?
    *
-   * The question a structural edit has to answer BEFORE it mutates anything,
-   * and it fails CLOSED: any pending mark at all, mine included, refuses.
+   * The question a structural edit has to answer BEFORE it mutates anything.
+   *
+   * Someone else's mark refuses, because the replacement is built by COPYING
+   * content and a copy cannot carry a mark's identity — their proposal would
+   * become resolvable in two places, with the two answers free to disagree.
+   *
+   * My own marks do not refuse; they are ABSORBED into this gesture's id (see
+   * `trackStructuralEdit`). Refusing on those instead was correct but crippling:
+   * every mark in the block counted, so holding Backspace to the start of a
+   * paragraph you had just edited made the merge — the headline gesture —
+   * unreachable. Absorbing is what makes it reachable without reintroducing the
+   * corruption, because after it there is no independently resolvable mark left
+   * inside the blocks being struck.
    *
    * The narrower version — refuse only on marks that are not mine, and fold my
    * own into the copy — corrupted the document two ways, both reproduced:
@@ -1317,9 +1366,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * into the merge's own id is the better answer and is filed (TODO.md); this
    * is the version that cannot silently lose or duplicate a word.
    */
-  private hasPendingChanges(blocks: Element[]): boolean {
-    return blocks.some(
-      (b) => b.querySelector(`${INS_TAG}, ${DEL_TAG}`) !== null
+  private hasForeignChanges(blocks: Element[]): boolean {
+    return blocks.some((b) =>
+      Array.from(b.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)).some(
+        (m) => !this.isMine(m)
+      )
     )
   }
 
@@ -1333,14 +1384,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * no coherent document in which you accept the deletions but reject their
    * replacement.
    *
-   * REFUSES when any affected block holds someone ELSE'S unresolved change.
-   * The replacement is built by copying content, and copying their mark would
-   * report their proposal twice and let accepting ours accept theirs by proxy.
-   * My own pending marks are fine — `resolvedClone` folds them in, and the
-   * attribution is unchanged because it is the same author and session.
+   * CALLERS must have asked `hasForeignChanges` and `canMergeBlocks` FIRST —
+   * this records, it does not decide. Someone else's unresolved mark has to
+   * refuse, because the replacement is built by COPYING content and a copy
+   * cannot carry a mark's identity: their proposal would become resolvable in
+   * two places with the two answers free to disagree.
    *
-   * Returns false when nothing was recorded, so the caller can fall through to
-   * its untracked path.
+   * MY own marks are absorbed instead of refused — re-stamped with this
+   * gesture's id, so nothing inside the struck blocks stays independently
+   * resolvable. A block that is itself one of my earlier proposals is dropped
+   * rather than struck, since it never existed in the document under review.
+   * Together those keep a chain of merges a single atomic change.
+   *
+   * Returns the new mark and its caret; it always records something.
    */
   private trackStructuralEdit(
     blocksOut: Element[],
@@ -1375,8 +1431,60 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     merged.appendChild(ins)
 
     this.selectable.removeBounds()
-    this.trackDeletion(blocksOut, id)
+
+    // ABSORB, then strike.
+    //
+    // Any unresolved mark of mine inside these blocks is re-stamped with this
+    // gesture's id, so it can no longer be resolved on its own. That is the
+    // whole reason absorbing is safe: the corruption it replaces came from a
+    // mark surviving in the struck original with its OWN id while its text had
+    // already been baked into the copy — reject that mark, accept the merge,
+    // and rejected text landed in the accepted document.
+    //
+    // A block that IS one of my earlier proposals is SUPERSEDED, not struck. It
+    // never existed in the document anyone is reviewing, so striking it would
+    // make rejecting resurrect an intermediate state nobody wrote. Its own
+    // group is re-stamped into this one, so a chain of merges stays a single
+    // atomic change however long it gets.
+    const superseded: Element[] = []
+    for (const block of blocksOut) {
+      const proposal = block.querySelector(
+        `${INS_TAG}[${BLOCK_INSERT_ATTR}]`
+      ) as HTMLElement | null
+      const isProposalBlock =
+        !!proposal &&
+        proposal.parentElement === block &&
+        block.children.length === 1
+      if (isProposalBlock && this.isMine(proposal)) {
+        const older = proposal.getAttribute('data-change')
+        if (older) {
+          for (const mark of Array.from(
+            this.parts.doc.querySelectorAll(`[data-change="${older}"]`)
+          )) {
+            mark.setAttribute('data-change', id)
+          }
+        }
+        superseded.push(block)
+        continue
+      }
+      for (const mark of Array.from(
+        block.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)
+      )) {
+        if (this.isMine(mark)) mark.setAttribute('data-change', id)
+      }
+    }
+
+    // Striking a superseded block would be harmless but pointless — it is
+    // removed below either way — so skip it and keep the DOM readable.
+    this.trackDeletion(
+      blocksOut.filter((b) => !superseded.includes(b)),
+      id
+    )
     blocksOut[blocksOut.length - 1].after(merged)
+    // THE mechanism: a superseded proposal leaves the document entirely. Strike
+    // it instead and rejecting would resurrect an intermediate state nobody
+    // ever wrote.
+    for (const block of superseded) block.remove()
     return { ins, caret }
   }
 
@@ -2789,7 +2897,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         if (!this.canMergeBlocks(pair)) {
           if (this.refuseStructural('merge-blocks-not-mergeable')) return
           overridden = true
-        } else if (this.hasPendingChanges(pair)) {
+        } else if (this.hasForeignChanges(pair)) {
           if (this.refuseStructural('merge-blocks-has-pending-changes')) return
           overridden = true // the host asked for it anyway: untracked, whole
         } else {
@@ -2812,12 +2920,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         }
         this.normalize()
 
-        // Merge blocks if deletion crossed a block boundary
+        // Merge blocks if deletion crossed a block boundary — same guard as
+        // the tracked path, for the same reason.
         if (
           deletionBlock &&
           caretBlock &&
           this.parts.doc.contains(deletionBlock) &&
-          deletionBlock !== caretBlock
+          deletionBlock !== caretBlock &&
+          this.canMergeBlocks([deletionBlock, caretBlock])
         ) {
           while (caretBlock.firstChild) {
             deletionBlock.appendChild(caretBlock.firstChild)
@@ -2865,7 +2975,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         if (!this.canMergeBlocks(pair)) {
           if (this.refuseStructural('merge-blocks-not-mergeable')) return
           overridden = true
-        } else if (this.hasPendingChanges(pair)) {
+        } else if (this.hasForeignChanges(pair)) {
           if (this.refuseStructural('merge-blocks-has-pending-changes')) return
           overridden = true // the host asked for it anyway: untracked, whole
         } else {
@@ -2888,12 +2998,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         }
         this.normalize()
 
-        // Merge blocks if deletion crossed a block boundary
+        // Merge blocks if deletion crossed a block boundary — same guard as
+        // the tracked path, for the same reason.
         if (
           deletionBlock &&
           caretBlock &&
           this.parts.doc.contains(deletionBlock) &&
-          deletionBlock !== caretBlock
+          deletionBlock !== caretBlock &&
+          this.canMergeBlocks([deletionBlock, caretBlock])
         ) {
           while (deletionBlock.firstChild) {
             caretBlock.appendChild(deletionBlock.firstChild)
@@ -2941,7 +3053,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       }
       return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
     }
-    if (this.hasPendingChanges(ends)) {
+    if (this.hasForeignChanges(ends)) {
       if (this.refuseStructural('merge-blocks-has-pending-changes')) {
         // Delete the selected TEXT — that part is perfectly trackable — and
         // leave the blocks apart. Refusing the merge is not refusing the edit.
@@ -3045,11 +3157,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // the merge-blocks-backward/-forward ones for every selection delete,
       // and made README's enumerated reasons untrue for the case a user hits
       // most. `mayMerge` is settled by the caller, before any mutation.
+      // ONE predicate, used by every path. There were three spellings of this
+      // question and they had already diverged: two checked only
+      // `.editor-table`, so a plain <ul> went through and merged to loose text
+      // as a direct child of the list. Untracked mode gets the same guard —
+      // a raw merge of a list into a paragraph is just as wrong when nobody
+      // is tracking it.
       const mergeable =
         this.parts.doc.contains(firstBlock) &&
         this.parts.doc.contains(lastBlock) &&
-        !firstBlock.classList.contains('editor-table') &&
-        !lastBlock.classList.contains('editor-table')
+        this.canMergeBlocks([firstBlock, lastBlock])
 
       if (mergeable && merge === 'tracked') {
         // Both remnants out, one merged block in. `resolvedClone` inside the
