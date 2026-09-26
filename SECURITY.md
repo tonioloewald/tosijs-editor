@@ -38,7 +38,8 @@ and we will find a private channel.
 `editor.value`, the form value and every undo snapshot. It is host-supplied and
 inside your trust boundary — but "the host wired it to a profile name" is the
 ordinary case, so the editor does not trust it: `<` and `>` are stripped at the
-seam (fixed in 0.5.1; 0.5.0 is affected).
+seam (fully fixed in 0.5.2 — 0.5.0 is affected, and **0.5.1 is still affected
+through `reviseWith()`**, whose write site the first fix missed).
 
 They have to be stripped rather than escaped. HTML attribute serialization
 escapes `&` and `"` and **never `<`**, and `style`, `xmp`, `title`, `textarea`,

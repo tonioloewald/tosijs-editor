@@ -1278,6 +1278,35 @@ describe('TosijsStyledEditor', () => {
       expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
+    test('reviseWith cannot break out either — same guard, public path', async () => {
+      // 0.5.1 shipped as the fix for this and was STILL exploitable here: the
+      // guard was applied at the four write sites in the component and missed
+      // the fifth in changes.ts, which is what `reviseWith` (public, documented)
+      // goes through. Driven entirely through public API — `value` setter, so
+      // past the sanitizer, then reviseWith.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.value = '<style>p { color: red }</style><p>hello</p>'
+      el.changeAuthor = {
+        id: 'alex',
+        name: 'A</style><img src=x onerror=boom()>',
+      }
+      await el.reviseWith((t) => t.replace('red', 'blue'))
+
+      const html = el.value
+      expect(html).not.toContain('<img')
+
+      const second = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(second)
+      second.value = html
+      expect(second.parts.doc.querySelector('img')).toBeNull()
+      expect(
+        [...second.parts.doc.querySelectorAll('*')].some((e) =>
+          e.hasAttribute('onerror')
+        )
+      ).toBe(false)
+    })
+
     test('an author name cannot break out of a raw-text element', () => {
       // HTML attribute serialization escapes & and " but never <. Inside
       // <style>/<xmp>/<title>/<textarea> the contents re-parse as text, so a
@@ -1851,58 +1880,57 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.querySelector('p')!.textContent).toBe('Alpha.')
     })
 
-    test('UNTRACKED, a list is not merged into a paragraph either', () => {
-      // The mergeability guard was wired only into the tracked branch, so the
-      // DEFAULT mode still produced loose text as a direct child of the <ul>.
-      // Same raw merge, equally wrong with nobody tracking it.
-      for (const before of [
-        '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>',
-        '<ul><li>one</li><li>two</li></ul>',
-      ]) {
-        const el = tosijsStyledEditor() as TosijsStyledEditor
-        container.appendChild(el)
-        el.parts.doc.innerHTML = `${before}<p>Beta.</p>`
-        // trackChanges stays OFF
-        const p = el.parts.doc.querySelector('p')!
-        const range = document.createRange()
-        range.setStart(p.firstChild as Text, 0)
-        range.collapse(true)
-        el.selectable.removeBounds()
-        range.insertNode(el.selectable.createBounds())
+    // Parameterised over BOTH keys deliberately. The single-key version of
+    // this test was green while `forwardDelete` had no gate at all: the fix
+    // had been pasted into `backspace` twice and into `forwardDelete` never,
+    // and `grep -c` returning 2 looked like one per path.
+    for (const key of ['Backspace', 'Delete'] as const) {
+      for (const [label, markup] of [
+        ['grid table', '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>'],
+        ['plain list', '<ul><li>one</li><li>two</li></ul>'],
+        ['footnote list', '<ol class="footnotes"><li class="footnote">Footnote text</li></ol>'],
+      ] as [string, string][]) {
+        test(`UNTRACKED ${key} at a ${label} boundary destroys nothing`, () => {
+          const el = tosijsStyledEditor() as TosijsStyledEditor
+          container.appendChild(el)
+          // Backspace looks back, Delete looks forward, so the paragraph goes
+          // on the side the key will reach across.
+          el.parts.doc.innerHTML =
+            key === 'Backspace' ? `${markup}<p>Beta.</p>` : `<p>Beta.</p>${markup}`
+          // trackChanges stays OFF — the shipped default
+          const p = el.parts.doc.querySelector('p')!
+          const text = p.firstChild as Text
+          const range = document.createRange()
+          range.setStart(text, key === 'Backspace' ? 0 : text.data.length)
+          range.collapse(true)
+          el.selectable.removeBounds()
+          range.insertNode(el.selectable.createBounds())
 
-        const listBefore = el.parts.doc.querySelector('ul')!.innerHTML
-        const seen: string[] = []
-        el.addEventListener('structural-edit-refused', (e) => {
-          seen.push((e as CustomEvent).detail.reason)
+          const listSelector = markup.startsWith('<ol') ? 'ol' : 'ul'
+          const before = el.parts.doc.querySelector(listSelector)!.innerHTML
+          const seen: string[] = []
+          el.addEventListener('structural-edit-refused', (e) => {
+            seen.push((e as CustomEvent).detail.reason)
+          })
+
+          press(el, key)
+          press(el, key)
+          press(el, key)
+
+          // byte-identical: three presses used to empty a list item, and on a
+          // grid table delete the whole table
+          const list = el.parts.doc.querySelector(listSelector)
+          expect(list).not.toBeNull()
+          expect(list!.innerHTML).toBe(before)
+          expect(el.parts.doc.querySelector('p')!.textContent).toBe('Beta.')
+          expect(seen).toEqual([
+            'merge-blocks-not-mergeable',
+            'merge-blocks-not-mergeable',
+            'merge-blocks-not-mergeable',
+          ])
         })
-
-        press(el, 'Backspace')
-        press(el, 'Backspace')
-        press(el, 'Backspace')
-
-        const html = el.parts.doc.innerHTML
-        expect(el.parts.doc.querySelector('p')).not.toBeNull()
-        expect(html).toContain('Beta.')
-        expect(/<\/li>\s*[A-Za-z]/.test(html)).toBe(false)
-        // THE point: the neighbouring block is byte-identical. The guard used
-        // to sit only on the merge, so the character deletion ran first and
-        // this ate the list one character per press — three presses emptied a
-        // list item, or deleted a whole grid table.
-        expect(el.parts.doc.querySelector('ul')!.innerHTML).toBe(listBefore)
-        // and the refusal is observable, rather than a silently dead key
-        expect(seen).toEqual([
-          'merge-blocks-not-mergeable',
-          'merge-blocks-not-mergeable',
-          'merge-blocks-not-mergeable',
-        ])
       }
-    })
-
-    // A MERGE IS AN ORDINARY EDIT. It gets no veto, no atomic group spanning
-    // other people's changes, and no absorption of yours. What a reviewer sees
-    // is the old text and the new text; what ends up in the document is their
-    // call. Earlier drafts privileged structural edits with all three, which is
-    // a transaction system, not change tracking.
+    }
 
     test('a pending change does not veto a merge, whoever made it', () => {
       const el = tosijsStyledEditor() as TosijsStyledEditor

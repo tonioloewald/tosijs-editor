@@ -144,6 +144,7 @@ import {
   unwrap,
   BLOCK_DELETE_ATTR,
   BLOCK_INSERT_ATTR,
+  safeAttributeValue,
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
@@ -206,31 +207,6 @@ interface EditableParts extends PartsMap {
   caret: HTMLElement
   edgeStart: HTMLElement
   edgeEnd: HTMLElement
-}
-
-/**
- * An attribute value that cannot break out of the element it is written into.
- *
- * HTML attribute serialization escapes `&` and `"` and **never `<`**. Inside a
- * raw-text or RCDATA element — `style`, `xmp`, `title`, `textarea`, `noembed`,
- * `noframes`, `plaintext` — the contents re-parse as text, so a `</style>` in
- * an attribute value terminates the element and everything after it parses as
- * markup. Verified end to end: a `changeAuthor.name` of
- * `A</style><img src=x onerror=…>` written into a tracked mark inside a
- * `<style>` block came back out of `editor.value` as a real `<img>` element.
- *
- * Nothing external is needed to trigger the re-parse: `docHTML` IS the undo
- * stack, so one undo re-parses it in the same session, and `setFormValue`
- * carries it to every other reader. kilpi keeps `xmp`/`textarea`/`title`/
- * `noembed`/`noframes`/`plaintext`, so a collaborator can paste one.
- *
- * `changeAuthor` is host-supplied and inside the host's trust boundary, but
- * "the host passed us a profile name" is exactly the ordinary case — so the
- * seam strips rather than trusts. Stripping, not escaping: there is no escape
- * that survives attribute serialization into a raw-text element.
- */
-function safeAttributeValue(value: string): string {
-  return value.replace(/[<>]/g, '')
 }
 
 /**
@@ -2844,6 +2820,27 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     return isolate
   }
 
+  /**
+   * Refuse a cross-block gesture whose blocks cannot become one block.
+   *
+   * ONE address, called from both keystroke paths. The previous version was a
+   * 17-line block meant to be pasted into each — and it went into `backspace()`
+   * TWICE and `forwardDelete()` not at all, so three Delete presses still
+   * destroyed a grid table in the untracked default while the commit message
+   * said both paths were covered. `grep -c` returned 2 and I read it as one per
+   * path; counting occurrences is not verifying placement.
+   *
+   * It gates the WHOLE gesture, not just the merge: with the check on the merge
+   * alone the character deletion ran first, so a refused merge still ate a
+   * character of the neighbouring block, unbounded, with no event to observe.
+   */
+  private refuseIfUnmergeable(a: Element | null, b: Element | null): boolean {
+    if (!a || !b || a === b) return false
+    if (this.canMergeBlocks([a, b])) return false
+    this.refuseStructural('merge-blocks-not-mergeable')
+    return true
+  }
+
   /** Delete the character before the caret */
   private backspace(): void {
     if (!this.deleteSelection()) {
@@ -2867,41 +2864,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         deletionBlock !== caretBlock
       )
 
-      // GATE THE WHOLE GESTURE, not just the merge.
-      //
-      // This guard used to sit only on the merge, so with tracking OFF — the
-      // default — the character deletion below ran first and only then was the
-      // merge vetoed. Backspace at the start of a paragraph after a list ate a
-      // character of the last list item and did nothing else; three presses
-      // emptied it, and on a grid table three presses deleted the table. Pure,
-      // unbounded loss with no structural change to explain it, and no event a
-      // host could even observe. Refusing the gesture outright is the only
-      // coherent answer when the blocks cannot be merged at all.
-      if (
-        crossesBlocks &&
-        !this.canMergeBlocks([deletionBlock!, caretBlock!])
-      ) {
-        this.refuseStructural('merge-blocks-not-mergeable')
-        return
-      }
-
-      // GATE THE WHOLE GESTURE, not just the merge.
-      //
-      // This guard used to sit only on the merge, so with tracking OFF — the
-      // default — the character deletion below ran first and only then was the
-      // merge vetoed. Backspace at the start of a paragraph after a list ate a
-      // character of the last list item and did nothing else; three presses
-      // emptied it, and on a grid table three presses deleted the table. Pure,
-      // unbounded loss with no structural change to explain it, and no event a
-      // host could even observe. Refusing the gesture outright is the only
-      // coherent answer when the blocks cannot be merged at all.
-      if (
-        crossesBlocks &&
-        !this.canMergeBlocks([deletionBlock!, caretBlock!])
-      ) {
-        this.refuseStructural('merge-blocks-not-mergeable')
-        return
-      }
+      if (this.refuseIfUnmergeable(deletionBlock, caretBlock)) return
       // A deletion that crosses a block boundary deletes a paragraph BREAK, and
       // a change mark wraps content. So record it the brute-force way instead:
       // both blocks out, one merged block in. `deletionBlock` is the earlier of
@@ -2967,11 +2930,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
-      // A deletion that crosses a block boundary deletes a paragraph break,
-      // not a character, and there is no mark for that — so refuse. A host
-      // that overrides the refusal gets the edit UNTRACKED: the whole gesture,
-      // not just the merge, or the document ends up simultaneously mid-merge
-      // and mid-proposal with no resolution that either party proposed.
+      if (this.refuseIfUnmergeable(caretBlock, deletionBlock)) return
+
       const crossesBlocks = !!(
         deletionBlock &&
         caretBlock &&
