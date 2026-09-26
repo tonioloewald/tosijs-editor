@@ -1,3 +1,17 @@
+[ ] FROM THE 0.6.0 STRUCTURAL-TRACKING REVIEW (reviews/0.6.0-structural-tracking-r2.md) - Keep the caret, the bounds markers and the change marks OUT of raw-text
+elements (script, style, xmp, title, textarea, noembed, noframes,
+plaintext, iframe). A caret left in a <style> block round-trips into
+literal CSS text with no attacker involved. The XSS half is closed by
+stripping <> from changeAuthor, but the element-level exclusion is the
+real fix and is not done. - Four merge MECHANICS are still duplicated (backspace, forwardDelete, the
+selection path, the untracked path) even though canMergeBlocks unified
+the predicate. They have already drifted once. - isFullyStruck deep-clones a whole block subtree per keystroke. - Bundle grew +1.1 kB gz (+3.7%) for this feature; record it in the
+CHANGELOG entry at release. - Enter/split (one block out, two in) is the mirror of merge and is not
+implemented. - Absorbing an earlier gesture into a later one, so a chain of merges is a
+single resolvable unit, was implemented and then removed as
+over-reach. If per-id resolution of chained merges ever matters, that is
+the design — but it must not reintroduce privileging.
+
 [ ] FROM THE FOUR 0.5.0 REMEDIATION RE-REVIEWS (reviews/0.5.0-remediation-rereview\*.md).
 Deferred and tracked, not "reviewed and fine".
 

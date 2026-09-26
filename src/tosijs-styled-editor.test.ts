@@ -1278,6 +1278,50 @@ describe('TosijsStyledEditor', () => {
       expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
+    test('an author name cannot break out of a raw-text element', () => {
+      // HTML attribute serialization escapes & and " but never <. Inside
+      // <style>/<xmp>/<title>/<textarea> the contents re-parse as text, so a
+      // `</style>` in an attribute terminates the element and the rest parses
+      // as markup. docHTML IS the undo stack, so one undo re-parses it in the
+      // same session — nothing external is needed.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<style>p { color: red }</style><p>hello</p>'
+      el.changeAuthor = {
+        id: 'alex',
+        name: 'A</style><img src=x onerror=boom()>',
+      }
+      el.trackChanges = true
+      const style = el.parts.doc.querySelector('style')!
+      const range = document.createRange()
+      range.setStart(style.firstChild as Text, (style.textContent || '').length)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+      press(el, 'Backspace')
+
+      const html = el.value
+      // The payload surviving as inert attribute TEXT is fine — what must not
+      // happen is it closing the <style> early and becoming markup. (The real
+      // closing tag is of course present, so assert the breakout signature and
+      // the parsed result, not the substring.)
+      expect(html).not.toContain('<img')
+
+      // and it is still inert after a round trip, which is the step that
+      // re-parses (docHTML is also the undo stack)
+      const second = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(second)
+      second.value = html
+      expect(second.parts.doc.querySelector('img')).toBeNull()
+      expect(
+        [...second.parts.doc.querySelectorAll('*')].some((e) =>
+          e.hasAttribute('onerror')
+        )
+      ).toBe(false)
+      // exactly one <style>, i.e. the payload never terminated it early
+      expect(second.parts.doc.querySelectorAll('style').length).toBe(1)
+    })
+
     test('pasted change marks are re-stamped, not taken at their word', () => {
       // <tosi-ins> is a safe element, so the sanitizer passes it and its
       // attributes through. Taken at face value, `editor.changes` would report
@@ -1826,12 +1870,31 @@ describe('TosijsStyledEditor', () => {
         el.selectable.removeBounds()
         range.insertNode(el.selectable.createBounds())
 
+        const listBefore = el.parts.doc.querySelector('ul')!.innerHTML
+        const seen: string[] = []
+        el.addEventListener('structural-edit-refused', (e) => {
+          seen.push((e as CustomEvent).detail.reason)
+        })
+
         press(el, 'Backspace')
+        press(el, 'Backspace')
+        press(el, 'Backspace')
+
         const html = el.parts.doc.innerHTML
-        // the paragraph is still a paragraph, and nothing loose is in the list
         expect(el.parts.doc.querySelector('p')).not.toBeNull()
         expect(html).toContain('Beta.')
         expect(/<\/li>\s*[A-Za-z]/.test(html)).toBe(false)
+        // THE point: the neighbouring block is byte-identical. The guard used
+        // to sit only on the merge, so the character deletion ran first and
+        // this ate the list one character per press — three presses emptied a
+        // list item, or deleted a whole grid table.
+        expect(el.parts.doc.querySelector('ul')!.innerHTML).toBe(listBefore)
+        // and the refusal is observable, rather than a silently dead key
+        expect(seen).toEqual([
+          'merge-blocks-not-mergeable',
+          'merge-blocks-not-mergeable',
+          'merge-blocks-not-mergeable',
+        ])
       }
     })
 
@@ -1889,11 +1952,14 @@ describe('TosijsStyledEditor', () => {
       expect(el.changes.length).toBeGreaterThan(0)
     })
 
-    test('a chain of merges leaves no intermediate proposal behind', () => {
-      // The ONE piece of structure-specific handling that survives, and it is
-      // not a resolution policy: an intermediate proposal was never in the
-      // document under review, so it must not be strikeable and therefore must
-      // not be resurrectable by rejecting.
+    test('a chain of merges never orphans a change or loses text', () => {
+      // Dropping the earlier proposal instead of striking it left its id with
+      // a delete half and NO insert half — a state no gesture produces — and
+      // `acceptChanges(id1); rejectChanges(id2)` then lost Alpha and Beta from
+      // a document with nothing pending. That drop was only safe while the
+      // absorption mechanism re-stamped the earlier gesture, and absorption
+      // was removed. Removing a mechanism means re-deriving what depended on
+      // it.
       const build = (): TosijsStyledEditor => {
         const el = tosijsStyledEditor() as TosijsStyledEditor
         container.appendChild(el)
@@ -1918,33 +1984,50 @@ describe('TosijsStyledEditor', () => {
         return el
       }
 
+      // NO ORPHAN: every change has both halves.
       const el = build()
-      // three struck originals, ONE proposal — the first proposal is gone, not
-      // struck, so no mark is nested inside another
-      expect(el.parts.doc.querySelectorAll('[data-block-delete]').length).toBe(
-        3
-      )
-      expect(el.parts.doc.querySelectorAll('[data-block-insert]').length).toBe(
-        1
-      )
-      expect(el.parts.doc.querySelector('tosi-del tosi-del')).toBeNull()
-      expect(el.parts.doc.querySelector('tosi-del tosi-ins')).toBeNull()
-
-      const accepted = build()
-      accepted.acceptChanges()
-      const text = accepted.parts.doc.textContent!
-      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
-        expect(text.split(word).length - 1).toBe(1)
+      const ids = [...new Set(el.changes.map((c) => c.id))]
+      expect(ids.length).toBe(2)
+      for (const id of ids) {
+        const kinds = el.changes.filter((c) => c.id === id).map((c) => c.kind)
+        expect(kinds).toContain('delete')
+        expect(kinds).toContain('insert')
       }
-      expect(accepted.parts.doc.querySelectorAll('p').length).toBe(1)
 
-      const rejected = build()
-      rejected.rejectChanges()
-      expect(
-        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
-      ).toEqual(['Alpha.', 'Beta.', 'Gamma.'])
-      expect(rejected.insertionPoint()).not.toBeNull()
-      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
+      // NO LOSS, in any resolution order. Duplication is still reachable by
+      // rejecting a merge while accepting one built on top of it — that is a
+      // visibly contradictory choice, and both proposals are on screen when it
+      // is made. Losing a word is not a choice anyone made.
+      const orders: Array<(e: TosijsStyledEditor, i: string[]) => void> = [
+        (e) => e.acceptChanges(),
+        (e) => e.rejectChanges(),
+        (e, i) => {
+          e.acceptChanges(i[0])
+          e.rejectChanges(i[1])
+        },
+        (e, i) => {
+          e.rejectChanges(i[0])
+          e.acceptChanges(i[1])
+        },
+        (e, i) => {
+          e.acceptChanges(i[1])
+          e.rejectChanges(i[0])
+        },
+        (e, i) => {
+          e.rejectChanges(i[1])
+          e.acceptChanges(i[0])
+        },
+      ]
+      for (const resolve of orders) {
+        const e = build()
+        resolve(e, [...new Set(e.changes.map((c) => c.id))])
+        const text = e.parts.doc.textContent!
+        for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
+          expect(text).toContain(word)
+        }
+        expect(e.changes.length).toBe(0)
+        expect(e.value).not.toMatch(/tosi-|data-change|data-block/)
+      }
     })
 
     test('a merge with a list or a grid table is refused, not attempted', () => {

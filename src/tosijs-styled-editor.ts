@@ -208,6 +208,63 @@ interface EditableParts extends PartsMap {
   edgeEnd: HTMLElement
 }
 
+/**
+ * An attribute value that cannot break out of the element it is written into.
+ *
+ * HTML attribute serialization escapes `&` and `"` and **never `<`**. Inside a
+ * raw-text or RCDATA element — `style`, `xmp`, `title`, `textarea`, `noembed`,
+ * `noframes`, `plaintext` — the contents re-parse as text, so a `</style>` in
+ * an attribute value terminates the element and everything after it parses as
+ * markup. Verified end to end: a `changeAuthor.name` of
+ * `A</style><img src=x onerror=…>` written into a tracked mark inside a
+ * `<style>` block came back out of `editor.value` as a real `<img>` element.
+ *
+ * Nothing external is needed to trigger the re-parse: `docHTML` IS the undo
+ * stack, so one undo re-parses it in the same session, and `setFormValue`
+ * carries it to every other reader. kilpi keeps `xmp`/`textarea`/`title`/
+ * `noembed`/`noframes`/`plaintext`, so a collaborator can paste one.
+ *
+ * `changeAuthor` is host-supplied and inside the host's trust boundary, but
+ * "the host passed us a profile name" is exactly the ordinary case — so the
+ * seam strips rather than trusts. Stripping, not escaping: there is no escape
+ * that survives attribute serialization into a raw-text element.
+ */
+function safeAttributeValue(value: string): string {
+  return value.replace(/[<>]/g, '')
+}
+
+/**
+ * Blocks this editor authors, and the only ones a merge will build.
+ *
+ * An ALLOWLIST, because the denylist version (`ul|ol|dl|table`) was wrong for
+ * everything nobody thought of — and one of those was `<script>`. Three
+ * defects die with this one predicate: a merged `<script src>` rebuilt as a
+ * LIVE element, a merge into a void `<hr>` whose children then vanish from
+ * `value` on serialization, and the original invalid-DOM cases. A predicate
+ * that decides what to BUILD must fail toward building nothing.
+ */
+const MERGEABLE_BLOCKS = new Set([
+  'p',
+  'div',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'blockquote',
+  'pre',
+  'figure',
+  'figcaption',
+  'address',
+  'section',
+  'article',
+  'aside',
+  'main',
+  'header',
+  'footer',
+])
+
 export class TosijsStyledEditor extends WebComponent<EditableParts> {
   static formAssociated = true
 
@@ -927,9 +984,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     defineChanges()
     const ins = document.createElement(INS_TAG)
     ins.setAttribute('data-change', changeId())
-    ins.setAttribute('data-author', this.changeAuthor.id)
+    ins.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
     if (this.changeAuthor.name) {
-      ins.setAttribute('data-author-name', this.changeAuthor.name)
+      ins.setAttribute(
+        'data-author-name',
+        safeAttributeValue(this.changeAuthor.name)
+      )
     }
     ins.setAttribute('data-session', this.sessionId)
     ins.setAttribute('data-time', new Date().toISOString())
@@ -1046,9 +1106,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
       const del = document.createElement(DEL_TAG)
       del.setAttribute('data-change', id)
-      del.setAttribute('data-author', this.changeAuthor.id)
+      del.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
       if (this.changeAuthor.name) {
-        del.setAttribute('data-author-name', this.changeAuthor.name)
+        del.setAttribute(
+          'data-author-name',
+          safeAttributeValue(this.changeAuthor.name)
+        )
       }
       del.setAttribute('data-session', this.sessionId)
       del.setAttribute('data-time', new Date().toISOString())
@@ -1286,10 +1349,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * makes it look selected to every subsequent query.
    */
   private blockLike(model: Element): Element {
-    const block = document.createElement(model.tagName)
-    for (const attr of Array.from(model.attributes)) {
-      block.setAttribute(attr.name, attr.value)
-    }
+    // cloneNode, NOT createElement. The spec's cloning steps carry a script's
+    // "already started" flag; `createElement` starts a fresh element with the
+    // flag clear. A `<script src>` parsed by the fragment parser is inert, and
+    // that inertness is what makes a stored payload of that shape survivable —
+    // it is what SECURITY.md leans on when it tells hosts to sanitize their
+    // corpus while upgrading. Copying its attributes onto a fresh element
+    // resurrected it: verified in a live Chrome tab, the parsed script never
+    // fetched while the attribute-copied one fetched and executed in the
+    // embedding page's origin. `false` = no children; the contents are built
+    // separately.
+    const block = model.cloneNode(false) as Element
     block.classList.remove(
       'selected-block',
       'first-block',
@@ -1319,7 +1389,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     return blocks.every(
       (b) =>
         !!b &&
-        !/^(ul|ol|dl|table)$/.test(b.localName) &&
+        MERGEABLE_BLOCKS.has(b.localName) &&
         !b.classList.contains('editor-table')
     )
   }
@@ -1356,9 +1426,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const id = gestureId ?? changeId()
     const ins = document.createElement(INS_TAG)
     ins.setAttribute('data-change', id)
-    ins.setAttribute('data-author', this.changeAuthor.id)
+    ins.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
     if (this.changeAuthor.name) {
-      ins.setAttribute('data-author-name', this.changeAuthor.name)
+      ins.setAttribute(
+        'data-author-name',
+        safeAttributeValue(this.changeAuthor.name)
+      )
     }
     ins.setAttribute('data-session', this.sessionId)
     ins.setAttribute('data-time', new Date().toISOString())
@@ -1378,34 +1451,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     this.selectable.removeBounds()
 
-    // A block that is itself an earlier PROPOSAL is superseded, not struck.
+    // AN EARLIER PROPOSAL IS STRUCK LIKE ANY OTHER BLOCK.
     //
-    // This is the one piece of structure-specific handling left, and it is not
-    // a policy about resolution — it is about not writing down a state that
-    // never existed. An intermediate proposal was never in the document anyone
-    // is reviewing, so striking it would let rejecting resurrect it. Marks keep
-    // their own ids and stay independently resolvable, exactly like every other
-    // change.
-    const superseded = blocksOut.filter((block) => {
-      const proposal = block.querySelector(`${INS_TAG}[${BLOCK_INSERT_ATTR}]`)
-      return (
-        !!proposal &&
-        proposal.parentElement === block &&
-        block.children.length === 1
-      )
-    })
-
-    // Striking a superseded block would be harmless but pointless — it is
-    // removed below either way — so skip it and keep the DOM readable.
-    this.trackDeletion(
-      blocksOut.filter((b) => !superseded.includes(b)),
-      id
-    )
+    // A previous draft dropped it instead, reasoning that an intermediate
+    // proposal was never in the document under review so rejecting must not
+    // resurrect it. That was only safe while the removed absorption mechanism
+    // re-stamped the earlier gesture into this one: dropping the block without
+    // it ORPHANS the earlier change, leaving an id with a delete half and no
+    // insert half — a state no gesture produces. Resolved per id, a two-merge
+    // chain then lost `Alpha.` and `Beta.` from a document with nothing
+    // pending, or duplicated every word.
+    //
+    // The lesson is the general one: removing a mechanism means re-deriving
+    // what depended on it. Striking is correct without absorption, and it is
+    // also the less special behaviour — an earlier proposal is content like
+    // anything else.
+    this.trackDeletion(blocksOut, id)
     blocksOut[blocksOut.length - 1].after(merged)
-    // THE mechanism: a superseded proposal leaves the document entirely. Strike
-    // it instead and rejecting would resurrect an intermediate state nobody
-    // ever wrote.
-    for (const block of superseded) block.remove()
     return { ins, caret }
   }
 
@@ -2804,6 +2866,42 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         caretBlock &&
         deletionBlock !== caretBlock
       )
+
+      // GATE THE WHOLE GESTURE, not just the merge.
+      //
+      // This guard used to sit only on the merge, so with tracking OFF — the
+      // default — the character deletion below ran first and only then was the
+      // merge vetoed. Backspace at the start of a paragraph after a list ate a
+      // character of the last list item and did nothing else; three presses
+      // emptied it, and on a grid table three presses deleted the table. Pure,
+      // unbounded loss with no structural change to explain it, and no event a
+      // host could even observe. Refusing the gesture outright is the only
+      // coherent answer when the blocks cannot be merged at all.
+      if (
+        crossesBlocks &&
+        !this.canMergeBlocks([deletionBlock!, caretBlock!])
+      ) {
+        this.refuseStructural('merge-blocks-not-mergeable')
+        return
+      }
+
+      // GATE THE WHOLE GESTURE, not just the merge.
+      //
+      // This guard used to sit only on the merge, so with tracking OFF — the
+      // default — the character deletion below ran first and only then was the
+      // merge vetoed. Backspace at the start of a paragraph after a list ate a
+      // character of the last list item and did nothing else; three presses
+      // emptied it, and on a grid table three presses deleted the table. Pure,
+      // unbounded loss with no structural change to explain it, and no event a
+      // host could even observe. Refusing the gesture outright is the only
+      // coherent answer when the blocks cannot be merged at all.
+      if (
+        crossesBlocks &&
+        !this.canMergeBlocks([deletionBlock!, caretBlock!])
+      ) {
+        this.refuseStructural('merge-blocks-not-mergeable')
+        return
+      }
       // A deletion that crosses a block boundary deletes a paragraph BREAK, and
       // a change mark wraps content. So record it the brute-force way instead:
       // both blocks out, one merged block in. `deletionBlock` is the earlier of
@@ -3759,9 +3857,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const id = changeId()
     for (const mark of Array.from(marks)) {
       mark.setAttribute('data-change', id)
-      mark.setAttribute('data-author', this.changeAuthor.id)
+      mark.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
       if (this.changeAuthor.name) {
-        mark.setAttribute('data-author-name', this.changeAuthor.name)
+        mark.setAttribute(
+          'data-author-name',
+          safeAttributeValue(this.changeAuthor.name)
+        )
       } else {
         mark.removeAttribute('data-author-name')
       }
