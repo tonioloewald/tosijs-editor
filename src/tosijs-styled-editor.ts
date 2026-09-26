@@ -141,6 +141,7 @@ import {
   type ChangeAuthor,
   type TrackedChange,
   changeId,
+  safeAttributeValue,
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
@@ -203,32 +204,6 @@ interface EditableParts extends PartsMap {
   caret: HTMLElement
   edgeStart: HTMLElement
   edgeEnd: HTMLElement
-}
-
-/**
- * An attribute value that cannot break out of the element it is written into.
- *
- * HTML attribute serialization escapes `&` and `"` and **never `<`**. Inside a
- * raw-text or RCDATA element — `style`, `xmp`, `title`, `textarea`, `noembed`,
- * `noframes`, `plaintext` — the contents re-parse as text, so a `</style>` in
- * an attribute value terminates the element and everything after it parses as
- * markup. Verified end to end: a `changeAuthor.name` of
- * `A</style><img src=x onerror=…>` written into a tracked mark inside a
- * `<style>` block came back out of `editor.value` as a real `<img>` element.
- *
- * Nothing external is needed to trigger the re-parse: `docHTML` IS the undo
- * stack, so one undo re-parses it in the same session, and `setFormValue`
- * carries it to every other reader. kilpi drops `style`/`script`/`iframe` but
- * keeps `xmp`/`textarea`/`title`/`noembed`/`noframes`/`plaintext`, so a
- * collaborator can paste one.
- *
- * `changeAuthor` is host-supplied and inside the host's trust boundary, but
- * "the host wired it to a profile name" is exactly the ordinary case — so the
- * seam strips rather than trusts. Stripping, not escaping: there is no escape
- * that survives attribute serialization into a raw-text element.
- */
-function safeAttributeValue(value: string): string {
-  return value.replace(/[<>]/g, '')
 }
 
 export class TosijsStyledEditor extends WebComponent<EditableParts> {

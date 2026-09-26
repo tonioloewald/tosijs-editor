@@ -74,6 +74,29 @@ export function defineChanges(): void {
   if (!customElements.get(DEL_TAG)) customElements.define(DEL_TAG, TosiDel)
 }
 
+/**
+ * An attribute value that cannot break out of the element it is written into.
+ *
+ * HTML attribute serialization escapes `&` and `"` and **never `<`**. Inside a
+ * raw-text or RCDATA element — `style`, `xmp`, `title`, `textarea`, `noembed`,
+ * `noframes`, `plaintext` — the contents re-parse as text, so a `</style>` in
+ * an attribute value terminates the element and everything after it parses as
+ * markup, and `editor.value` then carries live HTML.
+ *
+ * This lives HERE, next to the only code that writes these attributes, because
+ * the first version of the fix lived in the component and covered four of the
+ * five write sites. The fifth was `mark()` below — on the public `reviseWith()`
+ * path — so 0.5.1 shipped as the fix for this and was still exploitable
+ * through it. A guard belongs at the layer every writer shares, not at the
+ * addresses where the bug was first noticed.
+ *
+ * Stripping, not escaping: no escape survives attribute serialization into a
+ * raw-text element.
+ */
+export function safeAttributeValue(value: string): string {
+  return value.replace(/[<>]/g, '')
+}
+
 function mark(
   kind: 'insert' | 'delete',
   text: string,
@@ -81,8 +104,10 @@ function mark(
 ): HTMLElement {
   const el = document.createElement(kind === 'insert' ? INS_TAG : DEL_TAG)
   el.setAttribute('data-change', changeId())
-  el.setAttribute('data-author', author.id)
-  if (author.name) el.setAttribute('data-author-name', author.name)
+  el.setAttribute('data-author', safeAttributeValue(author.id))
+  if (author.name) {
+    el.setAttribute('data-author-name', safeAttributeValue(author.name))
+  }
   el.setAttribute('data-time', new Date().toISOString())
   el.textContent = text
   return el

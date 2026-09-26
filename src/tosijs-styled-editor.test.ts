@@ -1278,6 +1278,35 @@ describe('TosijsStyledEditor', () => {
       expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
+    test('reviseWith cannot break out either — same guard, public path', async () => {
+      // 0.5.1 shipped as the fix for this and was STILL exploitable here: the
+      // guard was applied at the four write sites in the component and missed
+      // the fifth in changes.ts, which is what `reviseWith` (public, documented)
+      // goes through. Driven entirely through public API — `value` setter, so
+      // past the sanitizer, then reviseWith.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.value = '<style>p { color: red }</style><p>hello</p>'
+      el.changeAuthor = {
+        id: 'alex',
+        name: 'A</style><img src=x onerror=boom()>',
+      }
+      await el.reviseWith((t) => t.replace('red', 'blue'))
+
+      const html = el.value
+      expect(html).not.toContain('<img')
+
+      const second = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(second)
+      second.value = html
+      expect(second.parts.doc.querySelector('img')).toBeNull()
+      expect(
+        [...second.parts.doc.querySelectorAll('*')].some((e) =>
+          e.hasAttribute('onerror')
+        )
+      ).toBe(false)
+    })
+
     test('an author name cannot break out of a raw-text element', () => {
       // HTML attribute serialization escapes & and " but NEVER <. Inside
       // <style>/<xmp>/<title>/<textarea> the contents re-parse as raw text, so

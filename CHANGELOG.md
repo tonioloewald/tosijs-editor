@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-26
+
+### Security
+
+- **0.5.1's fix was incomplete: `reviseWith()` could still emit live HTML.**
+  The guard that strips `<` and `>` from `changeAuthor` was applied at the four
+  write sites in the component and missed the fifth, `mark()` in
+  `src/changes.ts` — which is exactly what `reviseWith()` and the exported
+  `applyRevision()` go through. So the LLM-proofreading path, documented public
+  API, still broke a display name out of a raw-text element and put an
+  `<img onerror>` into `editor.value`. Reproduced end to end through the public
+  `value` setter and `reviseWith()`, with no host cooperation beyond wiring
+  `changeAuthor.name` to a profile name.
+
+  The guard now lives in `src/changes.ts` beside the only code that writes those
+  attributes, and every writer shares it. **A guard belongs at the layer every
+  writer shares, not at the addresses where the bug was first noticed** — which
+  is precisely the mistake 0.5.1 made.
+
+  **Upgrade from 0.5.1 as well as from 0.5.0** if you use `trackChanges` or
+  `reviseWith`. `SECURITY.md`'s statement in 0.5.1 was true of typing and
+  deletion and false of revision.
+
 ## [0.5.1] - 2026-09-26
 
 ### Security
