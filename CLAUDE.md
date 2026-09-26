@@ -373,6 +373,39 @@ gives every character a synthetic 10px box. That only proves the resolution logi
 the measurement matches real shaping is a browser question — verify via `bun start`, and
 drive it with `hj eval` against the RTL page for a repeatable per-character sweep.
 
+## The browser lane (`browser-tests/`)
+
+`bun test ./browser-tests/` with the dev server up. Playwright drives the page; haltija's
+`testInBrowser` (`haltija@beta`) supplies the probe/assertion split — the body and its
+`expect` stay on the host, only the probe crosses. Not in `bun test`: `bunfig.toml` roots
+that at `./src`.
+
+**WebKit is the point.** `ENGINE=chromium` is a control, not coverage: Chromium measures
+~0 for everything this lane exists to catch. haltija's own `--headless` is Chromium-only,
+so the bridge is backed by Playwright directly — `BrowserBridge` is structural (four
+methods), which is what makes that a two-minute job.
+
+**Measured 2026-09-26** — what the change and spelling marks cost real Arabic layout,
+which nothing in the happy-dom suite can see (every rect there is zero):
+
+| mark position | WebKit | Chromium |
+| --- | --- | --- |
+| wrapping a whole word | **0.00px**, 0 of 98 glyphs | 0.02px |
+| 1–2 chars INSIDE a word (`مكتوب`) | **1.00px**, 3 of 98 glyphs | 0.02px |
+| block height / top, all cases | 0.00px | 0.00px |
+
+So marks at word boundaries — a spelling mark, a selection delete — are free, and a
+single-character `<tosi-del>` from one Backspace costs 1px on three glyphs of the word it
+sits in. Smaller than the up-to-4px this file records for merely splitting a text node,
+because a mark usually lands where the cursive run already breaks. No re-wrap, no block
+growth, so nothing downstream shifts.
+
+**The first version of this lane reported a 1058px shift and it was an artifact**: the
+probe measured collapsed source whitespace, whose rect goes to 0×0 when anything in the
+DOM changes. Both engines agreed on the wrong number, which is what made it convincing.
+Measure rendered glyphs only (`width > 0`), and treat agreement between engines as a
+reason to look harder, not as corroboration.
+
 ## Notes
 
 **Tasks live on the virta board**, not in `TODO.md` — run `virta brief` (a SessionStart
