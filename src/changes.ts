@@ -48,8 +48,9 @@ export const DEL_TAG = 'tosi-del'
  * content. Merging two paragraphs therefore strikes both originals and proposes
  * a third; splitting one strikes it and proposes two. Accepting removes the
  * struck blocks entirely rather than leaving them empty, which is what these
- * attributes tell `acceptChanges` to do, and the whole group shares one
- * `data-change` so it resolves atomically.
+ * attributes tell `acceptChanges` to do, and the gesture shares one
+ * `data-change` because one keystroke is one change — the rule paste already
+ * follows, not a privilege granted to structural edits.
  *
  * The cost is honest duplication: the text appears twice until someone resolves
  * it. The alternative — a sentinel marking the break itself — avoids that but

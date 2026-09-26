@@ -1256,14 +1256,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * A block's content as it would read if MY pending changes were accepted.
    *
    * Cloned, so the original is untouched. Insertions become plain text and
-   * deletions really go — which is safe ONLY because `hasForeignChanges` has
-   * already refused any block holding an unresolved mark, so the only marks
-   * that can be here are ones this same gesture just created (the selection
-   * path marks the deleted text inline before merging). A copy cannot carry a
-   * mark's identity, so anything still independently resolvable must never
-   * reach this function. Selection chrome is dropped: the caret is placed
-   * deliberately at the join afterwards, and a cloned marker would be a second
-   * caret.
+   * deletions really go, so the proposal reads as the document reads NOW —
+   * which is what a reviewer is being asked to compare against. Marks are not
+   * copied: a copy cannot carry a mark's identity, and the originals keep
+   * theirs and stay independently resolvable. Selection chrome is dropped: the
+   * caret is placed deliberately at the join afterwards, and a cloned marker
+   * would be a second caret.
    */
   private resolvedClone(block: Element): DocumentFragment {
     const frag = document.createDocumentFragment()
@@ -1326,75 +1324,23 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     )
   }
 
-  /** Is this mark mine, from this session? */
-  private isMine(mark: Element): boolean {
-    return (
-      mark.getAttribute('data-author') === this.changeAuthor.id &&
-      mark.getAttribute('data-session') === this.sessionId
-    )
-  }
-
-  /**
-   * Does any of these blocks hold a change that is NOT mine, this session?
-   *
-   * The question a structural edit has to answer BEFORE it mutates anything.
-   *
-   * Someone else's mark refuses, because the replacement is built by COPYING
-   * content and a copy cannot carry a mark's identity — their proposal would
-   * become resolvable in two places, with the two answers free to disagree.
-   *
-   * My own marks do not refuse; they are ABSORBED into this gesture's id (see
-   * `trackStructuralEdit`). Refusing on those instead was correct but crippling:
-   * every mark in the block counted, so holding Backspace to the start of a
-   * paragraph you had just edited made the merge — the headline gesture —
-   * unreachable. Absorbing is what makes it reachable without reintroducing the
-   * corruption, because after it there is no independently resolvable mark left
-   * inside the blocks being struck.
-   *
-   * The narrower version — refuse only on marks that are not mine, and fold my
-   * own into the copy — corrupted the document two ways, both reproduced:
-   *
-   *  - A SECOND merge over a block this feature had itself proposed struck the
-   *    proposal and copied it again, so resolving the two groups in either
-   *    order left the text duplicated with no marks remaining to explain it.
-   *  - Folding my own pending insertion into the copy baked it in as plain
-   *    text, so rejecting that insertion and then accepting the merge put text
-   *    the reviewer had explicitly REJECTED into the accepted document.
-   *
-   * Both are the same root cause: a copy cannot carry a mark's identity, so
-   * anything still resolvable must not be copied. Absorbing the pending change
-   * into the merge's own id is the better answer and is filed (TODO.md); this
-   * is the version that cannot silently lose or duplicate a word.
-   */
-  private hasForeignChanges(blocks: Element[]): boolean {
-    return blocks.some((b) =>
-      Array.from(b.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)).some(
-        (m) => !this.isMine(m)
-      )
-    )
-  }
-
   /**
    * Record a structural edit the brute-force way: BLOCKS OUT, BLOCKS IN.
    *
    * `blocksOut` are struck whole (`data-block-delete`, so accepting removes
    * them rather than leaving them empty) and one new block is proposed
-   * (`data-block-insert`). The whole group shares one `data-change`, so
-   * `acceptChanges(id)` / `rejectChanges(id)` resolve it atomically — there is
-   * no coherent document in which you accept the deletions but reject their
-   * replacement.
+   * (`data-block-insert`). The gesture shares one `data-change`, so
+   * `acceptChanges(id)` / `rejectChanges(id)` resolve it together — one
+   * keystroke is one change, the same rule paste follows. That is NOT a claim
+   * that a merge is atomic with everything around it: marks already in these
+   * blocks keep their own ids.
    *
-   * CALLERS must have asked `hasForeignChanges` and `canMergeBlocks` FIRST —
-   * this records, it does not decide. Someone else's unresolved mark has to
-   * refuse, because the replacement is built by COPYING content and a copy
-   * cannot carry a mark's identity: their proposal would become resolvable in
-   * two places with the two answers free to disagree.
-   *
-   * MY own marks are absorbed instead of refused — re-stamped with this
-   * gesture's id, so nothing inside the struck blocks stays independently
-   * resolvable. A block that is itself one of my earlier proposals is dropped
-   * rather than struck, since it never existed in the document under review.
-   * Together those keep a chain of merges a single atomic change.
+   * CALLERS must have asked `canMergeBlocks` FIRST — this records, it does not
+   * decide, and it does not veto. A merge is an ordinary edit: marks already in
+   * these blocks keep their own ids and stay independently resolvable, because
+   * privileging a structural edit over a textual one is not this feature's
+   * job. What the reviewer sees is the old text and the new text; what ends up
+   * in the document is their call.
    *
    * Returns the new mark and its caret; it always records something.
    */
@@ -1432,47 +1378,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     this.selectable.removeBounds()
 
-    // ABSORB, then strike.
+    // A block that is itself an earlier PROPOSAL is superseded, not struck.
     //
-    // Any unresolved mark of mine inside these blocks is re-stamped with this
-    // gesture's id, so it can no longer be resolved on its own. That is the
-    // whole reason absorbing is safe: the corruption it replaces came from a
-    // mark surviving in the struck original with its OWN id while its text had
-    // already been baked into the copy — reject that mark, accept the merge,
-    // and rejected text landed in the accepted document.
-    //
-    // A block that IS one of my earlier proposals is SUPERSEDED, not struck. It
-    // never existed in the document anyone is reviewing, so striking it would
-    // make rejecting resurrect an intermediate state nobody wrote. Its own
-    // group is re-stamped into this one, so a chain of merges stays a single
-    // atomic change however long it gets.
-    const superseded: Element[] = []
-    for (const block of blocksOut) {
-      const proposal = block.querySelector(
-        `${INS_TAG}[${BLOCK_INSERT_ATTR}]`
-      ) as HTMLElement | null
-      const isProposalBlock =
+    // This is the one piece of structure-specific handling left, and it is not
+    // a policy about resolution — it is about not writing down a state that
+    // never existed. An intermediate proposal was never in the document anyone
+    // is reviewing, so striking it would let rejecting resurrect it. Marks keep
+    // their own ids and stay independently resolvable, exactly like every other
+    // change.
+    const superseded = blocksOut.filter((block) => {
+      const proposal = block.querySelector(`${INS_TAG}[${BLOCK_INSERT_ATTR}]`)
+      return (
         !!proposal &&
         proposal.parentElement === block &&
         block.children.length === 1
-      if (isProposalBlock && this.isMine(proposal)) {
-        const older = proposal.getAttribute('data-change')
-        if (older) {
-          for (const mark of Array.from(
-            this.parts.doc.querySelectorAll(`[data-change="${older}"]`)
-          )) {
-            mark.setAttribute('data-change', id)
-          }
-        }
-        superseded.push(block)
-        continue
-      }
-      for (const mark of Array.from(
-        block.querySelectorAll(`${INS_TAG}, ${DEL_TAG}`)
-      )) {
-        if (this.isMine(mark)) mark.setAttribute('data-change', id)
-      }
-    }
+      )
+    })
 
     // Striking a superseded block would be harmless but pointless — it is
     // removed below either way — so skip it and keep the DOM readable.
@@ -2897,9 +2818,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         if (!this.canMergeBlocks(pair)) {
           if (this.refuseStructural('merge-blocks-not-mergeable')) return
           overridden = true
-        } else if (this.hasForeignChanges(pair)) {
-          if (this.refuseStructural('merge-blocks-has-pending-changes')) return
-          overridden = true // the host asked for it anyway: untracked, whole
         } else {
           this.trackStructuralEdit(pair)
           this.normalize()
@@ -2975,9 +2893,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         if (!this.canMergeBlocks(pair)) {
           if (this.refuseStructural('merge-blocks-not-mergeable')) return
           overridden = true
-        } else if (this.hasForeignChanges(pair)) {
-          if (this.refuseStructural('merge-blocks-has-pending-changes')) return
-          overridden = true // the host asked for it anyway: untracked, whole
         } else {
           this.trackStructuralEdit(pair)
           this.normalize()
@@ -3051,15 +2966,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (this.refuseStructural('merge-blocks-not-mergeable')) {
         return this.runDeleteSelection(blocks, 'none')
       }
-      return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
-    }
-    if (this.hasForeignChanges(ends)) {
-      if (this.refuseStructural('merge-blocks-has-pending-changes')) {
-        // Delete the selected TEXT — that part is perfectly trackable — and
-        // leave the blocks apart. Refusing the merge is not refusing the edit.
-        return this.runDeleteSelection(blocks, 'none')
-      }
-      // Overridden: the WHOLE gesture goes untracked, never half of it.
       return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
     }
     return this.runDeleteSelection(blocks, 'tracked')

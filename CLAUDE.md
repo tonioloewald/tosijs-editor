@@ -302,13 +302,19 @@ Three things that are easy to undo by accident:
   and Enter handling.
 - **A STRUCTURAL edit is blocks out, blocks in** — `trackStructuralEdit`. A change mark
   wraps content and a paragraph break is not content, so a merge strikes both originals
-  (`data-block-delete`) and proposes a third (`data-block-insert`), all sharing one
-  `data-change` so the group resolves atomically. Two rules keep it honest: **ask before
-  mutating** (a refusal resolved midway leaves the gesture half-applied — that shape had
-  to be fixed three times before it stuck), and **refuse when a block holds a foreign
-  change**, because the replacement is built by copying content and copying someone
-  else's mark reports their proposal twice. `resolvedClone` folds MY pending marks into
-  the copy, which is safe only because the attribution is unchanged.
+  (`data-block-delete`) and proposes a third (`data-block-insert`), sharing one
+  `data-change` because one keystroke is one change (the rule paste already follows).
+  **A merge is an ordinary edit — do not privilege it.** Three drafts added a veto on
+  pending changes, an atomic group spanning other people's marks, and absorption of the
+  author's own edits into the merge's id. That is a transaction system; change tracking
+  shows the old text and the new text and lets the reviewer decide. Contradictory
+  resolutions are therefore reachable and are honoured; a review UI can resolve a merge
+  together with the edits inside it if it wants to prevent that.
+  Two things that ARE the primitive's job: **ask `canMergeBlocks` before mutating** (a
+  refusal resolved midway leaves the gesture half-applied — that shape had to be fixed
+  three times before it stuck), and **drop a superseded proposal rather than striking
+  it**, since an intermediate proposal was never in the document under review and must
+  not be resurrectable.
 
 **Anything that reads the document as LANGUAGE must call `Selectable.withoutBounds()`.**
 The bounds markers are real elements, so they split the text node they sit in: with the

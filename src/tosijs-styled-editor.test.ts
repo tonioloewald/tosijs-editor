@@ -1639,7 +1639,7 @@ describe('TosijsStyledEditor', () => {
     // --- STRUCTURAL edits: blocks out, blocks in ---------------------------
     // A change mark wraps content and a paragraph break is not content, so a
     // merge is recorded the brute-force way: both originals struck, one merged
-    // block proposed, the whole group sharing one id so it resolves atomically.
+    // block proposed, the gesture sharing one id the way a paste does.
     const twoParas = (): TosijsStyledEditor => {
       const el = tosijsStyledEditor() as TosijsStyledEditor
       container.appendChild(el)
@@ -1786,31 +1786,6 @@ describe('TosijsStyledEditor', () => {
       expect(el.parts.doc.querySelector('p')!.textContent).toBe('keep1  keep2')
     })
 
-    test('a merge is REFUSED when the blocks hold another author s change', () => {
-      // The replacement is built by copying content, so copying their mark
-      // would report their proposal twice and let accepting ours accept theirs.
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML =
-        '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
-      el.changeAuthor = { id: 'alex', name: 'Alex' }
-      el.trackChanges = true
-      const seen: string[] = []
-      el.addEventListener('structural-edit-refused', (e) => {
-        seen.push((e as CustomEvent).detail.reason)
-      })
-      caretAtStartOfSecond(el)
-
-      press(el, 'Backspace')
-      expect(seen).toEqual(['merge-blocks-has-pending-changes'])
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
-      expect(
-        el.parts.doc.querySelector('tosi-ins[data-block-insert]')
-      ).toBeNull()
-      // and THEIR change is untouched
-      expect(el.changes.map((c) => c.author)).toEqual(['sam'])
-    })
-
     test('rejecting an INLINE insertion leaves the caret in its paragraph', () => {
       // rescueCaretFrom fired for every insertion and hopped a level, so in a
       // single-block document the markers landed in `.touch-affordances` —
@@ -1830,172 +1805,6 @@ describe('TosijsStyledEditor', () => {
       expect(ip!.closest('.touch-affordances')).toBeNull()
       expect(ip!.closest('p')).not.toBeNull()
       expect(el.parts.doc.querySelector('p')!.textContent).toBe('Alpha.')
-    })
-
-    test('my own pending edits are ABSORBED into the merge, not refused', () => {
-      // Refusing on them was correct but crippling: holding Backspace to the
-      // start of a paragraph you had just edited made the headline gesture
-      // unreachable. Absorbing re-stamps my marks with the merge's id, so
-      // nothing inside the struck blocks stays independently resolvable — which
-      // is what made the corruption possible.
-      const el = twoParas()
-      const second = el.parts.doc.querySelectorAll('p')[1]
-      second.appendChild(el.selectable.createBounds())
-      type(el, 'xy')
-      expect(el.parts.doc.querySelector('tosi-ins')).not.toBeNull()
-
-      caretAtStartOfSecond(el)
-      press(el, 'Backspace')
-
-      // one atomic group, and the typed text carried into the proposal
-      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
-      expect(
-        el.parts.doc.querySelector('tosi-ins[data-block-insert]')!.textContent
-      ).toBe('Alpha.Beta.xy')
-    })
-
-    test('absorbed typing resolves WITH the merge, both ways', () => {
-      const build = (): TosijsStyledEditor => {
-        const el = twoParas()
-        el.parts.doc
-          .querySelectorAll('p')[1]
-          .appendChild(el.selectable.createBounds())
-        type(el, 'xy')
-        caretAtStartOfSecond(el)
-        press(el, 'Backspace')
-        return el
-      }
-      // PER-ID, not accept-all. Accept-all and reject-all are clean whether or
-      // not the typing was absorbed, which is exactly why the corruption
-      // survived a green suite: it needs the documented `acceptChanges(id)` /
-      // `rejectChanges(id)` API to show itself.
-      const accepted = build()
-      const ids = [...new Set(accepted.changes.map((c) => c.id))]
-      expect(ids.length).toBe(1) // nothing left resolvable on its own
-      accepted.acceptChanges(ids[0])
-      expect(accepted.changes.length).toBe(0)
-      expect(accepted.parts.doc.textContent).toContain('Alpha.Beta.xy')
-
-      const rejected = build()
-      const rIds = [...new Set(rejected.changes.map((c) => c.id))]
-      expect(rIds.length).toBe(1)
-      rejected.rejectChanges(rIds[0])
-      expect(rejected.changes.length).toBe(0)
-      // the typing goes with the merge — it was absorbed into that change
-      expect(rejected.parts.doc.textContent).not.toContain('xy')
-      expect(
-        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
-      ).toEqual(['Alpha.', 'Beta.'])
-      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
-    })
-
-    test('a CHAIN of merges stays ONE atomic change', () => {
-      // Stacking struck the previous proposal and copied it again, so resolving
-      // the groups in either order duplicated text with no marks left to
-      // explain it. A superseded proposal is now dropped, not struck — it never
-      // existed in the document anyone is reviewing, so rejecting must not
-      // resurrect it.
-      const build = (): TosijsStyledEditor => {
-        const el = tosijsStyledEditor() as TosijsStyledEditor
-        container.appendChild(el)
-        el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
-        el.changeAuthor = { id: 'alex', name: 'Alex' }
-        el.trackChanges = true
-        const at = (p: Element): void => {
-          const range = document.createRange()
-          range.setStart(p.firstChild as Text, 0)
-          range.collapse(true)
-          el.selectable.removeBounds()
-          range.insertNode(el.selectable.createBounds())
-        }
-        at(el.parts.doc.querySelectorAll('p')[1])
-        press(el, 'Backspace')
-        const gamma = [...el.parts.doc.querySelectorAll('p')].find(
-          (p) => p.textContent === 'Gamma.'
-        )!
-        at(gamma)
-        press(el, 'Backspace')
-        return el
-      }
-
-      const el = build()
-      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
-      // three struck originals and one proposal — no intermediate proposal left
-      expect(
-        el.parts.doc.querySelectorAll('tosi-del[data-block-delete]').length
-      ).toBe(3)
-      expect(
-        el.parts.doc.querySelectorAll('tosi-ins[data-block-insert]').length
-      ).toBe(1)
-
-      // Resolve BY ID and in BOTH orders — stacking corrupted only under per-id
-      // resolution, so accept-all could never have caught it.
-      for (const order of ['accept-first', 'reject-first'] as const) {
-        const e = build()
-        const ids = [...new Set(e.changes.map((c) => c.id))]
-        expect(ids.length).toBe(1)
-        if (order === 'accept-first') e.acceptChanges(ids[0])
-        else e.rejectChanges(ids[0])
-        const text = e.parts.doc.textContent!
-        for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
-          // exactly once either way: accepted into one paragraph, or restored
-          expect(text.split(word).length - 1).toBe(1)
-        }
-        expect(e.changes.length).toBe(0)
-      }
-
-      const accepted = build()
-      accepted.acceptChanges()
-      const text = accepted.parts.doc.textContent!
-      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
-        expect(text.split(word).length - 1).toBe(1)
-      }
-      expect(accepted.parts.doc.querySelectorAll('p').length).toBe(1)
-
-      const rejected = build()
-      rejected.rejectChanges()
-      expect(
-        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
-      ).toEqual(['Alpha.', 'Beta.', 'Gamma.'])
-      expect(rejected.insertionPoint()).not.toBeNull()
-      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
-    })
-
-    test('a SECOND merge over my own proposal is refused, not stacked', () => {
-      // Stacking struck the first proposal and copied it again, so resolving
-      // the two groups in either order left the text duplicated with no marks
-      // left to explain it.
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
-      el.changeAuthor = { id: 'alex', name: 'Alex' }
-      el.trackChanges = true
-      const paras = () => [...el.parts.doc.querySelectorAll('p')]
-      const caretAtStartOf = (p: Element): void => {
-        const range = document.createRange()
-        range.setStart(p.firstChild as Text, 0)
-        range.collapse(true)
-        el.selectable.removeBounds()
-        range.insertNode(el.selectable.createBounds())
-      }
-      caretAtStartOf(paras()[1])
-      press(el, 'Backspace')
-      const afterFirst = new Set(el.changes.map((c) => c.id))
-      expect(afterFirst.size).toBe(1)
-
-      // caret at the start of Gamma., whose previous block is my proposal
-      const gamma = paras().find((p) => p.textContent === 'Gamma.')!
-      caretAtStartOf(gamma)
-      press(el, 'Backspace')
-
-      // still ONE change group; nothing stacked
-      expect(new Set(el.changes.map((c) => c.id)).size).toBe(1)
-      el.acceptChanges()
-      const text = el.parts.doc.textContent!.replace('\u22ee', '')
-      // every word exactly once — the duplication was the whole defect
-      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
-        expect(text.split(word).length - 1).toBe(1)
-      }
     })
 
     test('UNTRACKED, a list is not merged into a paragraph either', () => {
@@ -2024,6 +1833,118 @@ describe('TosijsStyledEditor', () => {
         expect(html).toContain('Beta.')
         expect(/<\/li>\s*[A-Za-z]/.test(html)).toBe(false)
       }
+    })
+
+    // A MERGE IS AN ORDINARY EDIT. It gets no veto, no atomic group spanning
+    // other people's changes, and no absorption of yours. What a reviewer sees
+    // is the old text and the new text; what ends up in the document is their
+    // call. Earlier drafts privileged structural edits with all three, which is
+    // a transaction system, not change tracking.
+
+    test('a pending change does not veto a merge, whoever made it', () => {
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML =
+        '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
+      el.changeAuthor = { id: 'alex', name: 'Alex' }
+      el.trackChanges = true
+      const seen: string[] = []
+      el.addEventListener('structural-edit-refused', (e) => {
+        seen.push((e as CustomEvent).detail.reason)
+      })
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+
+      expect(seen).toEqual([])
+      // the proposal reads as the document reads NOW, which is what a reviewer
+      // is being asked to compare against
+      expect(
+        el.parts.doc.querySelector('tosi-ins[data-block-insert]')!.textContent
+      ).toBe('Alpha.theirs Beta.')
+      // and THEIR change is untouched, still theirs, still resolvable alone
+      const theirs = el.changes.filter((c) => c.author === 'sam')
+      expect(theirs.length).toBe(1)
+      expect(theirs[0].id).toBe('c1')
+    })
+
+    test('a merge and an earlier edit stay SEPARATE changes', () => {
+      // Absorbing them into one id was the privilege being removed: your
+      // typing was its own decision and stays its own decision.
+      const el = twoParas()
+      el.parts.doc
+        .querySelectorAll('p')[1]
+        .appendChild(el.selectable.createBounds())
+      type(el, 'xy')
+      const typingId = el.changes[0].id
+
+      caretAtStartOfSecond(el)
+      press(el, 'Backspace')
+
+      const ids = new Set(el.changes.map((c) => c.id))
+      expect(ids.size).toBe(2)
+      expect(ids.has(typingId)).toBe(true)
+      // still resolvable on its own
+      el.rejectChanges(typingId)
+      expect(el.changes.some((c) => c.id === typingId)).toBe(false)
+      expect(el.changes.length).toBeGreaterThan(0)
+    })
+
+    test('a chain of merges leaves no intermediate proposal behind', () => {
+      // The ONE piece of structure-specific handling that survives, and it is
+      // not a resolution policy: an intermediate proposal was never in the
+      // document under review, so it must not be strikeable and therefore must
+      // not be resurrectable by rejecting.
+      const build = (): TosijsStyledEditor => {
+        const el = tosijsStyledEditor() as TosijsStyledEditor
+        container.appendChild(el)
+        el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
+        el.changeAuthor = { id: 'alex', name: 'Alex' }
+        el.trackChanges = true
+        const at = (p: Element): void => {
+          const range = document.createRange()
+          range.setStart(p.firstChild as Text, 0)
+          range.collapse(true)
+          el.selectable.removeBounds()
+          range.insertNode(el.selectable.createBounds())
+        }
+        at(el.parts.doc.querySelectorAll('p')[1])
+        press(el, 'Backspace')
+        at(
+          [...el.parts.doc.querySelectorAll('p')].find(
+            (p) => p.textContent === 'Gamma.'
+          )!
+        )
+        press(el, 'Backspace')
+        return el
+      }
+
+      const el = build()
+      // three struck originals, ONE proposal — the first proposal is gone, not
+      // struck, so no mark is nested inside another
+      expect(el.parts.doc.querySelectorAll('[data-block-delete]').length).toBe(
+        3
+      )
+      expect(el.parts.doc.querySelectorAll('[data-block-insert]').length).toBe(
+        1
+      )
+      expect(el.parts.doc.querySelector('tosi-del tosi-del')).toBeNull()
+      expect(el.parts.doc.querySelector('tosi-del tosi-ins')).toBeNull()
+
+      const accepted = build()
+      accepted.acceptChanges()
+      const text = accepted.parts.doc.textContent!
+      for (const word of ['Alpha.', 'Beta.', 'Gamma.']) {
+        expect(text.split(word).length - 1).toBe(1)
+      }
+      expect(accepted.parts.doc.querySelectorAll('p').length).toBe(1)
+
+      const rejected = build()
+      rejected.rejectChanges()
+      expect(
+        [...rejected.parts.doc.querySelectorAll('p')].map((p) => p.textContent)
+      ).toEqual(['Alpha.', 'Beta.', 'Gamma.'])
+      expect(rejected.insertionPoint()).not.toBeNull()
+      expect(rejected.value).not.toMatch(/tosi-|data-change|data-block/)
     })
 
     test('a merge with a list or a grid table is refused, not attempted', () => {
@@ -2057,24 +1978,6 @@ describe('TosijsStyledEditor', () => {
         // and the paragraph's text is still in the document
         expect(el.parts.doc.textContent).toContain('Beta.')
       }
-    })
-
-    test('overriding the pending-changes refusal merges UNTRACKED, whole', () => {
-      const el = tosijsStyledEditor() as TosijsStyledEditor
-      container.appendChild(el)
-      el.parts.doc.innerHTML =
-        '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
-      el.changeAuthor = { id: 'alex' }
-      el.trackChanges = true
-      el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
-      caretAtStartOfSecond(el)
-
-      press(el, 'Backspace')
-      // one paragraph, and nothing NEW pending — theirs is still theirs
-      expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
-      expect(el.parts.doc.querySelector('[data-block-insert]')).toBeNull()
-      expect(el.changes.map((c) => c.author)).toEqual(['sam'])
-      expect(el.trackChanges).toBe(true)
     })
 
     test('a deletion and its replacement get DIFFERENT ids', () => {

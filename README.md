@@ -367,38 +367,42 @@ content, so merging two paragraphs strikes both originals and proposes a third:
 <p><tosi-ins data-change="c1" data-block-insert>Alpha. Beta.</tosi-ins></p>
 ```
 
-All three share one `data-change`, so the group resolves **atomically** —
-accepting removes the struck blocks and keeps the replacement, rejecting
-restores the originals and drops the proposal. There is no coherent document in
-which you accept the deletions but reject what replaced them. Covers Backspace
-at the start of a block, Delete at the end of one, and a selection spanning
-blocks (where the proposal reads as the deletion _would_ read once accepted).
+All three share one `data-change`, because one keystroke is one change — the
+same rule paste already follows. Accepting removes the struck blocks and keeps
+the replacement; rejecting restores the originals and drops the proposal.
+Covers Backspace at the start of a block, Delete at the end of one, and a
+selection spanning blocks (where the proposal reads as the deletion _would_
+read once accepted).
 
-**The text is present twice until someone resolves it.** That is the cost of
-the brute-force representation, and it is worth knowing before you persist
-`value` on every keystroke: a document mid-merge serializes both the originals
-and the proposal.
+**The text is present twice until someone resolves it.** That is the cost of the
+brute-force representation, and it is worth knowing before you persist `value`
+on every keystroke: a document mid-merge serializes both the originals and the
+proposal.
 
 **`data-block-delete` / `data-block-insert` say a mark's scope is a whole
 block** rather than a run of text, and they are what tell `acceptChanges` to
-remove the struck block instead of leaving it empty. A downstream sanitizer
-that strips unknown `data-*` attributes turns a proposed merge back into three
+remove the struck block instead of leaving it empty. A downstream sanitizer that
+strips unknown `data-*` attributes turns a proposed merge back into three
 ordinary blocks.
 
-**Your own unresolved edits in those paragraphs are absorbed into the merge.**
-They are re-stamped with the merge's `data-change`, so they resolve with it and
-stop existing as a separate change: accepting keeps your edit, rejecting undoes
-it along with the merge. Chaining merges stays one atomic change too — a
-superseded proposal is dropped rather than struck, because it never existed in
-the document anyone is reviewing.
+**A merge is an ordinary edit.** It has no veto and no special group: a pending
+change in either paragraph — yours or anyone's — does not block it, and it does
+not absorb that change or resolve it for you. Every mark keeps its own id and
+stays independently resolvable, because the point of tracking changes is that
+you see the old text and the new text and _you_ decide what stays.
 
-**A merge is refused when either block holds someone _else's_ unresolved
-change** (`merge-blocks-has-pending-changes`). The replacement is built by
-_copying_ content, and a copy cannot carry a mark's identity: their proposal
-would become resolvable in two places, with the two answers free to disagree.
-Resolve theirs first. Lists and grid tables refuse for a different reason
-(`merge-blocks-not-mergeable`): merging them produces loose text as a direct
-child of a `<ul>`, or a mark that becomes a grid item and shifts every cell.
+The corollary is that you can make contradictory choices, and the editor will do
+what you said. Reject an insertion inside a paragraph and then accept a merge
+whose proposed text was taken from that paragraph, and the inserted words are in
+the result — you rejected them in the old text and accepted a new paragraph that
+visibly contains them. Both are on screen when you choose. A review UI that
+wants to prevent this should resolve a merge and the edits inside it together;
+the editor does not decide that for you.
+
+Lists and grid tables are the one refusal (`merge-blocks-not-mergeable`), and it
+is about valid DOM rather than about review policy: merging them produces loose
+text as a direct child of a `<ul>`, or a mark that becomes a grid item and
+shifts every `cellIndex`.
 
 ### Everything else
 
@@ -452,9 +456,8 @@ Two deletions behave specially, because the pedantic version would be noise:
   })
   ```
 
-  `detail.reason` is one of `merge-blocks-has-pending-changes`,
-  `merge-blocks-not-mergeable`, `remove-list-item`, `merge-list-items`,
-  `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
+  `detail.reason` is one of `merge-blocks-not-mergeable`, `remove-list-item`,
+  `merge-list-items`, `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
   untracked** — if tracking could have represented it, there would have been
   nothing to refuse. A custom command refuses the same way, through
   `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.

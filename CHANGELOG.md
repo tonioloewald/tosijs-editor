@@ -13,27 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the brute-force way — _these blocks out, these blocks in_. A change mark wraps
   content and a paragraph break is not content, so merging two paragraphs
   strikes both originals (`data-block-delete`) and proposes a third
-  (`data-block-insert`); all three share one `data-change` and resolve
-  **atomically**, because there is no coherent document in which you accept the
-  deletions but reject what replaced them. Covers Backspace at the start of a
-  block, Delete at the end of one, and a selection spanning blocks — where the
-  proposed block reads as the deletion _would_ read once accepted.
+  (`data-block-insert`); all three share one `data-change`, because one
+  keystroke is one change — the same rule paste already follows. Covers
+  Backspace at the start of a block, Delete at the end of one, and a selection
+  spanning blocks, where the proposed block reads as the deletion _would_ read
+  once accepted.
   The cost is honest duplication: the text is present twice until someone
   resolves it.
-  A merge is **refused** when either block holds someone _else's_ unresolved
-  change (`merge-blocks-has-pending-changes`): the replacement is built by
-  _copying_ content, and a copy cannot carry a mark's identity, so their
-  proposal would become resolvable in two places with the two answers free to
-  disagree. **Your own** pending marks do not refuse — they are _absorbed_ into
-  the merge, re-stamped with its id, so they resolve with it and no longer exist
-  as a separate change: accepting keeps your edit, rejecting undoes it along
-  with the merge. Chaining merges stays one atomic change, because a superseded
-  proposal is dropped rather than struck — it never existed in the document
-  anyone is reviewing, so rejecting must not resurrect it.
-  Lists and grid tables refuse with `merge-blocks-not-mergeable`: merging them
-  produces loose text as a direct child of a `<ul>`, or a mark that becomes a
-  grid item and shifts every `cellIndex`. That guard applies with tracking
-  **off** as well, where the same raw merge was equally wrong.
+  **A merge is an ordinary edit.** It gets no veto and no special group: a
+  pending change in either paragraph, yours or anyone else's, neither blocks it
+  nor is absorbed into it. Every mark keeps its own id and stays independently
+  resolvable — privileging a structural edit over a textual one is not what
+  change tracking is for. The corollary is that contradictory choices are
+  possible and the editor honours them: reject an insertion, then accept a merge
+  whose proposal was taken from that paragraph, and those words are in the
+  result. Both are on screen when you choose; a review UI that wants to prevent
+  it should resolve a merge together with the edits inside it.
+  A chain of merges leaves no intermediate proposal behind — a superseded
+  proposal is dropped rather than struck, because it never existed in the
+  document anyone is reviewing and so must not be resurrectable.
+  Lists and grid tables are the one refusal (`merge-blocks-not-mergeable`), and
+  it is about valid DOM rather than review policy: merging them produces loose
+  text as a direct child of a `<ul>`, or a mark that becomes a grid item and
+  shifts every `cellIndex`. That guard applies with tracking **off** as well.
   `merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
   no longer fire — those edits are recorded now.
 
