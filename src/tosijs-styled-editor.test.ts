@@ -1278,6 +1278,53 @@ describe('TosijsStyledEditor', () => {
       expect(accepted.parts.doc.querySelectorAll('p').length).toBe(2)
     })
 
+    test('an author name cannot break out of a raw-text element', () => {
+      // HTML attribute serialization escapes & and " but NEVER <. Inside
+      // <style>/<xmp>/<title>/<textarea> the contents re-parse as raw text, so
+      // a `</style>` in an attribute value terminates the element and the rest
+      // parses as markup. docHTML IS the undo stack, so a single undo
+      // re-parses it in the same session — nothing external is needed.
+      const el = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(el)
+      el.parts.doc.innerHTML = '<style>p { color: red }</style><p>hello</p>'
+      el.changeAuthor = {
+        id: 'alex',
+        name: 'A</style><img src=x onerror=boom()>',
+      }
+      el.trackChanges = true
+      const style = el.parts.doc.querySelector('style')!
+      const range = document.createRange()
+      range.setStart(style.firstChild as Text, (style.textContent || '').length)
+      range.collapse(true)
+      el.selectable.removeBounds()
+      range.insertNode(el.selectable.createBounds())
+      el.parts.doc.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Backspace',
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+
+      const html = el.value
+      // The payload surviving as inert attribute TEXT is fine. What must not
+      // happen is it closing the <style> early and becoming markup, so assert
+      // the parsed result rather than a substring.
+      expect(html).not.toContain('<img')
+
+      const second = tosijsStyledEditor() as TosijsStyledEditor
+      container.appendChild(second)
+      second.value = html
+      expect(second.parts.doc.querySelector('img')).toBeNull()
+      expect(
+        [...second.parts.doc.querySelectorAll('*')].some((e) =>
+          e.hasAttribute('onerror')
+        )
+      ).toBe(false)
+      // exactly one <style>, i.e. the payload never terminated it early
+      expect(second.parts.doc.querySelectorAll('style').length).toBe(1)
+    })
+
     test('pasted change marks are re-stamped, not taken at their word', () => {
       // <tosi-ins> is a safe element, so the sanitizer passes it and its
       // attributes through. Taken at face value, `editor.changes` would report

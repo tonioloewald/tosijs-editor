@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-26
+
+### Security
+
+- **An author's display name could break out of a raw-text element and become
+  live HTML.** HTML attribute serialization escapes `&` and `"` but **never
+  `<`**, and `style`, `xmp`, `title`, `textarea`, `noembed`, `noframes` and
+  `plaintext` re-parse their contents as raw text — so a `changeAuthor.name`
+  containing `</style><img src=x onerror=…>`, written into a change mark inside
+  one of those elements, terminated the element and the remainder parsed as
+  markup. `editor.value` then carried a real `<img onerror>`.
+
+  Nothing external triggers the re-parse: `value` is also the undo stack, so a
+  single undo does it in the same session, and `internals.setFormValue` hands it
+  to every other reader. Reachable without host cooperation — `tosijs-kilpi`
+  drops `style`/`script`/`iframe` but keeps `xmp`/`textarea`/`title`/`noembed`/
+  `noframes`/`plaintext`, so a collaborator can paste one — and the host need
+  only have wired `changeAuthor.name` to a profile name, which is what that
+  field is for.
+
+  `<` and `>` are now stripped from `changeAuthor.id` and `.name` at every write
+  site. Stripping rather than escaping: no escape survives attribute
+  serialization into a raw-text element. Affects 0.5.0 only, and only with
+  `trackChanges` enabled.
+
+  **Still true, and not a vulnerability:** tracked edits inside a raw-text
+  element are a bad idea regardless — a caret marker left in a `<style>` block
+  round-trips into literal CSS text with no attacker involved. Keeping the
+  editor's own marks out of those elements is tracked in `TODO.md`. See
+  `SECURITY.md`.
+
+### Changed
+
+- The build no longer passes `--incremental` to `tsc`, so no
+  `dist/tsconfig.tsbuildinfo` is produced. An incremental build into a wiped
+  `dist/` can emit nothing at all the second time, which disqualifies a build
+  that has to reproduce for the publish workflow.
+
+### Added
+
+- `.github/workflows/publish.yml` — OIDC trusted publishing with npm staged
+  publishing. CI can only *stage*; the maintainer's 2FA approval on npmjs.com is
+  what publishes, and it works from a phone.
+
 ## [0.5.0] - 2026-09-21
 
 ### Added
