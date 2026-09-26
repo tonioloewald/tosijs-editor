@@ -360,7 +360,11 @@ drive it with `hj eval` against the RTL page for a repeatable per-character swee
 
 ## Notes
 
-`TODO.md` and `Working Notes.md` track outstanding behavior bugs and are worth reading
-before touching selection or keyboard handling. The original jQuery implementation that
+**Tasks live on the virta board**, not in `TODO.md` — run `virta brief` (a SessionStart
+hook does it for you) or see <https://virta.tosijs.net/host/#?virta.scope=tosijs-editor>.
+File with `virta create`; `ready` is the owner's go-ahead, so agents file into the backlog
+and leave it there. `TODO.md` and `UPSTREAM.md` are pointers now. `Working Notes.md` still
+tracks outstanding behavior bugs and is worth reading before touching selection or keyboard
+handling. The original jQuery implementation that
 this replaced was deleted from the repo; recover it from git history if a reference is
 ever needed (`git show 298bf16 -- edx-editable.js`).

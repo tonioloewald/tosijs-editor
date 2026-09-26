@@ -12,6 +12,35 @@ quarterly lens had to reconstruct seven reports by hand.
 
 ---
 
+## 0.5.1 — 2026-09-26
+
+- **A security fix that the 0.6.0 branch review found in code shipped four days
+  earlier.** A `changeAuthor` display name containing `</style>` broke out of a
+  raw-text element and became live HTML in `editor.value`. The writes were
+  byte-identical on master, so 0.5.0 was affected; the reviewer proved it end to
+  end by assigning the resulting value to a second editor.
+- **Split by propagation, not by size.** For 0.x, `^0.5.0` is `>=0.5.0 <0.6.0`,
+  so a patch reaches every consumer and a minor reaches none. The security fix
+  wanted the first and the structural-tracking feature wanted the second, which
+  is what made splitting them obvious rather than a judgement call.
+- **First release through OIDC + staged publishing**, adopted the same day the
+  practice landed. The `dry_run`-before-tagging step earned its keep immediately:
+  it proved the Linux build reproduces and the consumer smoke test passes, so the
+  tag was cut once — the pilot moved its tag five times, and 0.5.0 here needed
+  tag surgery for a defect a dry run would have caught.
+- Adopting it needed two repo changes the workflow itself requires: `.bun-version`,
+  and dropping `--incremental` from `tsc` so `dist/tsconfig.tsbuildinfo` can never
+  make a second build emit nothing.
+- **Approval from a phone, minutes later.** The green run is the "published and
+  verified" statement — `latest → 0.5.1`, integrity matched the staged tarball,
+  and the consumer smoke test ran against the registry's own copy. Nothing
+  polled npm.
+- Moved to the virta board the same day: 33 tasks (23 from `TODO.md`, 8 from
+  `UPSTREAM.md`, 2 GitHub issues). Worth recording that a straight `virta
+  onboard` would have imported **zero** TODO items — the file used bare `[ ]`
+  lines rather than markdown list items, so the importer found none and said so
+  only as a `0 item(s)` line nobody would read twice.
+
 ## 0.5.0 — published 2026-09-25 (reviewed 2026-09-21)
 
 - **First full nine-lens pass on this repo.** Lens 8 (practices self-review) was skipped
