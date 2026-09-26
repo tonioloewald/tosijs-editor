@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=d4284d139681" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=9684d0037249" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=07e69a30d456" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=a1d264d13e75" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -323,46 +323,6 @@ ordinary prose, which reads as the opposite of what the document means.</p>
 <pre><code class="language-javascript" data-highlighted>editor<span class="token punctuation">.</span>changeAuthor <span class="token operator">=</span> <span class="token punctuation">{</span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token string">'alex'</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'Alex'</span> <span class="token punctuation">}</span>
 editor<span class="token punctuation">.</span>trackChanges <span class="token operator">=</span> <span class="token boolean">true</span>
 </code></pre>
-<h3>Structural edits</h3>
-<p><strong>Merging paragraphs is tracked too</strong>, the brute-force way: <em>these blocks out,
-these blocks in</em>. A change mark wraps content and a paragraph break is not
-content, so merging two paragraphs strikes both originals and proposes a third:</p>
-<pre><code class="language-xml" data-highlighted><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>tosi-del</span> <span class="token attr-name">data-change</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>c1<span class="token punctuation">"</span></span> <span class="token attr-name">data-block-delete</span><span class="token punctuation">></span></span>Alpha.<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>tosi-del</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
-<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>tosi-del</span> <span class="token attr-name">data-change</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>c1<span class="token punctuation">"</span></span> <span class="token attr-name">data-block-delete</span><span class="token punctuation">></span></span>Beta.<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>tosi-del</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
-<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>tosi-ins</span> <span class="token attr-name">data-change</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>c1<span class="token punctuation">"</span></span> <span class="token attr-name">data-block-insert</span><span class="token punctuation">></span></span>Alpha. Beta.<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>tosi-ins</span><span class="token punctuation">></span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">></span></span>
-</code></pre>
-<p>All three share one <code>data-change</code>, because one keystroke is one change — the
-same rule paste already follows. Accepting removes the struck blocks and keeps
-the replacement; rejecting restores the originals and drops the proposal.
-Covers Backspace at the start of a block, Delete at the end of one, and a
-selection spanning blocks (where the proposal reads as the deletion <em>would</em>
-read once accepted).</p>
-<p><strong>The text is present twice until someone resolves it.</strong> That is the cost of the
-brute-force representation, and it is worth knowing before you persist <code>value</code>
-on every keystroke: a document mid-merge serializes both the originals and the
-proposal.</p>
-<p><strong><code>data-block-delete</code> / <code>data-block-insert</code> say a mark&#39;s scope is a whole
-block</strong> rather than a run of text, and they are what tell <code>acceptChanges</code> to
-remove the struck block instead of leaving it empty. A downstream sanitizer that
-strips unknown <code>data-*</code> attributes turns a proposed merge back into three
-ordinary blocks.</p>
-<p><strong>A merge is an ordinary edit.</strong> It has no veto and no special group: a pending
-change in either paragraph — yours or anyone&#39;s — does not block it, and it does
-not absorb that change or resolve it for you. Every mark keeps its own id and
-stays independently resolvable, because the point of tracking changes is that
-you see the old text and the new text and <em>you</em> decide what stays.</p>
-<p>The corollary is that you can make contradictory choices, and the editor will do
-what you said. Reject an insertion inside a paragraph and then accept a merge
-whose proposed text was taken from that paragraph, and the inserted words are in
-the result — you rejected them in the old text and accepted a new paragraph that
-visibly contains them. Both are on screen when you choose. A review UI that
-wants to prevent this should resolve a merge and the edits inside it together;
-the editor does not decide that for you.</p>
-<p>Lists and grid tables are the one refusal (<code>merge-blocks-not-mergeable</code>), and it
-is about valid DOM rather than about review policy: merging them produces loose
-text as a direct child of a <code>&lt;ul&gt;</code>, or a mark that becomes a grid item and
-shifts every <code>cellIndex</code>.</p>
-<h3>Everything else</h3>
 <p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code>, and <strong>every</strong> deletion wraps in
 <code>&lt;tosi-del&gt;</code> instead of removing — caret Backspace and Delete, a selection
 delete, a cut, inside a list, inside a table cell. Nothing leaves the document
@@ -391,13 +351,21 @@ un-typing something you just typed, not proposing to delete your own proposal</l
 </ul>
 <h3>Not implemented</h3>
 <ul>
-<li><p><strong>lists and tables are still refused.</strong> Backspace out of a list item, and
-<strong>Delete Row</strong> / <strong>Delete Column</strong> on a table — a grid table has no row
-elements, so row and column are derived from <code>cellIndex</code>, and a <code>&lt;tosi-del&gt;</code>
-around a cell would itself become a grid item and shift every later cell.
-Refusing beats silently restructuring with nothing in <code>changes</code> to show for
-it. Text deletion inside a list item or a cell is unaffected and fully
-tracked. (Paragraph merges ARE tracked — see Structural edits above.)</p>
+<li><p><strong>no structural tracking.</strong> A change mark wraps <em>content</em>, and structure is
+not content. So while <code>trackChanges</code> is on, edits that restructure rather
+than delete text are <strong>refused</strong> rather than performed:</p>
+<ul>
+<li>Backspace at the start of a paragraph, Delete at the end of one, and
+Backspace out of a list item (each deletes a paragraph break)</li>
+<li><strong>Delete Row</strong> and <strong>Delete Column</strong> on a table — a grid table has no row
+elements, so row and column are derived from <code>cellIndex</code>, and a
+<code>&lt;tosi-del&gt;</code> around a cell would itself become a grid item and shift every
+later cell</li>
+</ul>
+<p>Refusing is deliberate: the alternative is silently restructuring the
+document with nothing in <code>changes</code> to show for it, which is the failure this
+feature exists to prevent. Text deletion inside a block or a cell is
+unaffected and fully tracked.</p>
 <p>A refusal fires a cancelable <strong><code>structural-edit-refused</code></strong> event carrying
 <code>detail.reason</code>, so the key is not simply dead — show a note, or call
 <code>preventDefault()</code> on it to allow the edit:</p>
@@ -405,8 +373,9 @@ tracked. (Paragraph merges ARE tracked — see Structural edits above.)</p>
   <span class="token function">toast</span><span class="token punctuation">(</span><span class="token template-string"><span class="token template-punctuation string">`</span><span class="token string">Not tracked yet: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${</span>e<span class="token punctuation">.</span>detail<span class="token punctuation">.</span>reason<span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">. Turn off tracking to do this.</span><span class="token template-punctuation string">`</span></span><span class="token punctuation">)</span>
 <span class="token punctuation">}</span><span class="token punctuation">)</span>
 </code></pre>
-<p><code>detail.reason</code> is one of <code>merge-blocks-not-mergeable</code>, <code>remove-list-item</code>,
-<code>merge-list-items</code>, <code>delete-table-row</code>, <code>delete-table-col</code>. <strong>Calling <code>preventDefault()</code> performs the edit
+<p><code>detail.reason</code> is one of <code>merge-blocks-backward</code>, <code>merge-blocks-forward</code>,
+<code>merge-blocks-selection</code>, <code>remove-list-item</code>, <code>merge-list-items</code>,
+<code>delete-table-row</code>, <code>delete-table-col</code>. <strong>Calling <code>preventDefault()</code> performs the edit
 untracked</strong> — if tracking could have represented it, there would have been
 nothing to refuse. A custom command refuses the same way, through
 <code>ctx.refuseStructural(reason)</code>; see EXTENSIBILITY.md.</p>
@@ -920,6 +889,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=d4284d139681"></script>
+  <script type="module" src="hydrate.js?v=9684d0037249"></script>
 </body>
 </html>

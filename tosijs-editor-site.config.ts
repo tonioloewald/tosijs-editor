@@ -90,7 +90,11 @@ export default defineSiteConfig({
    */
   async libraryBuild({ dist }) {
     try {
-      await $`bun tsc --declaration --emitDeclarationOnly --incremental --outDir ${dist}`.quiet()
+      // NOT --incremental. It writes dist/tsconfig.tsbuildinfo, and an incremental
+      // build into a wiped dist/ then emits NOTHING the second time (measured in
+      // tosijs-ui: 883 files gone). The OIDC publish workflow requires the build to
+      // reproduce, so a build that can silently emit nothing is disqualifying.
+      await $`bun tsc --declaration --emitDeclarationOnly --outDir ${dist}`.quiet()
     } catch {
       // tsc emits declarations even when it reports errors
     }
