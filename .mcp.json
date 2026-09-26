@@ -2,9 +2,7 @@
   "mcpServers": {
     "virta": {
       "command": "virta",
-      "args": [
-        "mcp"
-      ]
+      "args": ["mcp"]
     }
   }
 }

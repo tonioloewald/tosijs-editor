@@ -37,7 +37,7 @@ quarterly lens had to reconstruct seven reports by hand.
   polled npm.
 - Moved to the virta board the same day: 33 tasks (23 from `TODO.md`, 8 from
   `UPSTREAM.md`, 2 GitHub issues). Worth recording that a straight `virta
-  onboard` would have imported **zero** TODO items — the file used bare `[ ]`
+onboard` would have imported **zero** TODO items — the file used bare `[ ]`
   lines rather than markdown list items, so the importer found none and said so
   only as a `0 item(s)` line nobody would read twice.
 

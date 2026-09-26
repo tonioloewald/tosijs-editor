@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `.github/workflows/publish.yml` — OIDC trusted publishing with npm staged
-  publishing. CI can only *stage*; the maintainer's 2FA approval on npmjs.com is
+  publishing. CI can only _stage_; the maintainer's 2FA approval on npmjs.com is
   what publishes, and it works from a phone.
 
 ## [0.5.0] - 2026-09-21
