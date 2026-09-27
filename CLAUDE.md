@@ -373,6 +373,16 @@ gives every character a synthetic 10px box. That only proves the resolution logi
 the measurement matches real shaping is a browser question — verify via `bun start`, and
 drive it with `hj eval` against the RTL page for a repeatable per-character sweep.
 
+## Stopping the dev server
+
+`bun run dev:stop` (`bin/dev-stop.ts`). **Never `pkill -f "bin/site.ts"`** — that is the
+dev-server entry point in tosijs, tosijs-3d and tosijs-virta as well, so it kills theirs.
+It killed tosijs-3d's twice in one session, the second time one command after the agent
+doing it had written a practices note against it. The note did not survive habit, which is
+why there is now a command. It identifies the server by PORT and refuses if the listener's
+cwd is not this repo — a port held by someone else is a collision, and killing it is the
+wrong repair.
+
 ## The browser lane (`browser-tests/`)
 
 `bun test ./browser-tests/` with the dev server up. Playwright drives the page; haltija's

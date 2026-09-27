@@ -12,3 +12,4 @@ import{w,r,g,n,V,i,ue,q}from"./index-xjrqmzr5.js";import{fe,pe,me}from"./index-7
 `:""}${E}: e.g. ${T}`}}u.push(i(`${b}(${U})`,{label:b,type:"function",detail:`(${B}) -> ${H}`,info:R||void 0,boost:2}))}}if(u.length===0)return null;return{from:l.from,options:u,validFor:/^[\w$]*$/}}catch(l){return console.warn("TJS autocomplete error:",l),null}}}function Fe(t={}){return[q({jsx:t.jsx,typescript:t.typescript}),ee,te,ae,ue({override:[ve(t.autocomplete||{})],activateOnTyping:!0})]}export{Fe as tjsEditorExtension};
 
 //# debugId=3A510C4CE08D70D464756E2164756E21
+//# sourceMappingURL=ajs-language-t4tsvsgg.js.map

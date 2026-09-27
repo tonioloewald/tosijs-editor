@@ -450,6 +450,65 @@ describe('sticky word selection', () => {
     })
   })
 
+  describe('the anchor-word test can be answered visually', () => {
+    // The rule is "snapping engages once the drag LEAVES the word it began in".
+    // Asking that in LOGICAL offsets is right only while visual and logical
+    // order agree. In a bidi run they oppose: `עברית` inside an English line is
+    // ~43px wide and renders right-to-left, so a few pixels of RIGHTWARD
+    // movement walks logically BACKWARDS out of the word — the offset test says
+    // "left the word", both ends snap, and the whole run highlights as one
+    // block on the first small movement. Reported from real use in Safari and
+    // Chrome; the same gesture in English stays inside a word long enough to
+    // show character precision, which is why only RTL looked broken.
+    //
+    // `Selectable.pointerInAnchorWord` answers it against the word's rendered
+    // client rects instead. That needs layout, so it is verified in the browser
+    // lane; what is pinned here is that the parameter overrides the offset test
+    // in both directions.
+    const T = 'the quick brown fox'
+
+    test('claiming we are still inside keeps character precision', () => {
+      // The head must be somewhere the OFFSET test would call "left the word",
+      // or the two branches agree and the test proves nothing: anchor 5 is in
+      // `quick` (4..9) and head 11 is inside `brown`. Logically that snaps to
+      // `quick brown`; told the pointer is still over the anchor word, it does
+      // not.
+      const { start, end } = stickySelectionBounds(T, 5, 11, false)
+      expect(T.slice(start, end)).toBe('uick b')
+    })
+
+    test('claiming we left snaps both ends, even mid-word', () => {
+      // offsets say we are still inside `quick`, the caller says we left it
+      const { start, end } = stickySelectionBounds(T, 5, 7, true)
+      expect(T.slice(start, end)).toBe('quick')
+    })
+
+    test('omitting it keeps the original logical behaviour', () => {
+      // the existing contract is unchanged when the caller does not measure
+      expect(
+        (({ start, end }) => T.slice(start, end))(stickySelectionBounds(T, 4, 7))
+      ).toBe('qui')
+      expect(
+        (({ start, end }) => T.slice(start, end))(stickySelectionBounds(T, 6, 12))
+      ).toBe('quick brown')
+    })
+
+    test('a one-word run cannot be partially selected by the offset test alone', () => {
+      // The shape of the bug, as a pure-function fact: with the anchor mid-word
+      // and the head one character outside it, the logical test snaps the whole
+      // word. For a 5-character run that is the entire run.
+      const heb = 'Another English item with עברית inside it'
+      const anchor = 28 // inside עברית (26..31)
+      const logical = stickySelectionBounds(heb, anchor, 25)
+      expect(heb.slice(logical.start, logical.end)).toContain('עברית')
+      // Same head — one character OUTSIDE the run, which is all a few pixels of
+      // rightward movement amounts to here — but told the pointer is still over
+      // the word. Precision survives, and the whole run is not swallowed.
+      const visual = stickySelectionBounds(heb, anchor, 25, false)
+      expect(heb.slice(visual.start, visual.end)).not.toContain('עברית')
+    })
+  })
+
   describe('degenerate input does not throw', () => {
     test('empty text', () => {
       expect(() => stickySelectionBounds('', 0, 0)).not.toThrow()

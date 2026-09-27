@@ -99,12 +99,33 @@ function wordBoundsAt(
 export function stickySelectionBounds(
   text: string,
   anchor: number,
-  head: number
+  head: number,
+  /**
+   * Has the drag left the word it began in? Defaults to asking in LOGICAL
+   * offsets, which is right whenever visual and logical order agree.
+   *
+   * They do not agree inside a bidi run, and that made short runs unselectable
+   * by drag. `עברית` inside an English list item is ~43px wide and renders
+   * right-to-left, so moving the pointer a few pixels RIGHT walks logically
+   * BACKWARDS out of the word — the offset test says "left the word", both ends
+   * snap, and the whole run highlights as one block on the first small
+   * movement. The same gesture in English stays inside a word long enough to
+   * show character precision, which is why only RTL looked broken.
+   *
+   * The caller measures it against the word's rendered box instead. Same rule,
+   * asked in the space the user is actually moving through.
+   */
+  leftTheAnchorWord?: boolean
 ): { start: number; end: number } {
   const anchorWord = wordBoundsAt(text, anchor)
 
+  const stillInside =
+    leftTheAnchorWord === undefined
+      ? head >= anchorWord.start && head <= anchorWord.end
+      : !leftTheAnchorWord
+
   // Still inside the word we started in: the user is being precise, let them.
-  if (head >= anchorWord.start && head <= anchorWord.end) {
+  if (stillInside) {
     return head < anchor
       ? { start: head, end: anchor }
       : { start: anchor, end: head }
@@ -238,7 +259,12 @@ export class Selectable {
   private lastHovered: Element | null = null
   /** A click inside a selection, resolved on mouseup if no drag started */
   /** Where a character-granularity drag started, for word stickiness. */
-  private dragAnchor: { block: Element; index: number } | null = null
+  private dragAnchor: {
+    block: Element
+    index: number
+    /** The anchor word's logical bounds, for re-measuring its rendered box. */
+    word?: { start: number; end: number }
+  } | null = null
 
   private pendingCollapse: { x: number; y: number; target: Element } | null =
     null
@@ -309,7 +335,7 @@ export class Selectable {
       const hit = characterAtPoint(this.root, evt.clientX, evt.clientY)
       const selEnd = this.find('.sel-end')
       if (hit && selEnd) {
-        if (!this.extendSticky(hit)) {
+        if (!this.extendSticky(hit, evt.clientX, evt.clientY)) {
           const range = document.createRange()
           range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
           range.collapse(true)
@@ -397,7 +423,44 @@ export class Selectable {
    * falls back — the text index is per-block, and a selection spanning blocks
    * has bigger units than words anyway.
    */
-  private extendSticky(hit: CharacterHit): boolean {
+  /**
+   * Is the pointer still inside the rendered box of the word the drag began in?
+   *
+   * Measured per LINE BOX (`getClientRects()`), not as one union rect: a word
+   * that wraps has two boxes with a huge gap between them, and the union would
+   * call the whole intervening area "inside the word".
+   *
+   * This is the visual half of the sticky rule. Asking it in logical offsets
+   * instead is what made a short right-to-left run snap as a single block on
+   * the first few pixels of movement — see `stickySelectionBounds`.
+   */
+  private pointerInAnchorWord(x: number, y: number): boolean {
+    const anchor = this.dragAnchor
+    if (!anchor?.word) return false
+    const index = this.textIndexOf(anchor.block)
+    const from = index.locate(anchor.word.start)
+    const to = index.locate(anchor.word.end)
+    if (!from || !to) return false
+    const range = document.createRange()
+    range.setStart(from.node, Math.min(from.offset, from.node.length))
+    range.setEnd(to.node, Math.min(to.offset, to.node.length))
+    // A small tolerance, because the pointer sits on a boundary constantly and
+    // flipping mode on a sub-pixel is worse than either mode.
+    const pad = 1
+    for (const r of Array.from(range.getClientRects())) {
+      if (
+        x >= r.left - pad &&
+        x <= r.right + pad &&
+        y >= r.top - pad &&
+        y <= r.bottom + pad
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private extendSticky(hit: CharacterHit, x: number, y: number): boolean {
     const anchor = this.dragAnchor
     if (this.selecting !== 1 || !anchor) return false
     const block = this.topLevelAncestor(hit.node)
@@ -410,7 +473,13 @@ export class Selectable {
     )
     if (head === null) return false
 
-    const { start, end } = stickySelectionBounds(index.text, anchor.index, head)
+    if (!anchor.word) anchor.word = wordBoundsAt(index.text, anchor.index)
+    const { start, end } = stickySelectionBounds(
+      index.text,
+      anchor.index,
+      head,
+      !this.pointerInAnchorWord(x, y)
+    )
     const startPos = index.locate(start)
     const endPos = index.locate(end)
     if (!startPos || !endPos) return false

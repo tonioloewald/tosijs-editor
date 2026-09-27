@@ -3,3 +3,4 @@
 |(?![\\s\\S])))+`,"m"),alias:n,inside:{line:{pattern:/(.)(?=[\s\S]).*(?:\r\n?|\n)?/,lookbehind:!0},prefix:{pattern:/[\s\S]/,alias:/\w+/.exec(e)[0]}}}}),Object.defineProperty(i.languages.diff,"PREFIXES",{value:r})})(Prism);
 
 //# debugId=36218E703ECA01BE64756E2164756E21
+//# sourceMappingURL=prism-diff-ede62hvy.js.map
