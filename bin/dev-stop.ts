@@ -28,11 +28,18 @@ if (pids.length === 0) {
 }
 
 for (const pid of pids) {
-  const out = (await $`lsof -a -p ${pid} -d cwd -Fn`.nothrow().quiet()).stdout.toString()
-  const cwd = out.split('\n').find((l) => l.startsWith('n'))?.slice(1)
+  const out = (
+    await $`lsof -a -p ${pid} -d cwd -Fn`.nothrow().quiet()
+  ).stdout.toString()
+  const cwd = out
+    .split('\n')
+    .find((l) => l.startsWith('n'))
+    ?.slice(1)
   if (cwd !== process.cwd()) {
     console.error(
-      `refusing: :${port} is served by ${cwd ?? 'an unknown directory'}, not ${process.cwd()}`
+      `refusing: :${port} is served by ${
+        cwd ?? 'an unknown directory'
+      }, not ${process.cwd()}`
     )
     process.exit(1)
   }

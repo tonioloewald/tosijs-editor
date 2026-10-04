@@ -486,10 +486,14 @@ describe('sticky word selection', () => {
     test('omitting it keeps the original logical behaviour', () => {
       // the existing contract is unchanged when the caller does not measure
       expect(
-        (({ start, end }) => T.slice(start, end))(stickySelectionBounds(T, 4, 7))
+        (({ start, end }) => T.slice(start, end))(
+          stickySelectionBounds(T, 4, 7)
+        )
       ).toBe('qui')
       expect(
-        (({ start, end }) => T.slice(start, end))(stickySelectionBounds(T, 6, 12))
+        (({ start, end }) => T.slice(start, end))(
+          stickySelectionBounds(T, 6, 12)
+        )
       ).toBe('quick brown')
     })
 

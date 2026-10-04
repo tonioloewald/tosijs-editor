@@ -1886,9 +1886,15 @@ describe('TosijsStyledEditor', () => {
     // and `grep -c` returning 2 looked like one per path.
     for (const key of ['Backspace', 'Delete'] as const) {
       for (const [label, markup] of [
-        ['grid table', '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>'],
+        [
+          'grid table',
+          '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a</li><li>b</li></ul>',
+        ],
         ['plain list', '<ul><li>one</li><li>two</li></ul>'],
-        ['footnote list', '<ol class="footnotes"><li class="footnote">Footnote text</li></ol>'],
+        [
+          'footnote list',
+          '<ol class="footnotes"><li class="footnote">Footnote text</li></ol>',
+        ],
       ] as [string, string][]) {
         test(`UNTRACKED ${key} at a ${label} boundary destroys nothing`, () => {
           const el = tosijsStyledEditor() as TosijsStyledEditor
@@ -1896,7 +1902,9 @@ describe('TosijsStyledEditor', () => {
           // Backspace looks back, Delete looks forward, so the paragraph goes
           // on the side the key will reach across.
           el.parts.doc.innerHTML =
-            key === 'Backspace' ? `${markup}<p>Beta.</p>` : `<p>Beta.</p>${markup}`
+            key === 'Backspace'
+              ? `${markup}<p>Beta.</p>`
+              : `<p>Beta.</p>${markup}`
           // trackChanges stays OFF — the shipped default
           const p = el.parts.doc.querySelector('p')!
           const text = p.firstChild as Text

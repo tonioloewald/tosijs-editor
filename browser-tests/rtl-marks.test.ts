@@ -18,7 +18,11 @@
  */
 import { test, expect, beforeAll, afterAll, describe } from 'bun:test'
 import { webkit, chromium, type Browser, type Page } from 'playwright'
-import { createBrowserPage, markBrowserTestRan, browserTestsRan } from 'haltija/test'
+import {
+  createBrowserPage,
+  markBrowserTestRan,
+  browserTestsRan,
+} from 'haltija/test'
 import { playwrightBridge } from './bridge'
 
 const URL = process.env.RTL_URL ?? 'https://localhost:8789/right-to-left/'
@@ -80,7 +84,8 @@ const PROBE = `(() => {
   return { chars, xs, box: { y: +box.y.toFixed(2), h: +box.height.toFixed(2) }, text: p.textContent }
 })()`
 
-const measure = (): Promise<any> => page.read(new Function(`return ${PROBE}`) as any)
+const measure = (): Promise<any> =>
+  page.read(new Function(`return ${PROBE}`) as any)
 
 /** Wrap one word of the paragraph in `tag`, the way the editor would. */
 const wrapWord = (tag: string, word: string): Promise<any> =>
@@ -130,7 +135,10 @@ describe(`text layout under marks (${ENGINE})`, () => {
         () => !!document.querySelector('tosijs-styled-editor')?.shadowRoot
       )
       const before = await measure()
-      const word = before.chars.trim().split(/\s+/).find((w: string) => w.length > 2)
+      const word = before.chars
+        .trim()
+        .split(/\s+/)
+        .find((w: string) => w.length > 2)
       const w = await wrapWord(tag, word)
       expect(w.wrapped).toBe(true)
       const after = await measure()
@@ -154,7 +162,13 @@ describe(`text layout under marks (${ENGINE})`, () => {
         maxDy = Math.max(maxDy, Math.abs(after.xs[i].y - before.xs[i].y))
       }
       console.log(
-        `  ${ENGINE} <${tag}>  glyphs ${before.xs.length}  maxΔx ${maxDx.toFixed(2)}px  maxΔy ${maxDy.toFixed(2)}px  moved ${moved}  Δheight ${dh.toFixed(2)}px  Δtop ${dy.toFixed(2)}px`
+        `  ${ENGINE} <${tag}>  glyphs ${
+          before.xs.length
+        }  maxΔx ${maxDx.toFixed(2)}px  maxΔy ${maxDy.toFixed(
+          2
+        )}px  moved ${moved}  Δheight ${dh.toFixed(2)}px  Δtop ${dy.toFixed(
+          2
+        )}px`
       )
 
       // Recorded, not asserted to zero: this test exists to PRODUCE the number
@@ -216,7 +230,11 @@ describe(`text layout under marks (${ENGINE})`, () => {
         maxDx = Math.max(maxDx, dx)
       }
       console.log(
-        `  ${ENGINE} ${n}-char mid-word in ${JSON.stringify(hit.word)}  maxΔx ${maxDx.toFixed(2)}px  moved ${moved}/${before.xs.length}  Δheight ${Math.abs(after.box.h - before.box.h).toFixed(2)}px`
+        `  ${ENGINE} ${n}-char mid-word in ${JSON.stringify(
+          hit.word
+        )}  maxΔx ${maxDx.toFixed(2)}px  moved ${moved}/${
+          before.xs.length
+        }  Δheight ${Math.abs(after.box.h - before.box.h).toFixed(2)}px`
       )
       // Produce the number; do not invent a threshold for it.
       expect(after.xs.length).toBe(before.xs.length)
