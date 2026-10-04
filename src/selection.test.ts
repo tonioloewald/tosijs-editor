@@ -522,3 +522,234 @@ describe('sticky word selection', () => {
     })
   })
 })
+
+/**
+ * Word stickiness was implemented on the mouse path and never wired to touch,
+ * which is exactly backwards: a fingertip is the imprecise pointer, so it is
+ * the one that needs snapping. `dragAnchor` had a single assignment (in
+ * `handleMouseDown`) and `extendSticky` a single caller (in `handleMouseMove`),
+ * so `handleTouchMove` moved the end bound to the character under the finger
+ * and nothing else — under a comment reading "Same measurement as a mouse
+ * drag", true of `characterAtPoint` and false of the sticky rule.
+ *
+ * Each test runs the SAME gesture through both event families and expects the
+ * same selection, so the next divergence fails instead of reading fine.
+ */
+describe('word stickiness is the same gesture on mouse and touch', () => {
+  let root: HTMLElement
+  let sel: Selectable
+  let rangeProto: any
+  let realRect: () => DOMRect
+  let realRects: () => DOMRectList
+  let realFromPoint: any
+
+  /**
+   * One line, 10px per character, so "hello world" spans x 0..110.
+   *
+   * Measured from the range's LOGICAL position in the paragraph, not from
+   * `startOffset`/`endOffset` directly. That distinction is the whole subject
+   * here: the bounds markers split the text node they sit in, so a range over
+   * the word "hello" can run from offset 0 of "hel" to offset 2 of "lo world".
+   * A stub reading the raw offsets calls that box 0..20 instead of 0..50, and
+   * then reports the pointer as OUTSIDE the anchor word — which is a harness
+   * defect that looks exactly like the product defect under test. The first
+   * version of this test had it, and its "the mouse snaps" precondition passed
+   * for the wrong reason.
+   */
+  const logical = (node: Node, offset: number): number => {
+    const block = root.querySelector('p')!
+    let seen = 0
+    let found: number | null = null
+    const walk = (n: Node): void => {
+      if (found !== null) return
+      if (n === node) {
+        found = seen + offset
+        return
+      }
+      if (n.nodeType === 3) {
+        seen += (n as Text).data.length
+        return
+      }
+      for (const c of Array.from(n.childNodes)) walk(c)
+    }
+    walk(block)
+    return found ?? offset
+  }
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    root.innerHTML = '<p>hello world</p>'
+    document.body.appendChild(root)
+    sel = new Selectable(root)
+    rangeProto = Object.getPrototypeOf(document.createRange())
+    realRect = rangeProto.getBoundingClientRect
+    realRects = rangeProto.getClientRects
+    const rect = function (this: Range) {
+      const a = logical(this.startContainer, this.startOffset)
+      const b = Math.max(logical(this.endContainer, this.endOffset), a + 1)
+      return {
+        left: a * 10,
+        right: b * 10,
+        top: 0,
+        bottom: 10,
+        width: (b - a) * 10,
+        height: 10,
+        x: a * 10,
+        y: 0,
+      } as DOMRect
+    }
+    rangeProto.getBoundingClientRect = rect
+    rangeProto.getClientRects = function (this: Range) {
+      return [rect.call(this)] as unknown as DOMRectList
+    }
+    // `handleTouchMove` resolves the element under the FINGER, because a
+    // TouchEvent's target is where the touch began, not where it is now.
+    // happy-dom returns null, which made the handler bail before reaching any
+    // of the code under test.
+    realFromPoint = (document as any).elementFromPoint
+    ;(document as any).elementFromPoint = (x: number, y: number) => {
+      const block = root.querySelector('p')
+      if (!block) return null
+      return x >= 0 && x <= 110 && y >= 0 && y <= 10 ? block : null
+    }
+  })
+
+  afterEach(() => {
+    rangeProto.getBoundingClientRect = realRect
+    rangeProto.getClientRects = realRects
+    ;(document as any).elementFromPoint = realFromPoint
+    sel.destroy()
+    root.remove()
+  })
+
+  /** The text between the bounds markers, read structurally. */
+  const selectedText = (): string => {
+    const block = root.querySelector('p')!
+    let out = ''
+    let inside = false
+    const walk = (n: Node): void => {
+      if (n instanceof Element) {
+        if (n.classList.contains('sel-start')) {
+          inside = true
+          return
+        }
+        if (n.classList.contains('sel-end')) {
+          inside = false
+          return
+        }
+      }
+      if (n.nodeType === 3) {
+        if (inside) out += (n as Text).data
+        return
+      }
+      for (const c of Array.from(n.childNodes)) walk(c)
+    }
+    walk(block)
+    return out
+  }
+
+  const bothMarkersPresent = (): boolean =>
+    !!root.querySelector('.sel-start') && !!root.querySelector('.sel-end')
+
+  /** happy-dom has no `Touch` constructor; the handlers read only these. */
+  const touchEvent = (type: string, x: number, y: number): Event => {
+    const evt = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(evt, 'touches', {
+      value: [{ clientX: x, clientY: y }],
+    })
+    return evt
+  }
+
+  const mouseDrag = (from: number, to: number): void => {
+    const block = root.querySelector('p')!
+    block.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: from,
+        clientY: 5,
+        detail: 1,
+      })
+    )
+    block.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: to, clientY: 5 })
+    )
+    block.dispatchEvent(
+      new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: to,
+        clientY: 5,
+        detail: 1,
+      })
+    )
+  }
+
+  const touchDrag = (from: number, to: number): void => {
+    const block = root.querySelector('p')!
+    block.dispatchEvent(touchEvent('touchstart', from, 5))
+    block.dispatchEvent(touchEvent('touchmove', to, 5))
+    block.dispatchEvent(touchEvent('touchend', to, 5))
+  }
+
+  // THE PRECONDITION for everything below, which all compares touch against
+  // the mouse. If the mouse does not snap under this harness the comparison is
+  // vacuous and would pass against the unfixed code.
+  test('a mouse drag out of the anchor word snaps both ends to word bounds', () => {
+    mouseDrag(25, 85) // inside "hello" -> inside "world"
+    expect(bothMarkersPresent()).toBe(true)
+    expect(selectedText()).toBe('hello world')
+  })
+
+  test('a touch drag does the same (it used to stop at the character)', () => {
+    touchDrag(25, 85)
+    expect(bothMarkersPresent()).toBe(true)
+    expect(selectedText()).toBe('hello world')
+  })
+
+  test('touchstart records an anchor, as mousedown does', () => {
+    const block = root.querySelector('p')!
+    expect((sel as any).dragAnchor).toBeNull()
+    block.dispatchEvent(touchEvent('touchstart', 25, 5))
+    const anchor = (sel as any).dragAnchor
+    expect(anchor).not.toBeNull()
+    expect(anchor.block).toBe(block)
+    // Inside "hello" (0..5), which is what makes the drag above sticky at all.
+    expect(anchor.index).toBeGreaterThanOrEqual(0)
+    expect(anchor.index).toBeLessThanOrEqual(5)
+  })
+
+  test('a drag that stays INSIDE the anchor word keeps character precision', () => {
+    // The half of the rule that must NOT fire: 25 -> 45 never leaves "hello".
+    mouseDrag(25, 45)
+    const byMouse = selectedText()
+    expect(bothMarkersPresent()).toBe(true)
+    expect(byMouse).not.toBe('hello world')
+    expect(byMouse.length).toBeLessThan(5)
+  })
+
+  // NOT a pin for the mouse/touch bug: inside the anchor word, sticky selection
+  // and the old raw character placement produce the same answer, so this passed
+  // against the unfixed code too (checked). It is kept as a guard against the
+  // OPPOSITE regression — touch snapping to words when it should not — which is
+  // a live hazard now that touch is sticky at all.
+  test('and touch agrees with the mouse on that too', () => {
+    mouseDrag(25, 45)
+    const byMouse = selectedText()
+    sel.removeBounds()
+    ;(sel as any).dragAnchor = null
+    touchDrag(25, 45)
+    expect(bothMarkersPresent()).toBe(true)
+    expect(selectedText()).toBe(byMouse)
+  })
+
+  test('touchend clears the anchor, so the next gesture is not sticky to it', () => {
+    const block = root.querySelector('p')!
+    block.dispatchEvent(touchEvent('touchstart', 25, 5))
+    // Asserted mid-gesture on purpose: without it, "null afterwards" is also
+    // true of a path that never set an anchor, which is the bug this file
+    // exists for — the test would pass against the unfixed code.
+    expect((sel as any).dragAnchor).not.toBeNull()
+    block.dispatchEvent(touchEvent('touchmove', 85, 5))
+    block.dispatchEvent(touchEvent('touchend', 85, 5))
+    expect((sel as any).dragAnchor).toBeNull()
+  })
+})

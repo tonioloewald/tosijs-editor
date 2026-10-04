@@ -332,21 +332,7 @@ export class Selectable {
     // was never true again and drag-selection silently stopped extending in
     // every language. Measure the character under the pointer instead.
     if (this.selecting) {
-      const hit = characterAtPoint(this.root, evt.clientX, evt.clientY)
-      const selEnd = this.find('.sel-end')
-      if (hit && selEnd) {
-        if (!this.extendSticky(hit, evt.clientX, evt.clientY)) {
-          const range = document.createRange()
-          range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
-          range.collapse(true)
-          // insertNode MOVES selEnd: it is already in the document, so this
-          // relocates the existing marker rather than cloning it.
-          range.insertNode(selEnd)
-          this.root.normalize()
-        }
-        this.extendSelection()
-        this.onBoundsChanged?.()
-      }
+      this.extendTo(evt.clientX, evt.clientY)
     }
 
     evt.preventDefault()
@@ -411,6 +397,56 @@ export class Selectable {
         return part ? part.start + offset : null
       },
     }
+  }
+
+  /**
+   * Remember where a character-granularity drag began, so the move handler can
+   * tell whether the pointer has left the anchor word yet.
+   *
+   * The mouse and the touch path BOTH call this. They used not to: the anchor
+   * was assigned inline in `handleMouseDown`, `handleTouchStart` was written
+   * separately, and so word stickiness existed for the mouse and not for the
+   * finger — exactly backwards, since a fingertip is the imprecise pointer.
+   */
+  private setDragAnchor(hit: CharacterHit | null): void {
+    const block = hit && this.topLevelAncestor(hit.node)
+    this.dragAnchor =
+      hit && block
+        ? {
+            block,
+            index:
+              this.textIndexOf(block).indexOf(
+                hit.node,
+                hit.after ? hit.offset + 1 : hit.offset
+              ) ?? 0,
+          }
+        : null
+  }
+
+  /**
+   * Extend a live drag to a point: word-sticky where that applies, otherwise
+   * the end bound alone.
+   *
+   * Shared by the mouse and touch move handlers. Keeping two copies of this is
+   * how touch ended up without stickiness, under a comment claiming it was the
+   * "same measurement as a mouse drag" — true of `characterAtPoint`, false of
+   * the sticky rule, and the comment is what made it look finished.
+   */
+  private extendTo(x: number, y: number): void {
+    const hit = characterAtPoint(this.root, x, y)
+    const selEnd = this.find('.sel-end')
+    if (!hit || !selEnd) return
+    if (!this.extendSticky(hit, x, y)) {
+      const range = document.createRange()
+      range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
+      range.collapse(true)
+      // insertNode MOVES selEnd: it is already in the document, so this
+      // relocates the existing marker rather than cloning it.
+      range.insertNode(selEnd)
+      this.root.normalize()
+    }
+    this.extendSelection()
+    this.onBoundsChanged?.()
   }
 
   /**
@@ -590,19 +626,7 @@ export class Selectable {
           this.extendSelection()
         }
       } else if (this.selecting === 1) {
-        // Remember where the drag began, so the move handler can tell whether
-        // the pointer has left the anchor word yet.
-        const block = this.topLevelAncestor(hit.node)
-        this.dragAnchor = block
-          ? {
-              block,
-              index:
-                this.textIndexOf(block).indexOf(
-                  hit.node,
-                  hit.after ? hit.offset + 1 : hit.offset
-                ) ?? 0,
-            }
-          : null
+        this.setDragAnchor(hit)
         this.placeCaretAt(evt.clientX, evt.clientY)
       } else if (this.selecting === 2) {
         // Double click selects a word. The boundaries come from segmenting the
@@ -713,8 +737,10 @@ export class Selectable {
     // touch and left the spans behind.
     const hit = characterAtPoint(this.root, touch.clientX, touch.clientY)
     if (hit) {
+      this.setDragAnchor(hit)
       this.placeCaretAt(touch.clientX, touch.clientY)
     } else if (target instanceof HTMLElement && target !== this.root) {
+      this.setDragAnchor(null)
       // Empty element (e.g. empty table cell)
       this.removeBounds()
       const bounds = this.createBounds()
@@ -741,20 +767,9 @@ export class Selectable {
       return
     }
 
-    // Same measurement as a mouse drag: move the end bound to the character
-    // under the finger. No spanification, so dragging a touch selection does
-    // not reflow the text it is dragging across.
-    const hit = characterAtPoint(this.root, touch.clientX, touch.clientY)
-    const selEnd = this.find('.sel-end')
-    if (hit && selEnd) {
-      const range = document.createRange()
-      range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
-      range.collapse(true)
-      range.insertNode(selEnd)
-      this.root.normalize()
-      this.extendSelection()
-      this.onBoundsChanged?.()
-    }
+    // The same extension the mouse does, stickiness included. No spanification,
+    // so dragging a touch selection does not reflow the text it crosses.
+    this.extendTo(touch.clientX, touch.clientY)
 
     if (evt.cancelable) evt.preventDefault()
   }
@@ -764,6 +779,10 @@ export class Selectable {
       this.extendSelection()
       this.normalizeBoundsOrder()
       this.selecting = false
+      // As mouseup does. Touch never set an anchor before, so it never had one
+      // to leave behind; now it does, and a stale one would make the NEXT drag
+      // sticky to a word from the last gesture.
+      this.dragAnchor = null
     }
     // Despanify non-selected blocks
     for (const child of Array.from(this.root.children)) {
