@@ -63,7 +63,17 @@ export default defineSiteConfig({
   // config can never redirect at someone else's box. Viewing requires a session
   // by default; this is an edit host, not an audience's.
   preview: {
-    tunnel: { localPort: 8790 },
+    tunnel: {
+      localPort: 8790,
+      // The EDIT host, per the convention: <project>.dev is a shareable read-only
+      // static snapshot, <project>.edit.dev is a live workspace that always
+      // requires a session. This is a tunnel to a running dev server, so it is
+      // the second. Without a url here `tosijs-tunnel --link` falls back to
+      // printing a localhost address, which is useless to a remote reviewer —
+      // filed upstream as tosijs-ui virta #2876, along with the subdomain it
+      // could have inferred instead of being told.
+      url: 'https://editor.edit.dev.tosijs.net',
+    },
   },
 
   // Localhost-gated agent channel for real-browser inspection
