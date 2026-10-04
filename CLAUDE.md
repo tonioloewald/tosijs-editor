@@ -196,6 +196,15 @@ it. No styling avoids this; `display: contents` and a bare `splitText()` measure
 identically. Removing it means representing the bounds as offsets rather than as elements,
 i.e. a change to the selection model. Chromium measures 0 throughout.
 
+**The mouse and touch paths must share their gesture code, not mirror it.** Word stickiness
+was written inline in `handleMouseDown`/`handleMouseMove` and touch was written separately, so
+`dragAnchor` had one assignment and `extendSticky` one caller — snapping worked with a mouse and
+not with a finger, which is backwards, since the fingertip is the imprecise pointer. It read as
+finished because the touch handler carried the comment "Same measurement as a mouse drag": true
+of `characterAtPoint`, false of the sticky rule. `setDragAnchor()` and `extendTo()` are now the
+single copies; add to those rather than to a handler. Same family as the deletion paths below —
+a rule applied at one site while another keeps the old behaviour.
+
 `markBounds()` (bounds → `.selected`), `resetBounds()` (`.selected` → bounds), and
 `removeBounds()` convert between the two representations. Commands that restructure the
 DOM must move between them explicitly — the bounds markers are real elements and will
