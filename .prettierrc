@@ -6,8 +6,8 @@
   "printWidth": 80,
   "overrides": [
     {
-      "files": "*.md",
-      "options": { "embeddedLanguageFormatting": "off" }
+      "files": ["*.md", "*.markdown", "*.mdx"],
+      "options": { "requirePragma": true }
     }
   ]
 }
