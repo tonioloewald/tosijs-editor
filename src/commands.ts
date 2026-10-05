@@ -194,6 +194,13 @@ function footnoteKey(): string {
  * in the middle renumbers everything after it, and deleting a marker drops its
  * entry. The stable identity is `data-footnote`, not the number.
  */
+/**
+ * Stand-in text for a note whose body was never written. Named because
+ * `renumberFootnotes` has to RECOGNISE it: when a document arrives already
+ * carrying two items for one key, the one holding authored text wins.
+ */
+const PLACEHOLDER = 'Footnote text'
+
 export function renumberFootnotes(root: HTMLElement): void {
   // Both shapes: `<tosi-footnote>` and the plain `<sup class="footnote-ref">`
   // that documents saved before 0.4.4 contain. Numbering must not depend on
@@ -215,30 +222,75 @@ export function renumberFootnotes(root: HTMLElement): void {
     root.appendChild(list)
   }
 
+  // ONE ITEM PER KEY, and the key is the note's identity.
+  //
+  // Two references can legitimately share a key: a tracked block merge clones
+  // the merged content into its `<tosi-ins>` proposal, so while the merge is
+  // pending the same `<tosi-footnote data-footnote="k">` exists twice — struck
+  // once, proposed once, both of which a reviewer must see. The previous
+  // version of this function keyed `existing` by `data-footnote` and DELETED
+  // the entry after the first reference, so the second minted a fresh `<li>`
+  // with the same key, the same `id` and the placeholder text. Because that
+  // duplicate was appended rather than left in `existing`, the orphan sweep
+  // below never reaped it: it survived accept, reject and an explicit
+  // renumber, and reached `value`. (`reviews/0.6.0-pre-release.md`, B-1.)
+  //
+  // A pasted copy of a reference reaches the same state, so this is not
+  // specific to tracking.
   const existing = new Map<string, Element>()
+  const corrupt: Element[] = []
   for (const item of Array.from(list.children)) {
     const key = item.getAttribute('data-footnote')
-    if (key) existing.set(key, item)
+    if (!key) continue
+    const held = existing.get(key)
+    if (!held) {
+      existing.set(key, item)
+      continue
+    }
+    // Already corrupt on the way in. Keep whichever item holds AUTHORED text:
+    // never discard a note in favour of a placeholder, whatever the order.
+    if (held.textContent === PLACEHOLDER && item.textContent !== PLACEHOLDER) {
+      existing.set(key, item)
+      corrupt.push(held)
+    } else {
+      corrupt.push(item)
+    }
   }
+  for (const duplicate of corrupt) duplicate.remove()
 
-  refs.forEach((ref, index) => {
+  // Numbered per distinct key, in order of first appearance, so repeated
+  // references to one note show one number — ordinary footnote behaviour, and
+  // what makes the duplicate above unreachable rather than merely cleaned up.
+  const numbers = new Map<string, number>()
+  const placed = new Set<string>()
+
+  for (const ref of refs) {
     const key = ref.getAttribute('data-footnote')!
+    let number = numbers.get(key)
+    if (number === undefined) {
+      number = numbers.size + 1
+      numbers.set(key, number)
+    }
     const link = ref.querySelector('a')
     if (link) {
-      link.textContent = String(index + 1)
+      link.textContent = String(number)
       link.setAttribute('href', `#${key}`)
     }
+
+    // The list item goes in once, at the position of the first reference.
+    if (placed.has(key)) continue
+    placed.add(key)
     let item = existing.get(key)
     if (!item) {
       item = document.createElement('li')
       item.className = 'footnote'
       item.setAttribute('data-footnote', key)
-      item.textContent = 'Footnote text'
+      item.textContent = PLACEHOLDER
     }
     item.id = key
     existing.delete(key)
     list!.appendChild(item)
-  })
+  }
 
   // Markers that no longer exist take their entries with them
   for (const orphan of existing.values()) orphan.remove()
@@ -477,7 +529,7 @@ export const commands: Record<string, Command> = {
     item.className = 'footnote'
     item.setAttribute('data-footnote', key)
     item.id = key
-    item.textContent = text.length ? text.join(' ') : 'Footnote text'
+    item.textContent = text.length ? text.join(' ') : PLACEHOLDER
     list.appendChild(item)
 
     renumberFootnotes(ctx.root)

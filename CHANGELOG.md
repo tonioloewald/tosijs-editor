@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spanning blocks, where the proposed block reads as the deletion _would_ read
   once accepted.
   The cost is honest duplication: the text is present twice until someone
-  resolves it.
+  resolves it — and across a chain of merges, once per step, since each
+  superseded proposal is struck rather than removed. `value` carries all of it
+  until the chain is resolved.
   **A merge is an ordinary edit.** It gets no veto and no special group: a
   pending change in either paragraph, yours or anyone else's, neither blocks it
   nor is absorbed into it. Every mark keeps its own id and stays independently
@@ -29,9 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whose proposal was taken from that paragraph, and those words are in the
   result. Both are on screen when you choose; a review UI that wants to prevent
   it should resolve a merge together with the edits inside it.
-  A chain of merges leaves no intermediate proposal behind — a superseded
-  proposal is dropped rather than struck, because it never existed in the
-  document anyone is reviewing and so must not be resurrectable.
+  A chain of merges **strikes** each superseded proposal like any other block,
+  so an intermediate proposal stays in the document as
+  `<tosi-del data-change=… data-block-delete>` wrapping the earlier
+  `<tosi-ins data-block-insert>` — a shape a review UI has to render, and one
+  that stays resurrectable by rejecting the later merge. Dropping it instead
+  was tried and reversed: it was only safe while an earlier design absorbed the
+  earlier gesture into the later one, and without that it left a change id with
+  a delete half and no insert half, a state no gesture produces, from which
+  resolving per id lost text outright.
   Lists and grid tables are the one refusal (`merge-blocks-not-mergeable`), and
   it is about valid DOM rather than review policy: merging them produces loose
   text as a direct child of a `<ul>`, or a mark that becomes a grid item and

@@ -1365,6 +1365,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
     for (const del of Array.from(frag.querySelectorAll(DEL_TAG))) del.remove()
     for (const ins of Array.from(frag.querySelectorAll(INS_TAG))) unwrap(ins)
+
+    // IDENTITY IS NOT CONTENT, so it does not come along.
+    //
+    // A proposal coexists with the originals it supersedes for as long as the
+    // merge is pending, so anything document-unique in the cloned content is
+    // duplicated for that whole time: two elements answering one `id`, i.e.
+    // two targets for one `href` and a `getElementById` that picks by document
+    // order. The footnote list made this visible — a cloned reference minted a
+    // second `<li>` sharing one `id`, which survived resolution and reached
+    // `value` (`reviews/0.6.0-pre-release.md` B-1; the reconcile side is fixed
+    // in `renumberFootnotes`). Dropping `id` here is the general case rather
+    // than the one symptom: `data-footnote` STAYS, because that is which note
+    // the reference points at, and the reference genuinely does appear twice.
+    for (const identified of Array.from(frag.querySelectorAll('[id]'))) {
+      identified.removeAttribute('id')
+    }
     return frag
   }
 

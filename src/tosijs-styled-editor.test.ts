@@ -2449,3 +2449,173 @@ describe('menuAffordanceX', () => {
     expect(menuAffordanceX(10, 12, S, 20)).toBe(0)
   })
 })
+
+/**
+ * B-1 from `reviews/0.6.0-pre-release.md`: one Backspace in a document with a
+ * footnote permanently corrupted the footnote list.
+ *
+ * `resolvedClone` copies a merged block's children into the `<tosi-ins>`
+ * proposal, so a `<tosi-footnote data-footnote="k">` exists TWICE while the
+ * merge is pending — once struck, once proposed. That is correct: both halves
+ * are content a reviewer must see. What was not correct is what
+ * `renumberFootnotes` did with it. It keyed its `existing` map by
+ * `data-footnote` and deleted the entry after the first reference, so the
+ * second reference found nothing and minted a duplicate `<li>` — same
+ * `data-footnote`, same `id` (invalid DOM, two anchor targets for one href),
+ * carrying the placeholder text. The duplicate had been APPENDED rather than
+ * left in `existing`, so the orphan sweep at the end never reaped it: it
+ * survived accept, reject and an explicit renumber, and reached `value`.
+ *
+ * The rule is one `<li>` per `data-footnote`, and repeated references to one
+ * note share its number — which is ordinary footnote behaviour, and also makes
+ * the same corruption unreachable by pasting a copied reference.
+ */
+describe('a tracked merge over a footnote', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const flush = async (): Promise<void> => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
+  /** A real keydown, as the tracked-change tests do it. */
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  /** Two paragraphs, a real footnote in the second, caret at its start. */
+  const build = (): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    const caret = document.createElement('span')
+    caret.className = 'sel-end caret'
+    second.appendChild(caret)
+    el.doCommand('insertFootnote The important note')
+    return el
+  }
+
+  const atStartOfSecondParagraph = (el: TosijsStyledEditor): void => {
+    const second = [...el.parts.doc.querySelectorAll('p')].find((p) =>
+      p.textContent?.startsWith('Beta.')
+    )!
+    const range = document.createRange()
+    range.setStart(second.firstChild as Text, 0)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  const items = (el: TosijsStyledEditor): Element[] => [
+    ...el.parts.doc.querySelectorAll('li.footnote'),
+  ]
+
+  const keyCounts = (el: TosijsStyledEditor): Record<string, number> => {
+    const out: Record<string, number> = {}
+    for (const li of items(el)) {
+      const key = li.getAttribute('data-footnote') ?? '?'
+      out[key] = (out[key] ?? 0) + 1
+    }
+    return out
+  }
+
+  const mergeOverTheFootnote = async (
+    el: TosijsStyledEditor
+  ): Promise<void> => {
+    el.trackChanges = true
+    atStartOfSecondParagraph(el)
+    press(el, 'Backspace')
+    await flush()
+  }
+
+  // PRECONDITION. If the fixture does not actually produce two references to
+  // one key, every assertion below is about a situation that never arose.
+  test('the merge really does duplicate the reference', async () => {
+    const el = build()
+    await flush()
+    expect(items(el).length).toBe(1)
+    await mergeOverTheFootnote(el)
+    const refs = [
+      ...el.parts.doc.querySelectorAll('tosi-footnote[data-footnote]'),
+    ].filter((r) => !r.closest('.footnotes'))
+    expect(refs.length).toBe(2)
+    expect(refs[0].getAttribute('data-footnote')).toBe(
+      refs[1].getAttribute('data-footnote')
+    )
+  })
+
+  test('one list item per footnote while the merge is pending', async () => {
+    const el = build()
+    await flush()
+    await mergeOverTheFootnote(el)
+    expect(Object.values(keyCounts(el))).toEqual([1])
+  })
+
+  test('the two references to one note share its number', async () => {
+    const el = build()
+    await flush()
+    await mergeOverTheFootnote(el)
+    const nums = [...el.parts.doc.querySelectorAll('tosi-footnote a')]
+      .filter((a) => !a.closest('.footnotes'))
+      .map((a) => a.textContent)
+    expect(nums).toEqual(['1', '1'])
+  })
+
+  test('no placeholder is minted, and the real note survives', async () => {
+    const el = build()
+    await flush()
+    await mergeOverTheFootnote(el)
+    const texts = items(el).map((li) => li.textContent)
+    expect(texts).toEqual(['The important note'])
+    expect(el.value).not.toContain('Footnote text')
+  })
+
+  for (const resolve of ['accept', 'reject'] as const) {
+    test(`and after ${resolve}, the list is still clean`, async () => {
+      const el = build()
+      await flush()
+      await mergeOverTheFootnote(el)
+      if (resolve === 'accept') el.acceptChanges()
+      else el.rejectChanges()
+      await flush()
+      expect(Object.values(keyCounts(el))).toEqual([1])
+      expect(items(el).map((li) => li.textContent)).toEqual([
+        'The important note',
+      ])
+      expect(el.value).not.toContain('Footnote text')
+    })
+  }
+
+  test('an explicit renumber does not resurrect a duplicate', async () => {
+    const el = build()
+    await flush()
+    await mergeOverTheFootnote(el)
+    el.acceptChanges()
+    await flush()
+    el.doCommand('renumberFootnotes')
+    await flush()
+    expect(Object.values(keyCounts(el))).toEqual([1])
+  })
+
+  test('ids stay unique — two anchor targets for one href is invalid DOM', async () => {
+    const el = build()
+    await flush()
+    await mergeOverTheFootnote(el)
+    const ids = [...el.parts.doc.querySelectorAll('[id]')].map((e) => e.id)
+    expect(ids.length).toBe(new Set(ids).size)
+  })
+})
