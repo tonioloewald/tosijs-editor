@@ -400,10 +400,28 @@ wrong repair.
 
 ## The browser lane (`browser-tests/`)
 
-`bun test ./browser-tests/` with the dev server up. Playwright drives the page; haltija's
+`bun run test:browser`. Playwright drives the page; haltija's
 `testInBrowser` (`haltija@beta`) supplies the probe/assertion split — the body and its
 `expect` stay on the host, only the probe crosses. Not in `bun test`: `bunfig.toml` roots
 that at `./src`.
+
+**It brings up its own dev server** (`bin/test-browser.ts`): it reuses one already serving this
+repo and leaves it running, starts one if there is none and stops only that, and refuses a port
+held by another directory — or held by this one without answering. It used to assume `bun start`
+was open, which made the result depend on what the operator had running: release-doctor runs
+every `test*` script, so the same commit reported red or green depending on that.
+
+**One-time setup, and it is NOT in the repo:** `bunx playwright install webkit`. That writes
+~1 GB into `~/Library/Caches/ms-playwright` (measured 3.2 GB here across three revisions each of
+chromium, headless shell, firefox and webkit) or into `$PLAYWRIGHT_BROWSERS_PATH`. That cache is
+shared with every other Playwright project on the machine, survives deleting this repo, and
+nothing here prunes it. `bun.lock` pins playwright at 1.63.0, so only a deliberate `bun update`
+pulls a new revision set. Machine scope is the right call; the gap was that nothing said so.
+
+CI cannot run this lane — `tls/*` is gitignored, so the dev server cannot start on a runner —
+which is why `package.json` declares `releaseDoctor.attestedLanes: ["test:browser"]`. The tag
+carries `release-attestation.json` recording that the lane ran locally on exactly that tree; an
+unattested tag fails Tier 0 saying so.
 
 **WebKit is the point.** `ENGINE=chromium` is a control, not coverage: Chromium measures
 ~0 for everything this lane exists to catch. haltija's own `--headless` is Chromium-only,
