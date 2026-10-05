@@ -524,18 +524,23 @@ describe('sticky word selection', () => {
 })
 
 /**
- * Word stickiness was implemented on the mouse path and never wired to touch,
- * which is exactly backwards: a fingertip is the imprecise pointer, so it is
- * the one that needs snapping. `dragAnchor` had a single assignment (in
- * `handleMouseDown`) and `extendSticky` a single caller (in `handleMouseMove`),
- * so `handleTouchMove` moved the end bound to the character under the finger
- * and nothing else — under a comment reading "Same measurement as a mouse
- * drag", true of `characterAtPoint` and false of the sticky rule.
+ * Word stickiness is PER POINTER, and `stickySelection` says so: `'touch'` by
+ * default, `'always'`, `'never'`.
  *
- * Each test runs the SAME gesture through both event families and expects the
- * same selection, so the next divergence fails instead of reading fine.
+ * Two bugs live here. First, stickiness was wired to the mouse and not to touch
+ * — `dragAnchor` had a single assignment in `handleMouseDown` and
+ * `extendSticky` a single caller in `handleMouseMove`, so `handleTouchMove`
+ * moved the end bound to the character under the finger and nothing else, under
+ * a comment reading "Same measurement as a mouse drag" (true of
+ * `characterAtPoint`, false of the sticky rule). Second, once both paths had it,
+ * the mouse should not: rounding a drag a mouse user aimed out to word
+ * boundaries overrides a precise gesture, and the platform's answer for "select
+ * this word" is already a double-click.
+ *
+ * So the tests drive the same gesture through both event families and assert
+ * they DIFFER by default, and agree under `'always'` and `'never'`.
  */
-describe('word stickiness is the same gesture on mouse and touch', () => {
+describe('word stickiness is per pointer', () => {
   let root: HTMLElement
   let sel: Selectable
   let rangeProto: any
@@ -690,19 +695,51 @@ describe('word stickiness is the same gesture on mouse and touch', () => {
     block.dispatchEvent(touchEvent('touchend', to, 5))
   }
 
-  // THE PRECONDITION for everything below, which all compares touch against
-  // the mouse. If the mouse does not snap under this harness the comparison is
-  // vacuous and would pass against the unfixed code.
-  test('a mouse drag out of the anchor word snaps both ends to word bounds', () => {
+  // THE PRECONDITION for everything below. Every assertion here is about
+  // whether snapping happened, so a harness that cannot produce snapping at all
+  // would make the lot of them vacuous — and an earlier version of this file
+  // did exactly that. Forcing 'always' is the cheapest way to keep asking.
+  test("with stickySelection 'always', a mouse drag snaps to word bounds", () => {
+    sel.stickySelection = 'always'
     mouseDrag(25, 85) // inside "hello" -> inside "world"
     expect(bothMarkersPresent()).toBe(true)
     expect(selectedText()).toBe('hello world')
   })
 
-  test('a touch drag does the same (it used to stop at the character)', () => {
+  test('by DEFAULT a mouse drag does not snap — the platform behaviour', () => {
+    mouseDrag(25, 85)
+    expect(bothMarkersPresent()).toBe(true)
+    const text = selectedText()
+    expect(text).not.toBe('hello world')
+    // It still selected the span it was dragged across, just not rounded out.
+    expect(text.length).toBeGreaterThan(3)
+    expect(text.length).toBeLessThan(11)
+  })
+
+  test('by default a TOUCH drag does snap — the finger has no precision', () => {
     touchDrag(25, 85)
     expect(bothMarkersPresent()).toBe(true)
     expect(selectedText()).toBe('hello world')
+  })
+
+  test("'never' turns it off for touch as well", () => {
+    sel.stickySelection = 'never'
+    touchDrag(25, 85)
+    expect(bothMarkersPresent()).toBe(true)
+    expect(selectedText()).not.toBe('hello world')
+  })
+
+  test('the same editor answers differently for the two pointers', () => {
+    // A hybrid laptop is one document with two pointers, so this is one
+    // Selectable, not two configurations.
+    touchDrag(25, 85)
+    const byTouch = selectedText()
+    sel.removeBounds()
+    ;(sel as any).dragAnchor = null
+    mouseDrag(25, 85)
+    const byMouse = selectedText()
+    expect(byTouch).toBe('hello world')
+    expect(byMouse).not.toBe(byTouch)
   })
 
   test('touchstart records an anchor, as mousedown does', () => {
@@ -719,6 +756,9 @@ describe('word stickiness is the same gesture on mouse and touch', () => {
 
   test('a drag that stays INSIDE the anchor word keeps character precision', () => {
     // The half of the rule that must NOT fire: 25 -> 45 never leaves "hello".
+    // Under 'always', so this is the sticky path declining to snap rather than
+    // stickiness simply being off for the mouse.
+    sel.stickySelection = 'always'
     mouseDrag(25, 45)
     const byMouse = selectedText()
     expect(bothMarkersPresent()).toBe(true)
@@ -732,6 +772,7 @@ describe('word stickiness is the same gesture on mouse and touch', () => {
   // OPPOSITE regression — touch snapping to words when it should not — which is
   // a live hazard now that touch is sticky at all.
   test('and touch agrees with the mouse on that too', () => {
+    sel.stickySelection = 'always'
     mouseDrag(25, 45)
     const byMouse = selectedText()
     sel.removeBounds()
@@ -751,5 +792,61 @@ describe('word stickiness is the same gesture on mouse and touch', () => {
     block.dispatchEvent(touchEvent('touchmove', 85, 5))
     block.dispatchEvent(touchEvent('touchend', 85, 5))
     expect((sel as any).dragAnchor).toBeNull()
+  })
+})
+
+/**
+ * What hybrid devices depend on. A Surface Pro raises `touchstart` for a finger
+ * and then, unless the touch is prevented, Chrome synthesises a `mousedown`
+ * too — which would flip `touchMode` to false mid-gesture and lose stickiness
+ * on the very device that needs it. The defence is that the touch listeners are
+ * non-passive and `handleTouchStart` prevents the default.
+ */
+describe('touch listeners stay non-passive, for hybrid devices', () => {
+  let root: HTMLElement
+  let sel: Selectable
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    root.innerHTML = '<p>hello world</p>'
+    document.body.appendChild(root)
+    sel = new Selectable(root)
+  })
+
+  afterEach(() => {
+    sel.destroy()
+    root.remove()
+  })
+
+  test('touchstart calls preventDefault, suppressing compatibility mouse events', () => {
+    const block = root.querySelector('p')!
+    const evt = new Event('touchstart', { bubbles: true, cancelable: true })
+    Object.defineProperty(evt, 'touches', {
+      value: [{ clientX: 5, clientY: 5 }],
+    })
+    block.dispatchEvent(evt)
+    expect(evt.defaultPrevented).toBe(true)
+  })
+
+  test('a mousedown after a touch would flip touchMode — hence the above', () => {
+    const block = root.querySelector('p')!
+    const touch = new Event('touchstart', { bubbles: true, cancelable: true })
+    Object.defineProperty(touch, 'touches', {
+      value: [{ clientX: 5, clientY: 5 }],
+    })
+    block.dispatchEvent(touch)
+    expect(sel.touchMode).toBe(true)
+    // This is what Chrome sends if the touch is NOT prevented. Asserted so the
+    // consequence is visible: it is why preventDefault is load-bearing rather
+    // than merely tidy.
+    block.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 5,
+        clientY: 5,
+        detail: 1,
+      })
+    )
+    expect(sel.touchMode).toBe(false)
   })
 })

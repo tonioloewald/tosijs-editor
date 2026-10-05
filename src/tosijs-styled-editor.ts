@@ -910,6 +910,22 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   trackChanges = false
 
   /**
+   * When a drag selection snaps to word boundaries: `'touch'` (the default),
+   * `'always'` or `'never'`.
+   *
+   * The default is per-pointer on purpose. A mouse user gets the platform's own
+   * behaviour — character precision, double-click for a word — because rounding
+   * a drag they aimed out to the nearest words is the editor overriding them. A
+   * fingertip has no precision to override, so snapping is what makes a drag
+   * across a word select that word. One editor answers differently for the two,
+   * which is what a hybrid laptop needs.
+   *
+   * Assigned straight through to the `Selectable`, so it can be changed at any
+   * time and takes effect on the next drag.
+   */
+  stickySelection: 'touch' | 'always' | 'never' = 'touch'
+
+  /**
    * Identifies this editing session.
    *
    * Session, not just author, because reopening a document and typing at the
@@ -1838,6 +1854,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Set up selection system
     this.selectable = new Selectable(doc)
+    this.selectable.stickySelection = this.stickySelection
 
     // Add initial bounds
     const firstP =

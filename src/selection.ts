@@ -251,6 +251,36 @@ export class Selectable {
   selecting: number | false = false
   touchMode = false
 
+  /**
+   * When word stickiness applies.
+   *
+   * `'touch'` by default, because the two pointers want different things. A
+   * mouse user expects the platform's own behaviour — character precision, and
+   * a double-click when they want a word — and silently rounding their drag out
+   * to word boundaries is the editor overriding a gesture they aimed. A
+   * fingertip has no such precision to override: snapping is the only way a
+   * drag across a word ends up selecting that word.
+   *
+   * `'always'` restores stickiness for the mouse too, `'never'` turns it off
+   * entirely. Read through `stickyApplies`, which also knows which pointer is
+   * mid-gesture.
+   *
+   * HYBRID DEVICES (a Surface Pro, a touchscreen laptop) are the reason this is
+   * decided per gesture rather than once per device. Two things make that hold:
+   * `touchMode` flips on every `mousedown`/`touchstart`, and the touch
+   * listeners are registered `passive: false` so `handleTouchStart` can
+   * `preventDefault()` — which is what stops Chrome firing its COMPATIBILITY
+   * mouse events after a touch. Without that, a finger would raise
+   * `touchstart` (sticky) and then a synthetic `mousedown` (not sticky) and
+   * lose stickiness mid-drag. Do not make those listeners passive.
+   *
+   * A stylus is a MOUSE here: pen input arrives as pointer + compatibility
+   * mouse events, not touch events, so a Surface Pen gets character precision.
+   * That is the right answer for a precise instrument, but it is a consequence
+   * of how the events arrive rather than a decision taken anywhere.
+   */
+  stickySelection: 'touch' | 'always' | 'never' = 'touch'
+
   constructor(root: HTMLElement) {
     this.root = root
     this.setup()
@@ -496,9 +526,25 @@ export class Selectable {
     return false
   }
 
+  /**
+   * Does word stickiness apply to the gesture in progress?
+   *
+   * `touchMode` is per-gesture — false on mousedown, true on touchstart — so
+   * one editor answers differently for a finger and for a mouse, which is the
+   * point: a hybrid laptop is one document with two pointers.
+   */
+  private get stickyApplies(): boolean {
+    return (
+      this.stickySelection === 'always' ||
+      (this.stickySelection === 'touch' && this.touchMode)
+    )
+  }
+
   private extendSticky(hit: CharacterHit, x: number, y: number): boolean {
     const anchor = this.dragAnchor
-    if (this.selecting !== 1 || !anchor) return false
+    // Gated HERE rather than at the call site, so a future caller cannot
+    // reintroduce stickiness for a pointer that does not want it.
+    if (!this.stickyApplies || this.selecting !== 1 || !anchor) return false
     const block = this.topLevelAncestor(hit.node)
     if (!block || block !== anchor.block) return false
 
