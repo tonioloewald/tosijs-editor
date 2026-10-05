@@ -321,9 +321,15 @@ Three things that are easy to undo by accident:
   together with the edits inside it if it wants to prevent that.
   Two things that ARE the primitive's job: **ask `canMergeBlocks` before mutating** (a
   refusal resolved midway leaves the gesture half-applied — that shape had to be fixed
-  three times before it stuck), and **drop a superseded proposal rather than striking
-  it**, since an intermediate proposal was never in the document under review and must
-  not be resurrectable.
+  three times before it stuck), and **strike an earlier proposal like any other block**.
+  Dropping it is the tempting reading — an intermediate proposal was never in the
+  document under review, so rejecting should not resurrect it — and it was what an
+  earlier draft did. It was only safe while ABSORPTION re-stamped the earlier gesture
+  into the later one. Removing absorption kept the drop, which orphaned the earlier
+  change: an id with a delete half and no insert half, a state no gesture produces, and
+  a two-merge chain resolved per id then LOST text from a document with nothing pending
+  (review `0.6.0-structural-tracking-r2.md`, B‑1; fixed in `f5a4313`). Removing a
+  mechanism means re-deriving what depended on it.
 
 **Anything that reads the document as LANGUAGE must call `Selectable.withoutBounds()`.**
 The bounds markers are real elements, so they split the text node they sit in: with the
