@@ -1,5 +1,10 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
-import { TosijsStyledEditor, tosijsStyledEditor } from './tosijs-styled-editor'
+import {
+  TosijsStyledEditor,
+  tosijsStyledEditor,
+  menuAffordanceX,
+  AFFORDANCE_SIZE,
+} from './tosijs-styled-editor'
 import { changeId, diffWords, MAX_DIFF_TOKENS } from './changes'
 
 describe('TosijsStyledEditor', () => {
@@ -2386,5 +2391,61 @@ describe('TosijsStyledEditor', () => {
       el.updateUndo('redo')
       expect(el.parts.doc.innerHTML).toContain('Changed')
     })
+  })
+})
+
+/**
+ * Reported from an iPhone: with the start and end bounds close together in x,
+ * the context-menu affordance overlapped the start handle.
+ *
+ * The menu was centred on the selection and the start handle sits at
+ * `[startX - 44, startX]` on the SAME row, so the two collide whenever the
+ * selection is narrower than one handle — i.e. for most selections, since 44px
+ * is a few characters. Pure maths, so it is testable without layout, which is
+ * the point of extracting it.
+ */
+describe('menuAffordanceX', () => {
+  const S = AFFORDANCE_SIZE
+  const ROOMY = 1000
+
+  test('a wide selection keeps the menu centred', () => {
+    // 400px of selection: centred at 300, which clears the handle easily.
+    expect(menuAffordanceX(100, 500, S, ROOMY)).toBe(300 - S / 2)
+  })
+
+  test('THE BUG: a selection narrower than a handle no longer overlaps it', () => {
+    // 10px apart — the reported case. Centred would be 105 - 22 = 83, which is
+    // inside the start handle's [56, 100].
+    const x = menuAffordanceX(100, 110, S, ROOMY)
+    expect(x).toBeGreaterThanOrEqual(100)
+    // and specifically: immediately right of the handle, not floating.
+    expect(x).toBe(100)
+  })
+
+  test('a collapsed caret puts the menu immediately right of the handle', () => {
+    expect(menuAffordanceX(100, 100, S, ROOMY)).toBe(100)
+  })
+
+  test('the overlap is impossible for ANY selection width', () => {
+    // The property, rather than three examples of it.
+    for (let width = 0; width <= 200; width += 1) {
+      const startX = 300
+      const x = menuAffordanceX(startX, startX + width, S, ROOMY)
+      expect(x).toBeGreaterThanOrEqual(startX)
+    }
+  })
+
+  test('no room on the right: the menu goes LEFT of the start handle', () => {
+    // maxX only just past the start, so right is not an option.
+    const x = menuAffordanceX(100, 105, S, 120)
+    expect(x).toBe(100 - S * 2)
+    // Left of the handle's own left edge, so they cannot overlap.
+    expect(x + S).toBeLessThanOrEqual(100 - S)
+  })
+
+  test('never off the left edge, even when neither side fits', () => {
+    // Pinned at the very left with no room either way: overlapping a handle is
+    // the lesser evil against a menu that cannot be tapped at all.
+    expect(menuAffordanceX(10, 12, S, 20)).toBe(0)
   })
 })

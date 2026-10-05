@@ -240,6 +240,42 @@ const MERGEABLE_BLOCKS = new Set([
   'footer',
 ])
 
+/**
+ * Edge length of a touch affordance, in px. Referenced by the CSS that sizes
+ * them AND by the maths that places them — they were two independent 44s, and
+ * the placement maths is where that drifts silently.
+ */
+export const AFFORDANCE_SIZE = 44
+
+/**
+ * Where the context-menu affordance goes, horizontally, in doc coordinates.
+ *
+ * The start handle occupies `[startX - size, startX]` on the SAME row as the
+ * menu (both sit a handle's height above the first line), so a menu centred on
+ * the selection overlaps it whenever the selection is narrower than one
+ * handle — which is most selections, since 44px is only a few characters at any
+ * normal size. Reported from an iPhone.
+ *
+ * So: centred when there is room, otherwise forced right of the start handle,
+ * otherwise left of it. The collapsed-caret case already placed the menu at
+ * exactly `startX`, which is this rule's floor — so both cases go through here
+ * now rather than one of them being right by hand.
+ */
+export function menuAffordanceX(
+  startX: number,
+  endX: number,
+  size: number,
+  maxX: number
+): number {
+  const centred = (startX + endX) / 2 - size / 2
+  // Right of the start handle, never over it.
+  let x = Math.max(centred, startX)
+  // Out of room on the right? Left of the start handle instead.
+  if (x + size > maxX) x = startX - size * 2
+  // Never off the left edge: overlapping a handle beats being unreachable.
+  return Math.max(x, 0)
+}
+
 export class TosijsStyledEditor extends WebComponent<EditableParts> {
   static formAssociated = true
 
@@ -554,8 +590,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
     ':host .touch-affordance': {
       position: 'absolute',
-      width: '44px',
-      height: '44px',
+      width: `${AFFORDANCE_SIZE}px`,
+      height: `${AFFORDANCE_SIZE}px`,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -4075,25 +4111,26 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const endX = endRect.right - docRect.left + this.parts.doc.scrollLeft
     const endY = endRect.bottom - docRect.top + this.parts.doc.scrollTop
 
-    const isCollapsed = selStart.nextElementSibling === selEnd
+    const size = AFFORDANCE_SIZE
 
-    if (isCollapsed) {
-      this.touchHandleStart!.style.left = `${startX - 44}px`
-      this.touchHandleStart!.style.top = `${startY - 44}px`
-      this.touchContextMenu!.style.left = `${startX}px`
-      this.touchContextMenu!.style.top = `${startY - 44}px`
-      this.touchHandleEnd!.style.left = `${endX}px`
-      this.touchHandleEnd!.style.top = `${endY}px`
-    } else {
-      this.touchHandleStart!.style.left = `${startX - 44}px`
-      this.touchHandleStart!.style.top = `${startY - 44}px`
-      this.touchHandleEnd!.style.left = `${endX}px`
-      this.touchHandleEnd!.style.top = `${endY}px`
-      const midX = (startX + endX) / 2 - 22
-      const topY = Math.min(startY, endY) - 44
-      this.touchContextMenu!.style.left = `${midX}px`
-      this.touchContextMenu!.style.top = `${topY}px`
-    }
+    // The handles bracket the selection: start above-left of its first
+    // character, end below-right of its last.
+    this.touchHandleStart!.style.left = `${startX - size}px`
+    this.touchHandleStart!.style.top = `${startY - size}px`
+    this.touchHandleEnd!.style.left = `${endX}px`
+    this.touchHandleEnd!.style.top = `${endY}px`
+
+    // The menu shares the start handle's row, so its x comes from the rule
+    // rather than from the selection's midpoint. Collapsed and ranged
+    // selections differ only in where that midpoint is.
+    const maxX = this.parts.doc.clientWidth + this.parts.doc.scrollLeft
+    this.touchContextMenu!.style.left = `${menuAffordanceX(
+      startX,
+      endX,
+      size,
+      maxX
+    )}px`
+    this.touchContextMenu!.style.top = `${Math.min(startY, endY) - size}px`
   }
 
   private handleAffordanceDragStart = (evt: PointerEvent): void => {
@@ -4183,8 +4220,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const handle = evt.currentTarget as HTMLElement
     const handleX = evt.clientX - docRect.left + this.parts.doc.scrollLeft
     const handleY = evt.clientY - docRect.top + this.parts.doc.scrollTop
-    handle.style.left = `${handleX - 22}px`
-    handle.style.top = `${handleY - 22}px`
+    handle.style.left = `${handleX - AFFORDANCE_SIZE / 2}px`
+    handle.style.top = `${handleY - AFFORDANCE_SIZE / 2}px`
 
     evt.preventDefault()
     evt.stopPropagation()
