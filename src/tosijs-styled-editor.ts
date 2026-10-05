@@ -1393,21 +1393,28 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     for (const del of Array.from(frag.querySelectorAll(DEL_TAG))) del.remove()
     for (const ins of Array.from(frag.querySelectorAll(INS_TAG))) unwrap(ins)
 
-    // IDENTITY IS NOT CONTENT, so it does not come along.
+    // IDENTITY IS DELIBERATELY LEFT ALONE HERE, and that is not an oversight.
     //
-    // A proposal coexists with the originals it supersedes for as long as the
-    // merge is pending, so anything document-unique in the cloned content is
-    // duplicated for that whole time: two elements answering one `id`, i.e.
-    // two targets for one `href` and a `getElementById` that picks by document
-    // order. The footnote list made this visible — a cloned reference minted a
-    // second `<li>` sharing one `id`, which survived resolution and reached
-    // `value` (`reviews/0.6.0-pre-release.md` B-1; the reconcile side is fixed
-    // in `renumberFootnotes`). Dropping `id` here is the general case rather
-    // than the one symptom: `data-footnote` STAYS, because that is which note
-    // the reference points at, and the reference genuinely does appear twice.
-    for (const identified of Array.from(frag.querySelectorAll('[id]'))) {
-      identified.removeAttribute('id')
-    }
+    // A proposal is a COPY that coexists with the originals it supersedes, and
+    // `id` cannot be in two places at once. There are exactly two coherent
+    // models: the original owns identity while pending and the proposal
+    // inherits it on ACCEPT, or the proposal owns it and the original is
+    // restored on REJECT. Either needs resolution to transfer it.
+    //
+    // Stripping it here implemented neither. It removed identity from the
+    // proposal and left the originals to be removed by `acceptChanges`, so
+    // accepting a merge permanently destroyed every descendant `id` — silently,
+    // reaching `value` and `setFormValue`, leaving in-document `href="#x"`,
+    // `aria-labelledby` and `label[for]` pointing at nothing, with no DOM or
+    // a11y error anywhere. Turning tracking ON destroyed identity that tracking
+    // off preserves (`reviews/0.6.0-remediation-rereview.md`, B-2).
+    //
+    // So this is back to duplicate ids WHILE A MERGE IS PENDING, which is a
+    // known tracked defect (`0.6.0-structural-tracking-r2.md` M-2, board #3090)
+    // and strictly better than permanent loss. Choosing between the two models
+    // is a change to resolution, and resolution is the code that has produced
+    // blockers in three consecutive rounds — so it is a planned task, not a
+    // patch inside a remediation.
     return frag
   }
 
@@ -2962,6 +2969,32 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * previous generation of that same paste is what put a guard into
    * `backspace()` twice and `forwardDelete()` not at all.
    */
+  /**
+   * The UNTRACKED cross-block gesture: delete the paragraph break, and nothing
+   * else.
+   *
+   * "And nothing else" is the fix. Both keystroke paths used to delete a
+   * CHARACTER first and then merge, so `<p>one</p><p>two</p>` + Backspace at
+   * the start of `two` produced **"ontwo"** and Delete at the end of `one`
+   * produced **"onewo"** — silent content loss on the shipped default path with
+   * the commonest keystroke in a text editor. The tracked path was correct on
+   * the identical DOM, because it returns before the character deletion.
+   *
+   * The rule was already written down one comment above the bug: a deletion
+   * that crosses a block boundary deletes a paragraph BREAK, not a character.
+   * It had been applied to the REFUSED case (by hoisting `refuseIfUnmergeable`)
+   * and never to the allowed one. (`reviews/0.6.0-remediation-rereview.md`,
+   * B-1 — pre-existing, found in triage, covered by no test.)
+   *
+   * Element content follows the same rule: Backspace at the start of a
+   * paragraph whose predecessor ends in an `<img>` merges the paragraphs, it
+   * does not eat the image.
+   */
+  private mergeBlocksRaw(earlier: Element, later: Element): void {
+    while (later.firstChild) earlier.appendChild(later.firstChild)
+    later.remove()
+  }
+
   private mergeBlocksTracked(earlier: Element, later: Element): void {
     this.trackStructuralEdit([earlier, later])
     this.normalize()
@@ -3001,30 +3034,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         return
       }
 
-      // Untracked, and the refusal above already settled the structural
-      // question, so this runs straight through — it used to be wrapped in a
-      // `run()` that was the identity function on every reachable path.
-      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+      // Untracked. The refusal above already settled the structural question,
+      // so this runs straight through — and the two cases are EXCLUSIVE: a
+      // gesture that crosses a block boundary deletes the break, not a
+      // character.
+      if (crossesBlocks) {
+        // Backspace looks BACK, so the deletion target is the earlier block.
+        this.mergeBlocksRaw(deletionBlock as Element, caretBlock as Element)
+      } else if (node.nodeType === 3 && (node.textContent || '').length > 1) {
         this.deleteEdgeCharacter(node as Text, 'end')
       } else {
         this.removeNode(topSingleParentAncestor(node))
       }
       this.normalize()
-
-      // Merge blocks if deletion crossed a block boundary — same guard as
-      // the tracked path, for the same reason.
-      if (
-        deletionBlock &&
-        caretBlock &&
-        this.parts.doc.contains(deletionBlock) &&
-        deletionBlock !== caretBlock &&
-        this.canMergeBlocks([deletionBlock, caretBlock])
-      ) {
-        while (caretBlock.firstChild) {
-          deletionBlock.appendChild(caretBlock.firstChild)
-        }
-        caretBlock.remove()
-      }
       this.updateUndo()
     }
   }
@@ -3055,30 +3077,16 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         return
       }
 
-      // Untracked, and the refusal above already settled the structural
-      // question, so this runs straight through — it used to be wrapped in a
-      // `run()` that was the identity function on every reachable path.
-      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+      // Untracked. Exclusive cases, as in `backspace()` — see `mergeBlocksRaw`.
+      if (crossesBlocks) {
+        // Delete looks FORWARD, so the caret's block is the earlier one.
+        this.mergeBlocksRaw(caretBlock as Element, deletionBlock as Element)
+      } else if (node.nodeType === 3 && (node.textContent || '').length > 1) {
         this.deleteEdgeCharacter(node as Text, 'start')
       } else {
         this.removeNode(topSingleParentAncestor(node))
       }
       this.normalize()
-
-      // Merge blocks if deletion crossed a block boundary — same guard as
-      // the tracked path, for the same reason.
-      if (
-        deletionBlock &&
-        caretBlock &&
-        this.parts.doc.contains(deletionBlock) &&
-        deletionBlock !== caretBlock &&
-        this.canMergeBlocks([deletionBlock, caretBlock])
-      ) {
-        while (deletionBlock.firstChild) {
-          caretBlock.appendChild(deletionBlock.firstChild)
-        }
-        deletionBlock.remove()
-      }
       this.updateUndo()
     }
   }

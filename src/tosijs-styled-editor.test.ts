@@ -2611,7 +2611,14 @@ describe('a tracked merge over a footnote', () => {
     expect(Object.values(keyCounts(el))).toEqual([1])
   })
 
-  test('ids stay unique — two anchor targets for one href is invalid DOM', async () => {
+  // NARROW, and worth saying so: this covers THIS fixture, where the only `id`
+  // is the footnote's `<li>` and one-item-per-key is what keeps it unique. It
+  // is NOT coverage of id uniqueness during a pending merge in general — a
+  // proposal still duplicates every `id` in the merged block for as long as it
+  // stays pending (board #3090). Stripping ids from the clone to fix that
+  // destroyed them on accept instead, which is why the general case is a
+  // planned change to resolution rather than something this test guards.
+  test('the footnote id stays unique in this fixture', async () => {
     const el = build()
     await flush()
     await mergeOverTheFootnote(el)
@@ -2840,5 +2847,113 @@ describe('the unmergeable-blocks refusal is final', () => {
     press(el, 'Backspace')
     expect(reasons).toEqual([])
     expect(el.parts.doc.querySelector('[data-block-insert]')).not.toBeNull()
+  })
+})
+
+/**
+ * B-1 from `reviews/0.6.0-remediation-rereview.md`: with `trackChanges` OFF —
+ * the shipped default — a Backspace or Delete across a block boundary deleted a
+ * CHARACTER of the neighbouring block and then merged, so `one` + `two` became
+ * `ontwo`. Silent content loss, on the default path, with the commonest
+ * keystroke in a text editor, covered by no test.
+ *
+ * The rule was already written one comment above the bug: a gesture that
+ * crosses a block boundary deletes a paragraph BREAK, not a character. It had
+ * been applied to the refused case and never to the allowed one.
+ *
+ * Pre-existing rather than a regression — byte-identical before the 0.6.0
+ * remediation — which is why it had to be reproduced rather than inferred.
+ */
+describe('an untracked cross-block gesture deletes the break and nothing else', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const caretAt = (
+    el: TosijsStyledEditor,
+    node: Node,
+    offset: number
+  ): void => {
+    const range = document.createRange()
+    range.setStart(node, offset)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  const build = (html: string, tracking = false): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = html
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = tracking
+    return el
+  }
+
+  /** Text with the caret marker's zero-width content removed. */
+  const text = (el: TosijsStyledEditor): string =>
+    (el.parts.doc.textContent ?? '').replace(/[⠀-⣿⋮]/g, '')
+
+  test('Backspace at the start of a block keeps every character', () => {
+    const el = build('<p>one</p><p>two</p>')
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    caretAt(el, second.firstChild!, 0)
+    press(el, 'Backspace')
+    expect(text(el)).toBe('onetwo')
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+  })
+
+  test('Delete at the end of a block keeps every character', () => {
+    const el = build('<p>one</p><p>two</p>')
+    const first = el.parts.doc.querySelector('p')!
+    caretAt(el, first.firstChild!, 3)
+    press(el, 'Delete')
+    expect(text(el)).toBe('onetwo')
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
+  })
+
+  // The same rule for element content: merging paragraphs must not eat the
+  // predecessor's trailing image, which is what the non-text branch did.
+  test('Backspace does not eat the previous block s trailing image', () => {
+    const el = build('<p>one<img src="x.png"></p><p>two</p>')
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    caretAt(el, second.firstChild!, 0)
+    press(el, 'Backspace')
+    expect(el.parts.doc.querySelectorAll('img').length).toBe(1)
+    expect(text(el)).toBe('onetwo')
+  })
+
+  // The control that made the bug obvious: the tracked path was already right
+  // on the identical DOM, because it returns before the character deletion.
+  test('the tracked path agrees, which is how the asymmetry showed', () => {
+    const el = build('<p>one</p><p>two</p>', true)
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    caretAt(el, second.firstChild!, 0)
+    press(el, 'Backspace')
+    el.acceptChanges()
+    expect(text(el)).toBe('onetwo')
+  })
+
+  // And a within-block deletion must still delete a character.
+  test('a deletion that does NOT cross a boundary still deletes one character', () => {
+    const el = build('<p>one</p><p>two</p>')
+    const first = el.parts.doc.querySelector('p')!
+    caretAt(el, first.firstChild!, 2)
+    press(el, 'Backspace')
+    expect(text(el)).toBe('oetwo')
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
   })
 })
