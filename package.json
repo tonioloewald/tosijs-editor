@@ -42,7 +42,7 @@
     "haltija": "haltija --name tosijs-editor --port 8702 --server",
     "tls": "bunx tosijs-dev-certs",
     "typecheck": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
-    "test:browser": "bun test ./browser-tests/",
+    "test:browser": "bun bin/test-browser.ts",
     "dev:stop": "bun bin/dev-stop.ts"
   },
   "author": "Tonio Loewald",
