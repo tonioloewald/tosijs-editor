@@ -1596,14 +1596,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // Accepting it removed the block, took `.sel-end` with it, and left the
     // editor with no insertion point: typing inserted nothing and every
     // caret-based command silently bailed.
-    const emptied = targets
-      .filter(
-        (c) => c.kind === 'delete' && c.element.hasAttribute(BLOCK_DELETE_ATTR)
-      )
-      .map((c) => c.element.parentElement)
-      .filter(
-        (el): el is HTMLElement => !!el && el.parentNode === this.parts.doc
-      )
+    const emptied = this.blocksOwnedByMarks(
+      targets,
+      'delete',
+      BLOCK_DELETE_ATTR
+    )
 
     for (const change of targets) acceptChange(change.element)
 
@@ -1624,6 +1621,36 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     }
   }
 
+  /**
+   * The top-level blocks owned by the block-scoped marks among `targets`.
+   *
+   * ONE address for what was the same predicate at two — the accept sweep and
+   * the reject sweep — and both got it wrong the same way. They took
+   * `c.element.parentElement` and kept it only if its parent was the doc. For
+   * a NESTED mark that is the wrong element: a struck intermediate proposal is
+   * `<p><tosi-del data-block-delete><tosi-ins data-block-insert>…</tosi-ins></tosi-del></p>`,
+   * so the insert mark's parent is the `<tosi-del>`, the `<p>` was excluded
+   * from the sweep, and rejecting a chain of merges left one stray empty
+   * paragraph per intermediate step — in the document and in `value`
+   * (`reviews/0.6.0-remediation-rereview.md`, M-2).
+   *
+   * `block()` already walks to the top-level block, which is both the right
+   * answer and the condition the hand-written filter was approximating.
+   */
+  private blocksOwnedByMarks(
+    targets: TrackedChange[],
+    kind: 'insert' | 'delete',
+    attr: string
+  ): HTMLElement[] {
+    const blocks = targets
+      .filter((c) => c.kind === kind && c.element.hasAttribute(attr))
+      .map((c) => this.block(c.element))
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+    // One block can own two marks; removing it twice is harmless but the
+    // caret rescue would run against a detached block.
+    return [...new Set(blocks)]
+  }
+
   /** Reject one change by id, or every change when given none. */
   rejectChanges(id?: string): void {
     if (id === '') return
@@ -1632,14 +1659,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // proposed a whole block, so rejecting it takes the block with it —
     // removing only the mark left an empty paragraph standing where the
     // proposal had been.
-    const proposed = targets
-      .filter(
-        (c) => c.kind === 'insert' && c.element.hasAttribute(BLOCK_INSERT_ATTR)
-      )
-      .map((c) => c.element.parentElement)
-      .filter(
-        (el): el is HTMLElement => !!el && el.parentNode === this.parts.doc
-      )
+    const proposed = this.blocksOwnedByMarks(
+      targets,
+      'insert',
+      BLOCK_INSERT_ATTR
+    )
 
     // BEFORE rejecting: `rejectChange` removes an insertion outright, and the
     // caret is inside it. Rescued after the fact there is nothing left to

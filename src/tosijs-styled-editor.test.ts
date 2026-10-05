@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
+import { renumberFootnotes } from './commands'
 import {
   TosijsStyledEditor,
   tosijsStyledEditor,
@@ -2955,5 +2956,155 @@ describe('an untracked cross-block gesture deletes the break and nothing else', 
     press(el, 'Backspace')
     expect(text(el)).toBe('oetwo')
     expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+  })
+})
+
+/**
+ * M-2 and M-4 from `reviews/0.6.0-remediation-rereview.md`.
+ *
+ * M-2: rejecting a CHAIN of tracked merges left one stray empty `<p>` per
+ * intermediate step, in the document and in `value`. Both resolution sweeps
+ * took `c.element.parentElement` and kept it only if its parent was the doc —
+ * but a struck intermediate proposal nests the insert mark inside a
+ * `<tosi-del>`, so the owning `<p>` was excluded from the sweep and rejecting
+ * unwrapped the `<tosi-del>` leaving it empty. The existing chain test asserted
+ * text presence, `changes.length === 0` and no `tosi-` in `value`, all three of
+ * which an extra `<p></p>` satisfies — so this asserts the document is
+ * BYTE-IDENTICAL to where it started.
+ *
+ * It is also the shape the previous round's CHANGELOG rewrite made contractual:
+ * the notes promise a struck intermediate stays in the document and stays
+ * resurrectable by rejecting the later merge.
+ */
+describe('resolving a chain of merges leaves no residue', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const caretAtStartOf = (el: TosijsStyledEditor, match: string): void => {
+    const block = [...el.parts.doc.querySelectorAll('p')].find(
+      (p) => p.textContent?.replace(/[^A-Za-z.]/g, '') === match
+    )!
+    const range = document.createRange()
+    range.setStart(block.firstChild as Text, 0)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  const chainOfTwoMerges = (): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = true
+    caretAtStartOf(el, 'Beta.')
+    press(el, 'Backspace')
+    caretAtStartOf(el, 'Gamma.')
+    press(el, 'Backspace')
+    return el
+  }
+
+  /**
+   * What a CONSUMER gets, not `parts.doc.innerHTML` — the doc element also
+   * holds the touch-affordance chrome, which `docHTML` detaches for `value`.
+   * Selection markers are stripped because they still leak into `value`, which
+   * is a separate known defect.
+   */
+  const shape = (el: TosijsStyledEditor): string =>
+    el.value.replace(/<span class="sel-(start|end)[^"]*"><\/span>/g, '')
+
+  test('the precondition: two merges really do nest a struck proposal', () => {
+    const el = chainOfTwoMerges()
+    const nested = el.parts.doc.querySelector(
+      'tosi-del[data-block-delete] tosi-ins[data-block-insert]'
+    )
+    expect(nested).not.toBeNull()
+  })
+
+  test('rejecting the chain restores the original document exactly', () => {
+    const el = chainOfTwoMerges()
+    el.rejectChanges()
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
+    expect(shape(el)).toBe('<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>')
+    expect(el.value).not.toContain('<p></p>')
+    expect(el.changes.length).toBe(0)
+  })
+
+  test('accepting the chain leaves one block and no empty residue', () => {
+    const el = chainOfTwoMerges()
+    el.acceptChanges()
+    expect(el.value).not.toContain('<p></p>')
+    expect(el.changes.length).toBe(0)
+    expect(el.parts.doc.textContent).toContain('Alpha.Beta.Gamma.')
+  })
+})
+
+/**
+ * M-4: the duplicate-key repair compared the placeholder EXACTLY, so
+ * `"Footnote text "` with a trailing space counted as authored text and the
+ * real note was deleted instead — inverting the rule the code's own comment
+ * states. Mine, from this release's B-1 fix.
+ */
+describe('the footnote duplicate-key repair keeps authored text', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const repair = (listHtml: string): string[] => {
+    const root = document.createElement('div')
+    container.appendChild(root)
+    root.innerHTML =
+      '<p>text<tosi-footnote data-footnote="k1"><a href="#k1">1</a></tosi-footnote></p>' +
+      `<ol class="footnotes">${listHtml}</ol>`
+    renumberFootnotes(root)
+    return [...root.querySelectorAll('li')].map((li) => li.textContent ?? '')
+  }
+
+  test('a trailing space on the placeholder does not make it win', () => {
+    expect(
+      repair(
+        '<li data-footnote="k1">Footnote text </li>' +
+          '<li data-footnote="k1">The real note</li>'
+      )
+    ).toEqual(['The real note'])
+  })
+
+  test('and the other order, which already worked', () => {
+    expect(
+      repair(
+        '<li data-footnote="k1">The real note</li>' +
+          '<li data-footnote="k1">Footnote text</li>'
+      )
+    ).toEqual(['The real note'])
+  })
+
+  test('two placeholders collapse to one', () => {
+    expect(
+      repair(
+        '<li data-footnote="k1">Footnote text</li>' +
+          '<li data-footnote="k1">Footnote text</li>'
+      )
+    ).toEqual(['Footnote text'])
   })
 })

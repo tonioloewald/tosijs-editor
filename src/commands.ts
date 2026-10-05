@@ -201,6 +201,14 @@ function footnoteKey(): string {
  */
 const PLACEHOLDER = 'Footnote text'
 
+/**
+ * Is this list item still showing the stand-in rather than an authored note?
+ *
+ * Trimmed, never an exact compare — see the duplicate-key repair below.
+ */
+const isPlaceholder = (item: Element): boolean =>
+  (item.textContent ?? '').trim() === PLACEHOLDER
+
 export function renumberFootnotes(root: HTMLElement): void {
   // Both shapes: `<tosi-footnote>` and the plain `<sup class="footnote-ref">`
   // that documents saved before 0.4.4 contain. Numbering must not depend on
@@ -249,7 +257,14 @@ export function renumberFootnotes(root: HTMLElement): void {
     }
     // Already corrupt on the way in. Keep whichever item holds AUTHORED text:
     // never discard a note in favour of a placeholder, whatever the order.
-    if (held.textContent === PLACEHOLDER && item.textContent !== PLACEHOLDER) {
+    //
+    // Compared TRIMMED, because an exact compare inverted the rule this comment
+    // states: `"Footnote text "` with a trailing space is not `=== PLACEHOLDER`,
+    // so it counted as authored and the real note was deleted instead
+    // (`reviews/0.6.0-remediation-rereview.md`, M-4). Markdown round-trips and
+    // hand-editing both decorate text with whitespace, so an exact compare is
+    // the wrong instrument for "did anyone write this".
+    if (isPlaceholder(held) && !isPlaceholder(item)) {
       existing.set(key, item)
       corrupt.push(held)
     } else {
