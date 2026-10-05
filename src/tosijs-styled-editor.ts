@@ -955,10 +955,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * across a word select that word. One editor answers differently for the two,
    * which is what a hybrid laptop needs.
    *
-   * Assigned straight through to the `Selectable`, so it can be changed at any
-   * time and takes effect on the next drag.
+   * A getter/setter over the `Selectable`'s own field, so it can be changed at
+   * any time and takes effect on the next drag — including before connection,
+   * which the creator form (`tosijsStyledEditor({ stickySelection: 'never' })`)
+   * relies on.
+   *
+   * It was a plain field assigned once in `connectedCallback`, which made every
+   * post-connection write silently inert while this comment promised otherwise
+   * — a host's "snap to words" preference toggle would have been a dead
+   * control. Nothing caught it because every test set
+   * `Selectable.stickySelection` directly, so deleting the one forwarding line
+   * left the suite green (`reviews/0.6.0-pre-release.md`, M-2).
    */
-  stickySelection: 'touch' | 'always' | 'never' = 'touch'
+  get stickySelection(): 'touch' | 'always' | 'never' {
+    // The Selectable is the single source once it exists; the pending value
+    // only covers the window before `connectedCallback` builds it.
+    return this.selectable?.stickySelection ?? this.pendingStickySelection
+  }
+
+  set stickySelection(mode: 'touch' | 'always' | 'never') {
+    this.pendingStickySelection = mode
+    if (this.selectable) this.selectable.stickySelection = mode
+  }
+
+  /**
+   * Holds `stickySelection` until there is a `Selectable` to hold it.
+   *
+   * No default of its own: `Selectable` declares it, and two copies of one
+   * default is how they drift. Before connection the getter reads this, which
+   * starts as the same literal only because it is assigned from nowhere else.
+   */
+  private pendingStickySelection: 'touch' | 'always' | 'never' = 'touch'
 
   /**
    * Identifies this editing session.
@@ -1515,29 +1542,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   }
 
   /**
-   * Run a gesture with tracking suspended.
+   * Announce a structural refusal, and report whether the host overrode it.
    *
-   * For the one case where a host has OVERRIDDEN a structural refusal. The
-   * edit then happens as a plain structural change with no marks — which is
-   * the only honest reading, since if tracking could have represented it there
-   * would have been nothing to refuse.
+   * `false` means a host called `preventDefault()`. Honoured for the POLICY
+   * refusals — `remove-list-item`, `merge-list-items` — where proceeding with
+   * the raw edit is a coherent thing to want.
    *
-   * Without this the override half-applied: the block merge itself went
-   * through a raw `caretBlock.remove()` with nothing in `changes`, while the
-   * character that rides along on the same keystroke was MARKED — leaving the
-   * document simultaneously mid-merge and mid-proposal, where neither
-   * accepting nor rejecting reproduces a document either party proposed.
+   * Not honoured for `merge-blocks-not-mergeable`, which goes through
+   * `refuseMerge`; there is no coherent override for a guard about valid DOM
+   * that fires with tracking off. There used to be an `asUntracked` helper for
+   * exactly that case, and it is gone with the contract it served: every one of
+   * its three call sites was either unreachable or performed a destructive
+   * no-op.
    */
-  private asUntracked<T>(fn: () => T): T {
-    const was = this.trackChanges
-    this.trackChanges = false
-    try {
-      return fn()
-    } finally {
-      this.trackChanges = was
-    }
-  }
-
   private refuseStructural(reason: string): boolean {
     const evt = new CustomEvent('structural-edit-refused', {
       bubbles: true,
@@ -1905,7 +1922,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Set up selection system
     this.selectable = new Selectable(doc)
-    this.selectable.stickySelection = this.stickySelection
+    this.selectable.stickySelection = this.pendingStickySelection
 
     // Add initial bounds
     const firstP =
@@ -2905,8 +2922,51 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   private refuseIfUnmergeable(a: Element | null, b: Element | null): boolean {
     if (!a || !b || a === b) return false
     if (this.canMergeBlocks([a, b])) return false
-    this.refuseStructural('merge-blocks-not-mergeable')
+    this.refuseMerge()
     return true
+  }
+
+  /**
+   * Announce an unmergeable-blocks refusal. **Not overridable**, and the
+   * dispatch result is deliberately discarded.
+   *
+   * `merge-blocks-not-mergeable` is the one refusal about VALID DOM rather than
+   * review policy — merging a list or a grid table puts loose text directly
+   * inside a `<ul>`, or turns a mark into a grid item and shifts every
+   * `cellIndex`. It fires with `trackChanges` OFF as well, where "perform it
+   * untracked" means nothing, which is what settles the question: there is no
+   * coherent thing for an override to do. The other refusals
+   * (`remove-list-item`, `merge-list-items`) are policy and stay overridable
+   * through `refuseStructural` directly.
+   *
+   * It was ACCIDENTALLY non-overridable before, which is worse than either
+   * answer: `refuseIfUnmergeable` discarded `refuseStructural`'s return and the
+   * only code that read it — an inner `canMergeBlocks` branch — had become
+   * unreachable, because by the time it ran the guard had already proved the
+   * pair mergeable. So a reader checking "is the override honoured?" found code
+   * that honoured it and never learned it could not run, while README promised
+   * `preventDefault()` performed the edit untracked
+   * (`reviews/0.6.0-pre-release.md`, M-1).
+   */
+  private refuseMerge(): void {
+    this.refuseStructural('merge-blocks-not-mergeable')
+  }
+
+  /**
+   * Record a cross-block merge: both blocks out, one merged block in.
+   *
+   * `earlier` and `later` are in DOCUMENT order, which the callers have to fix
+   * because Backspace looks back and Delete looks forward. One address for the
+   * two keystroke paths: they each carried a copy of this, identical down to
+   * the comments and differing only in the order of that pair — and the
+   * previous generation of that same paste is what put a guard into
+   * `backspace()` twice and `forwardDelete()` not at all.
+   */
+  private mergeBlocksTracked(earlier: Element, later: Element): void {
+    this.trackStructuralEdit([earlier, later])
+    this.normalize()
+    this.focus()
+    this.updateUndo('new', 'merge-blocks')
   }
 
   /** Delete the character before the caret */
@@ -2921,11 +2981,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       const caretBlock = this.block(ip)
       const deletionBlock = this.block(node)
 
-      // A deletion that crosses a block boundary deletes a paragraph break,
-      // not a character, and there is no mark for that — so refuse. A host
-      // that overrides the refusal gets the edit UNTRACKED: the whole gesture,
-      // not just the merge, or the document ends up simultaneously mid-merge
-      // and mid-proposal with no resolution that either party proposed.
+      // A deletion that crosses a block boundary deletes a paragraph BREAK, not
+      // a character, and a change mark wraps content. ASK FIRST, BEFORE
+      // ANYTHING MOVES, and gate the WHOLE gesture: with the check on the merge
+      // alone the character deletion ran first, so a refused merge still ate a
+      // character of the neighbouring block, unbounded, with no event to
+      // observe. The refusal is final — see `refuseMerge`.
       const crossesBlocks = !!(
         deletionBlock &&
         caretBlock &&
@@ -2933,55 +2994,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       )
 
       if (this.refuseIfUnmergeable(deletionBlock, caretBlock)) return
-      // A deletion that crosses a block boundary deletes a paragraph BREAK, and
-      // a change mark wraps content. So record it the brute-force way instead:
-      // both blocks out, one merged block in. `deletionBlock` is the earlier of
-      // the two in document order either way — Backspace looks back, Delete
-      // looks forward — so the pair is ordered here, not at the primitive.
-      let overridden = false
+
       if (this.trackChanges && crossesBlocks) {
-        const pair = [deletionBlock as Element, caretBlock as Element]
-        // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
-        // the gesture half-applied, which is the shape that had to be fixed
-        // three times before it stuck.
-        if (!this.canMergeBlocks(pair)) {
-          if (this.refuseStructural('merge-blocks-not-mergeable')) return
-          overridden = true
-        } else {
-          this.trackStructuralEdit(pair)
-          this.normalize()
-          this.focus()
-          this.updateUndo('new', 'merge-blocks')
-          return
-        }
+        // Backspace looks BACK, so the deletion target is the earlier block.
+        this.mergeBlocksTracked(deletionBlock as Element, caretBlock as Element)
+        return
       }
 
-      const run = <T>(fn: () => T): T =>
-        overridden ? this.asUntracked(fn) : fn()
+      // Untracked, and the refusal above already settled the structural
+      // question, so this runs straight through — it used to be wrapped in a
+      // `run()` that was the identity function on every reachable path.
+      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+        this.deleteEdgeCharacter(node as Text, 'end')
+      } else {
+        this.removeNode(topSingleParentAncestor(node))
+      }
+      this.normalize()
 
-      run(() => {
-        if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-          this.deleteEdgeCharacter(node as Text, 'end')
-        } else {
-          this.removeNode(topSingleParentAncestor(node))
+      // Merge blocks if deletion crossed a block boundary — same guard as
+      // the tracked path, for the same reason.
+      if (
+        deletionBlock &&
+        caretBlock &&
+        this.parts.doc.contains(deletionBlock) &&
+        deletionBlock !== caretBlock &&
+        this.canMergeBlocks([deletionBlock, caretBlock])
+      ) {
+        while (caretBlock.firstChild) {
+          deletionBlock.appendChild(caretBlock.firstChild)
         }
-        this.normalize()
-
-        // Merge blocks if deletion crossed a block boundary — same guard as
-        // the tracked path, for the same reason.
-        if (
-          deletionBlock &&
-          caretBlock &&
-          this.parts.doc.contains(deletionBlock) &&
-          deletionBlock !== caretBlock &&
-          this.canMergeBlocks([deletionBlock, caretBlock])
-        ) {
-          while (caretBlock.firstChild) {
-            deletionBlock.appendChild(caretBlock.firstChild)
-          }
-          caretBlock.remove()
-        }
-      })
+        caretBlock.remove()
+      }
       this.updateUndo()
     }
   }
@@ -3005,55 +3048,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         caretBlock &&
         deletionBlock !== caretBlock
       )
-      // A deletion that crosses a block boundary deletes a paragraph BREAK, and
-      // a change mark wraps content. So record it the brute-force way instead:
-      // both blocks out, one merged block in. `deletionBlock` is the earlier of
-      // the two in document order either way — Backspace looks back, Delete
-      // looks forward — so the pair is ordered here, not at the primitive.
-      let overridden = false
+
       if (this.trackChanges && crossesBlocks) {
-        const pair = [caretBlock as Element, deletionBlock as Element]
-        // ASK FIRST, BEFORE ANYTHING MOVES. A refusal resolved midway leaves
-        // the gesture half-applied, which is the shape that had to be fixed
-        // three times before it stuck.
-        if (!this.canMergeBlocks(pair)) {
-          if (this.refuseStructural('merge-blocks-not-mergeable')) return
-          overridden = true
-        } else {
-          this.trackStructuralEdit(pair)
-          this.normalize()
-          this.focus()
-          this.updateUndo('new', 'merge-blocks')
-          return
-        }
+        // Delete looks FORWARD, so the caret's block is the earlier one.
+        this.mergeBlocksTracked(caretBlock as Element, deletionBlock as Element)
+        return
       }
 
-      const run = <T>(fn: () => T): T =>
-        overridden ? this.asUntracked(fn) : fn()
+      // Untracked, and the refusal above already settled the structural
+      // question, so this runs straight through — it used to be wrapped in a
+      // `run()` that was the identity function on every reachable path.
+      if (node.nodeType === 3 && (node.textContent || '').length > 1) {
+        this.deleteEdgeCharacter(node as Text, 'start')
+      } else {
+        this.removeNode(topSingleParentAncestor(node))
+      }
+      this.normalize()
 
-      run(() => {
-        if (node.nodeType === 3 && (node.textContent || '').length > 1) {
-          this.deleteEdgeCharacter(node as Text, 'start')
-        } else {
-          this.removeNode(topSingleParentAncestor(node))
+      // Merge blocks if deletion crossed a block boundary — same guard as
+      // the tracked path, for the same reason.
+      if (
+        deletionBlock &&
+        caretBlock &&
+        this.parts.doc.contains(deletionBlock) &&
+        deletionBlock !== caretBlock &&
+        this.canMergeBlocks([deletionBlock, caretBlock])
+      ) {
+        while (deletionBlock.firstChild) {
+          caretBlock.appendChild(deletionBlock.firstChild)
         }
-        this.normalize()
-
-        // Merge blocks if deletion crossed a block boundary — same guard as
-        // the tracked path, for the same reason.
-        if (
-          deletionBlock &&
-          caretBlock &&
-          this.parts.doc.contains(deletionBlock) &&
-          deletionBlock !== caretBlock &&
-          this.canMergeBlocks([deletionBlock, caretBlock])
-        ) {
-          while (deletionBlock.firstChild) {
-            caretBlock.appendChild(deletionBlock.firstChild)
-          }
-          deletionBlock.remove()
-        }
-      })
+        deletionBlock.remove()
+      }
       this.updateUndo()
     }
   }
@@ -3089,10 +3114,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // remnants get merged, so they are the ones whose pending changes matter.
     const ends = [blocks[0], blocks[blocks.length - 1]]
     if (!this.canMergeBlocks(ends)) {
-      if (this.refuseStructural('merge-blocks-not-mergeable')) {
-        return this.runDeleteSelection(blocks, 'none')
-      }
-      return this.asUntracked(() => this.runDeleteSelection(blocks, 'raw'))
+      // The refusal is final here too, and the text deletion still happens
+      // TRACKED with no merge — the words are representable, the paragraph
+      // break is not. Overriding used to drop to a raw untracked delete, which
+      // lost tracking of everything that could be tracked and STILL did not
+      // merge, because `runDeleteSelection` re-rejects the pair: the override
+      // destroyed more and achieved nothing it was invoked for.
+      this.refuseMerge()
+      return this.runDeleteSelection(blocks, 'none')
     }
     return this.runDeleteSelection(blocks, 'tracked')
   }

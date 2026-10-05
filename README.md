@@ -402,7 +402,8 @@ the editor does not decide that for you.
 Lists and grid tables are the one refusal (`merge-blocks-not-mergeable`), and it
 is about valid DOM rather than about review policy: merging them produces loose
 text as a direct child of a `<ul>`, or a mark that becomes a grid item and
-shifts every `cellIndex`.
+shifts every `cellIndex`. It is therefore **not overridable** — see
+`structural-edit-refused` below.
 
 ### Everything else
 
@@ -457,10 +458,22 @@ Two deletions behave specially, because the pedantic version would be noise:
   ```
 
   `detail.reason` is one of `merge-blocks-not-mergeable`, `remove-list-item`,
-  `merge-list-items`, `delete-table-row`, `delete-table-col`. **Calling `preventDefault()` performs the edit
-  untracked** — if tracking could have represented it, there would have been
-  nothing to refuse. A custom command refuses the same way, through
-  `ctx.refuseStructural(reason)`; see EXTENSIBILITY.md.
+  `merge-list-items`, `delete-table-row`, `delete-table-col`.
+
+  **Calling `preventDefault()` performs the edit untracked** — if tracking could
+  have represented it, there would have been nothing to refuse — **except for
+  `merge-blocks-not-mergeable`, which is not overridable.** That one is about
+  valid DOM rather than review policy, and it fires with `trackChanges` **off**
+  as well, where "perform it untracked" means nothing: merging a list or a grid
+  table produces loose text as a direct child of a `<ul>`, or a mark that
+  becomes a grid item and shifts every `cellIndex`. The refusal event still
+  fires, so you can tell the user why nothing happened; the document is left
+  alone. A cross-block selection delete that hits it still deletes the selected
+  TEXT, tracked, and simply does not merge the remnants — the words are
+  representable, the paragraph break is not.
+
+  A custom command refuses the same way, through `ctx.refuseStructural(reason)`,
+  and its result IS honoured; see EXTENSIBILITY.md.
 
 - **no merge story.** Changes-as-content gets attribution, review and round-trip,
   but not collaborative merge. That needs an operation log, which is a larger

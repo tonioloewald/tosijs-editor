@@ -45,6 +45,11 @@
     "test:browser": "bun bin/test-browser.ts",
     "dev:stop": "bun bin/dev-stop.ts"
   },
+  "releaseDoctor": {
+    "attestedLanes": [
+      "test:browser"
+    ]
+  },
   "author": "Tonio Loewald",
   "license": "Apache-2.0",
   "peerDependencies": {

@@ -2619,3 +2619,226 @@ describe('a tracked merge over a footnote', () => {
     expect(ids.length).toBe(new Set(ids).size)
   })
 })
+
+/**
+ * M-2 from `reviews/0.6.0-pre-release.md`: `stickySelection` was a plain field
+ * assigned to the `Selectable` once, in `connectedCallback`. Every write after
+ * that was silently inert while its own JSDoc promised it "can be changed at
+ * any time" — so a host's "snap selection to words" toggle would have been a
+ * dead control, and the attribute form did nothing at all.
+ *
+ * Nothing caught it because every existing test sets
+ * `Selectable.stickySelection` directly, so the component seam was never
+ * crossed and deleting the forwarding line left the suite green. These tests
+ * cross it deliberately, in both directions.
+ */
+describe('stickySelection crosses the component seam', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  test('the default is touch, and it reaches the Selectable', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    expect(el.stickySelection).toBe('touch')
+    expect(el.selectable.stickySelection).toBe('touch')
+  })
+
+  // THE BUG. A write after connection used to update the component field and
+  // leave the Selectable on its old value.
+  test('a write AFTER connection reaches the Selectable', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.stickySelection = 'always'
+    expect(el.selectable.stickySelection).toBe('always')
+    el.stickySelection = 'never'
+    expect(el.selectable.stickySelection).toBe('never')
+  })
+
+  test('a write BEFORE connection survives connection', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    el.stickySelection = 'never'
+    expect(el.stickySelection).toBe('never')
+    container.appendChild(el)
+    expect(el.selectable.stickySelection).toBe('never')
+  })
+
+  test('the creator form works, which is how a host would set it', () => {
+    const el = tosijsStyledEditor({
+      stickySelection: 'always',
+    }) as TosijsStyledEditor
+    container.appendChild(el)
+    expect(el.selectable.stickySelection).toBe('always')
+  })
+
+  test('reading it back reports what the Selectable will actually do', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    // Set on the Selectable directly, as every other test in this file does.
+    // The component must not report a stale answer.
+    el.selectable.stickySelection = 'never'
+    expect(el.stickySelection).toBe('never')
+  })
+})
+
+/**
+ * M-1 from `reviews/0.6.0-pre-release.md`: the `merge-blocks-not-mergeable`
+ * refusal is **not overridable**, and now says so in one place.
+ *
+ * It was accidentally non-overridable, which is worse than either answer:
+ * `refuseIfUnmergeable` discarded `refuseStructural`'s return, and the only
+ * code that read it had become unreachable — by the time it ran, the guard had
+ * already proved the pair mergeable. So the code appeared to honour
+ * `preventDefault()` and could not, while README promised it performed the edit
+ * untracked. The three paths also disagreed: the selection path honoured the
+ * override by deleting raw and untracked, which lost tracking of everything
+ * that COULD be tracked and still did not merge.
+ *
+ * The contract follows from where the guard fires: it is about valid DOM, not
+ * review policy, and it fires with `trackChanges` OFF, where "perform it
+ * untracked" means nothing.
+ */
+describe('the unmergeable-blocks refusal is final', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  /**
+   * A list and a paragraph: the pair `canMergeBlocks` rejects.
+   *
+   * The ORDER depends on the key, so the gesture always reaches across the
+   * boundary from OUTSIDE the list. Delete from the end of the last `<li>` does
+   * not reach this code at all — the list-item handling takes it first — and
+   * that reads as "no refusal fired", which is how this fixture was wrong the
+   * first time.
+   */
+  const build = (tracking: boolean, key = 'Backspace'): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML =
+      key === 'Backspace'
+        ? '<ul><li>one</li><li>two</li></ul><p>Beta.</p>'
+        : '<p>Beta.</p><ul><li>one</li><li>two</li></ul>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = tracking
+    return el
+  }
+
+  const caretAt = (
+    el: TosijsStyledEditor,
+    node: Node,
+    offset: number
+  ): void => {
+    const range = document.createRange()
+    range.setStart(node, offset)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  /** The document with selection markers stripped, for byte comparison. */
+  const shape = (el: TosijsStyledEditor): string =>
+    el.parts.doc.innerHTML.replace(
+      /<span class="sel-(start|end)[^"]*"><\/span>/g,
+      ''
+    )
+
+  for (const tracking of [false, true]) {
+    for (const [key, where] of [
+      ['Backspace', 'start of the paragraph after a list'],
+      ['Delete', 'end of the paragraph before a list'],
+    ] as const) {
+      test(`${key} at the ${where} refuses even with preventDefault (tracking ${
+        tracking ? 'on' : 'off'
+      })`, () => {
+        const el = build(tracking, key)
+        const reasons: string[] = []
+        el.addEventListener('structural-edit-refused', (evt) => {
+          reasons.push((evt as CustomEvent).detail.reason)
+          evt.preventDefault()
+        })
+
+        const p = el.parts.doc.querySelector('p')!
+        const text = p.firstChild as Text
+        caretAt(el, text, key === 'Backspace' ? 0 : text.data.length)
+        const before = shape(el)
+        press(el, key)
+
+        // The refusal is announced — observability is not what changed.
+        expect(reasons).toEqual(['merge-blocks-not-mergeable'])
+        // And nothing happened, despite preventDefault().
+        expect(shape(el)).toBe(before)
+        expect(el.changes.length).toBe(0)
+      })
+    }
+  }
+
+  test('a cross-block selection delete stays TRACKED when refused, not raw', () => {
+    const el = build(true)
+    const lis = el.parts.doc.querySelectorAll('li')
+    const p = el.parts.doc.querySelector('p')!
+    // Select from inside the last list item into the paragraph.
+    el.selectable.removeBounds()
+    const start = document.createElement('span')
+    start.className = 'sel-start'
+    const end = document.createElement('span')
+    end.className = 'sel-end caret'
+    lis[lis.length - 1].appendChild(start)
+    p.appendChild(end)
+    el.selectable.extendSelection()
+
+    const reasons: string[] = []
+    el.addEventListener('structural-edit-refused', (evt) => {
+      reasons.push((evt as CustomEvent).detail.reason)
+      evt.preventDefault()
+    })
+
+    el.deleteSelection()
+    expect(reasons).toEqual(['merge-blocks-not-mergeable'])
+    // The words are representable even though the paragraph break is not, so
+    // they are MARKED rather than destroyed. The old override path deleted them
+    // raw with nothing in `changes` — and still did not merge.
+    expect(el.parts.doc.querySelectorAll('tosi-del').length).toBeGreaterThan(0)
+    expect(el.changes.length).toBeGreaterThan(0)
+    // Still two blocks: the merge did not happen, which is the refusal.
+    expect(el.parts.doc.querySelector('ul')).not.toBeNull()
+    expect(el.parts.doc.querySelector('p')).not.toBeNull()
+  })
+
+  test('a MERGEABLE pair is unaffected by the contract', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = true
+    const reasons: string[] = []
+    el.addEventListener('structural-edit-refused', (evt) =>
+      reasons.push((evt as CustomEvent).detail.reason)
+    )
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    caretAt(el, second.firstChild!, 0)
+    press(el, 'Backspace')
+    expect(reasons).toEqual([])
+    expect(el.parts.doc.querySelector('[data-block-insert]')).not.toBeNull()
+  })
+})
