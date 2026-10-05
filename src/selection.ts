@@ -462,21 +462,55 @@ export class Selectable {
    * "same measurement as a mouse drag" — true of `characterAtPoint`, false of
    * the sticky rule, and the comment is what made it look finished.
    */
-  private extendTo(x: number, y: number): void {
+  extendTo(x: number, y: number, which: 'start' | 'end' = 'end'): void {
     const hit = characterAtPoint(this.root, x, y)
-    const selEnd = this.find('.sel-end')
-    if (!hit || !selEnd) return
+    // `which` is the bound being DRAGGED. A finger or mouse dragging across
+    // text always moves the end; a touch affordance handle can move either.
+    const marker = this.find(which === 'start' ? '.sel-start' : '.sel-end')
+    if (!hit || !marker) return
     if (!this.extendSticky(hit, x, y)) {
       const range = document.createRange()
       range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
       range.collapse(true)
-      // insertNode MOVES selEnd: it is already in the document, so this
-      // relocates the existing marker rather than cloning it.
-      range.insertNode(selEnd)
+      // insertNode MOVES the marker: it is already in the document, so this
+      // relocates the existing one rather than cloning it.
+      range.insertNode(marker)
       this.root.normalize()
     }
     this.extendSelection()
     this.onBoundsChanged?.()
+  }
+
+  /**
+   * Begin dragging ONE existing bound, with the OTHER bound as the anchor —
+   * what a touch affordance handle does.
+   *
+   * This exists so a handle drag is the SAME gesture as a drag across text, and
+   * therefore gets the same stickiness. The component used to re-implement
+   * "move a bound to the character under the pointer" itself, which made it a
+   * third copy of the rule: once `Selectable`'s mouse and touch paths were
+   * sharing, the handles were the remaining path still doing it the old way, so
+   * a phone — where handles ARE how you adjust a selection — saw no snapping no
+   * matter what the two paths in here did.
+   *
+   * `touchMode` is set because a handle only exists as a result of touch, and
+   * `stickySelection: 'touch'` has to answer true for it.
+   */
+  beginBoundDrag(which: 'start' | 'end'): void {
+    const anchorEl = this.find(which === 'start' ? '.sel-end' : '.sel-start')
+    const block = anchorEl && this.topLevelAncestor(anchorEl)
+    this.selecting = 1
+    this.touchMode = true
+    this.dragAnchor =
+      anchorEl && block
+        ? { block, index: this.textOffsetOf(block, anchorEl) }
+        : null
+  }
+
+  /** End a handle drag, clearing the anchor as mouseup and touchend do. */
+  endBoundDrag(): void {
+    this.selecting = false
+    this.dragAnchor = null
   }
 
   /**

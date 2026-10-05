@@ -850,3 +850,135 @@ describe('touch listeners stay non-passive, for hybrid devices', () => {
     expect(sel.touchMode).toBe(false)
   })
 })
+
+/**
+ * A touch affordance handle drag is the SAME gesture as a drag across text, and
+ * the component delegates to `beginBoundDrag` + `extendTo` to keep it that way.
+ *
+ * It did not. The component had its own copy of "move a bound to the character
+ * under the pointer", so once the mouse and touch paths in here became sticky,
+ * the handles were the one path still doing it the old way — and on a phone the
+ * handles ARE how a selection is adjusted, so nothing a user did there snapped,
+ * no matter what the two paths inside `Selectable` did. Third copy of one rule.
+ */
+describe('a handle drag is sticky too', () => {
+  let root: HTMLElement
+  let sel: Selectable
+  let rangeProto: any
+  let realRect: () => DOMRect
+  let realRects: () => DOMRectList
+
+  const logical = (node: Node, offset: number): number => {
+    const block = root.querySelector('p')!
+    let seen = 0
+    let found: number | null = null
+    const walk = (n: Node): void => {
+      if (found !== null) return
+      if (n === node) {
+        found = seen + offset
+        return
+      }
+      if (n.nodeType === 3) {
+        seen += (n as Text).data.length
+        return
+      }
+      for (const c of Array.from(n.childNodes)) walk(c)
+    }
+    walk(block)
+    return found ?? offset
+  }
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    root.innerHTML = '<p>hello world</p>'
+    document.body.appendChild(root)
+    sel = new Selectable(root)
+    rangeProto = Object.getPrototypeOf(document.createRange())
+    realRect = rangeProto.getBoundingClientRect
+    realRects = rangeProto.getClientRects
+    const rect = function (this: Range) {
+      const a = logical(this.startContainer, this.startOffset)
+      const b = Math.max(logical(this.endContainer, this.endOffset), a + 1)
+      return {
+        left: a * 10,
+        right: b * 10,
+        top: 0,
+        bottom: 10,
+        width: (b - a) * 10,
+        height: 10,
+        x: a * 10,
+        y: 0,
+      } as DOMRect
+    }
+    rangeProto.getBoundingClientRect = rect
+    rangeProto.getClientRects = function (this: Range) {
+      return [rect.call(this)] as unknown as DOMRectList
+    }
+  })
+
+  afterEach(() => {
+    rangeProto.getBoundingClientRect = realRect
+    rangeProto.getClientRects = realRects
+    sel.destroy()
+    root.remove()
+  })
+
+  const selectedText = (): string => {
+    const block = root.querySelector('p')!
+    let out = ''
+    let inside = false
+    const walk = (n: Node): void => {
+      if (n instanceof Element) {
+        if (n.classList.contains('sel-start')) {
+          inside = true
+          return
+        }
+        if (n.classList.contains('sel-end')) {
+          inside = false
+          return
+        }
+      }
+      if (n.nodeType === 3) {
+        if (inside) out += (n as Text).data
+        return
+      }
+      for (const c of Array.from(n.childNodes)) walk(c)
+    }
+    walk(block)
+    return out
+  }
+
+  test('beginBoundDrag anchors on the OPPOSITE bound', () => {
+    sel.placeCaretAt(25, 5) // inside "hello"
+    sel.beginBoundDrag('end')
+    const anchor = (sel as any).dragAnchor
+    expect(anchor).not.toBeNull()
+    // The anchor is where .sel-start sits, i.e. inside "hello" (0..5).
+    expect(anchor.index).toBeLessThanOrEqual(5)
+    // A handle only exists because of touch, so the 'touch' default must apply.
+    expect(sel.touchMode).toBe(true)
+  })
+
+  test('dragging the END handle out of the anchor word snaps', () => {
+    sel.placeCaretAt(25, 5)
+    sel.beginBoundDrag('end')
+    sel.extendTo(85, 5, 'end') // into "world"
+    expect(selectedText()).toBe('hello world')
+  })
+
+  test("and respects stickySelection 'never'", () => {
+    sel.stickySelection = 'never'
+    sel.placeCaretAt(25, 5)
+    sel.beginBoundDrag('end')
+    sel.extendTo(85, 5, 'end')
+    expect(selectedText()).not.toBe('hello world')
+  })
+
+  test('endBoundDrag clears the anchor', () => {
+    sel.placeCaretAt(25, 5)
+    sel.beginBoundDrag('end')
+    expect((sel as any).dragAnchor).not.toBeNull()
+    sel.endBoundDrag()
+    expect((sel as any).dragAnchor).toBeNull()
+  })
+})

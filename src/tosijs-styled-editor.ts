@@ -123,7 +123,6 @@ import {
   previousLeafNode,
   leafNodes,
   topSingleParentAncestor,
-  characterAtPoint,
   caretGeometryAt,
   sanitizeInPlace,
   isSafeNavigationUrl,
@@ -4128,6 +4127,13 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       offsetY,
     })
 
+    // The OTHER bound becomes the anchor, which is what makes a handle drag the
+    // same gesture as a finger drag across text — and therefore sticky. Without
+    // this the handles were a third copy of "move a bound to the character
+    // under the pointer", and on a phone the handles are how a selection is
+    // adjusted, so nothing a user did there ever snapped.
+    this.selectable.beginBoundDrag(which)
+
     // Dismiss context menu when starting a drag
     this.hideTouchMenu()
 
@@ -4164,28 +4170,21 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Measured, not spanified. Dragging a selection handle used to wrap the
     // whole target block in per-character spans on every pointer move.
-    const hit = characterAtPoint(this.parts.doc, cursorX, cursorY)
-    if (!hit) return
+    //
+    // Delegated rather than done here: this used to be its own copy of "move a
+    // bound to the character under the pointer", so it stayed character-precise
+    // while the mouse and touch paths inside Selectable became sticky. One copy
+    // now, and the handle inherits whatever `stickySelection` says.
+    this.selectable.extendTo(cursorX, cursorY, drag.target)
+    this.selectable.markBounds()
 
-    const markerSelector = drag.target === 'start' ? '.sel-start' : '.sel-end'
-    const marker = this.parts.doc.querySelector(markerSelector)
-
-    if (marker) {
-      const range = document.createRange()
-      range.setStart(hit.node, hit.after ? hit.offset + 1 : hit.offset)
-      range.collapse(true)
-      range.insertNode(marker)
-      this.parts.doc.normalize()
-      this.selectable.markBounds()
-
-      // Just move the dragged handle to follow the pointer
-      const docRect = this.parts.doc.getBoundingClientRect()
-      const handle = evt.currentTarget as HTMLElement
-      const handleX = evt.clientX - docRect.left + this.parts.doc.scrollLeft
-      const handleY = evt.clientY - docRect.top + this.parts.doc.scrollTop
-      handle.style.left = `${handleX - 22}px`
-      handle.style.top = `${handleY - 22}px`
-    }
+    // Just move the dragged handle to follow the pointer
+    const docRect = this.parts.doc.getBoundingClientRect()
+    const handle = evt.currentTarget as HTMLElement
+    const handleX = evt.clientX - docRect.left + this.parts.doc.scrollLeft
+    const handleY = evt.clientY - docRect.top + this.parts.doc.scrollTop
+    handle.style.left = `${handleX - 22}px`
+    handle.style.top = `${handleY - 22}px`
 
     evt.preventDefault()
     evt.stopPropagation()
@@ -4200,6 +4199,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
     // Only despanify when all drags are done
     if (this.touchDrags.size === 0) {
+      // Clear the anchor, as mouseup and touchend do. A stale one would make
+      // the next gesture sticky to the word this drag anchored on.
+      this.selectable.endBoundDrag()
       this.selectable.despanify()
       this.selectable.selectionChanged()
       // Remove dragging class after reposition so handles settle with transition
