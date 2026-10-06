@@ -112,6 +112,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its single list entry.
 - **Rejecting a chain of merges left one stray empty paragraph per intermediate
   step**, in the document and in `value`.
+- **Delete in an empty block kept the block and pulled the NEXT block's content
+  into it**, leaving the caret at the start of what it had absorbed. An empty
+  block is residue — most often what a block-series delete just left behind — so
+  it now merges into the PREVIOUS block and the caret lands at its end, which is
+  what Backspace already did. The gesture's whole effect is that the block the
+  caret was in stops existing, so moving the caret forward made no sense. The
+  one exception is having no previous block, where the ordinary forward
+  behaviour stands.
 
 ## [0.5.2] - 2026-09-26
 

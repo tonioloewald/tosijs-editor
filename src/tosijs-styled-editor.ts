@@ -1294,29 +1294,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       top = top.parentElement
     }
 
-    // A survivor: a real block that is staying, skipping our own chrome. The
-    // affordance div is a sibling of every block, so a naive
-    // `nextElementSibling` parked the caret inside `.touch-affordances`, where
-    // `insertionPoint()` still answers non-null and the next keystroke builds
-    // text into UI furniture.
-    const survives = (el: Element | null): el is Element =>
-      !!el &&
-      !el.classList.contains('not-selectable') &&
-      !el.classList.contains('do-not-spanify') &&
-      !block.contains(el) &&
-      !el.contains(block)
-
-    const hop = (
-      from: Element,
-      step: (el: Element) => Element | null
-    ): Element | null => {
-      let el = step(from)
-      while (el && !survives(el)) el = step(el)
-      return el
-    }
+    // The containment guards the local version of this also applied are
+    // redundant for a SIBLING of `top`: `block` is inside `top`, so no sibling
+    // of `top` can contain it or be contained by it.
     const host =
-      hop(top, (el) => el.previousElementSibling) ??
-      hop(top, (el) => el.nextElementSibling)
+      this.siblingBlock(top, 'back') ?? this.siblingBlock(top, 'forward')
 
     for (const marker of markers) {
       // NEVER drop it. An editor with no insertion point accepts no input, and
@@ -3013,6 +2995,33 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.updateUndo('new', 'merge-blocks')
   }
 
+  /**
+   * The nearest sibling block in `direction`, skipping this editor's own chrome.
+   *
+   * The affordance div is a sibling of every block, not a descendant of one, so
+   * a naive `previousElementSibling`/`nextElementSibling` finds UI furniture —
+   * and did: it parked the caret inside `.touch-affordances`, where
+   * `insertionPoint()` still answers non-null and the next keystroke builds
+   * text into chrome. Extracted from `rescueCaretFrom`, which had the only
+   * copy, before adding a second caller.
+   */
+  private siblingBlock(
+    block: Element,
+    direction: 'back' | 'forward'
+  ): Element | null {
+    const step = (el: Element): Element | null =>
+      direction === 'back' ? el.previousElementSibling : el.nextElementSibling
+    let el = step(block)
+    while (
+      el &&
+      (el.classList.contains('not-selectable') ||
+        el.classList.contains('do-not-spanify'))
+    ) {
+      el = step(el)
+    }
+    return el
+  }
+
   /** Delete the character before the caret */
   private backspace(): void {
     if (!this.deleteSelection()) {
@@ -3067,6 +3076,39 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!this.deleteSelection()) {
       const ip = this.insertionPoint()
       if (!ip) return
+
+      // AN EMPTY BLOCK MERGES INTO THE PREVIOUS ONE, whichever key you press.
+      //
+      // An empty block is residue — most often what a block-series delete just
+      // left behind — so forward-deleting from it should REMOVE it and leave
+      // the caret at the end of the previous block, exactly as Backspace does.
+      // The generic forward path did the opposite: the empty block survived and
+      // the NEXT block's content was pulled into it, so `<p>First</p><p></p>
+      // <p>Third</p>` + Delete left `Third`'s text inside the empty block and
+      // the caret at its start. Moving the caret forward makes no sense for a
+      // gesture whose whole effect is that the block it was in stops existing.
+      //
+      // The one exception is having no previous block: there is nothing to
+      // merge into, so the normal forward behaviour stands.
+      const emptyBlock = this.block(ip)
+      const intoPrevious =
+        emptyBlock && blockIsEmpty(emptyBlock)
+          ? this.siblingBlock(emptyBlock, 'back')
+          : null
+      if (emptyBlock && intoPrevious) {
+        if (this.refuseIfUnmergeable(intoPrevious, emptyBlock)) return
+        if (this.trackChanges) {
+          this.mergeBlocksTracked(intoPrevious, emptyBlock)
+        } else {
+          // `mergeBlocksRaw` carries the bounds markers along, since they are
+          // children of the block being removed — which is what lands the caret
+          // at the end of the previous block rather than nowhere.
+          this.mergeBlocksRaw(intoPrevious, emptyBlock)
+          this.normalize()
+          this.updateUndo()
+        }
+        return
+      }
 
       const node = this.deletionTarget(ip, this.parts.doc, 'forward')
       if (!node) return

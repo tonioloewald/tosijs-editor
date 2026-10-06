@@ -3226,3 +3226,106 @@ describe('every change mark is stamped by one funnel', () => {
     expect(ins.getAttribute('data-session')).toBe(el.sessionId)
   })
 })
+
+/**
+ * Owner's rule (2026-10-06): an empty block merges into the PREVIOUS block
+ * whichever key you press, because the gesture's whole effect is that the block
+ * the caret was in stops existing — so moving the caret forward makes no sense.
+ * The one exception is having no previous block.
+ *
+ * Forward delete did the opposite: the empty block SURVIVED and the next
+ * block's content was pulled into it, so `<p>First</p><p></p><p>Third</p>` +
+ * Delete put `Third`'s text inside the empty block with the caret at its start.
+ * Backspace was already right, which is what made the pair worth aligning.
+ *
+ * Deliberately compact: forward delete is a key almost nobody presses outside
+ * PC and Unix habits, so this pins the rule and does not enumerate the space.
+ */
+describe('an empty block merges backwards, whichever key', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const build = (html: string): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = html
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    return el
+  }
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const caretIn = (el: TosijsStyledEditor, block: Element): void => {
+    el.selectable.removeBounds()
+    block.appendChild(el.selectable.createBounds())
+  }
+
+  /** `|` marks the caret, so the assertion covers WHERE it ended up. */
+  const shape = (el: TosijsStyledEditor): string =>
+    el.value
+      .replace(/<span class="sel-(start|end)[^"]*"><\/span>/g, '|')
+      .replace(/ class=""/g, '')
+      .replace(/\|\|/g, '|')
+
+  const blocks = (el: TosijsStyledEditor): Element[] => [
+    ...el.parts.doc.querySelectorAll('p,h1'),
+  ]
+
+  for (const key of ['Delete', 'Backspace'] as const) {
+    test(`${key} removes the empty block and lands at the end of the previous`, () => {
+      const el = build('<p>First</p><p></p><p>Third</p>')
+      caretIn(el, blocks(el)[1])
+      press(el, key)
+      expect(shape(el)).toBe('<p>First|</p><p>Third</p>')
+    })
+
+    test(`${key} keeps the previous block's TYPE and attributes`, () => {
+      const el = build('<h1 id="t">Head</h1><p></p>')
+      caretIn(el, blocks(el)[1])
+      press(el, key)
+      expect(shape(el)).toBe('<h1 id="t">Head|</h1>')
+    })
+  }
+
+  // THE EXCEPTION. Nothing to merge into, so the ordinary forward behaviour
+  // stands rather than the gesture doing nothing.
+  test('Delete in an empty FIRST block falls through to forward behaviour', () => {
+    const el = build('<p></p><p>Second</p>')
+    caretIn(el, blocks(el)[0])
+    press(el, 'Delete')
+    expect(el.parts.doc.textContent).toContain('Second')
+    expect(blocks(el).length).toBe(1)
+  })
+
+  test('Backspace in an empty FIRST block leaves the document alone', () => {
+    const el = build('<p></p><p>Second</p>')
+    caretIn(el, blocks(el)[0])
+    press(el, 'Backspace')
+    expect(blocks(el).length).toBe(2)
+  })
+
+  // And the rule must not swallow an ordinary forward delete.
+  test('Delete inside text still deletes one character', () => {
+    const el = build('<p>abc</p>')
+    const p = blocks(el)[0]
+    const range = document.createRange()
+    range.setStart(p.firstChild as Text, 1)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+    press(el, 'Delete')
+    expect(shape(el)).toBe('<p>a|c</p>')
+  })
+})
