@@ -143,7 +143,7 @@ import {
   unwrap,
   BLOCK_DELETE_ATTR,
   BLOCK_INSERT_ATTR,
-  safeAttributeValue,
+  stampMark,
 } from './changes'
 import {
   checkSpelling as runSpellCheck,
@@ -913,7 +913,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         if (!text.isConnected) continue
         const revised = await revise(text.data)
         if (typeof revised !== 'string') continue
-        total += applyRevision(text, revised, author)
+        total += applyRevision(text, revised, author, this.sessionId)
       }
     } finally {
       // A callback that throws or rejects half way used to escape past this,
@@ -1037,16 +1037,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!ip || ip.closest(DEL_TAG)) return null
     defineChanges()
     const ins = document.createElement(INS_TAG)
-    ins.setAttribute('data-change', changeId())
-    ins.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
-    if (this.changeAuthor.name) {
-      ins.setAttribute(
-        'data-author-name',
-        safeAttributeValue(this.changeAuthor.name)
-      )
-    }
-    ins.setAttribute('data-session', this.sessionId)
-    ins.setAttribute('data-time', new Date().toISOString())
+    this.stamp(ins)
 
     // NEVER nest one insertion inside another: `changes` would report two
     // overlapping ids and rejecting the outer would silently discard the
@@ -1159,16 +1150,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (asBlock && this.isFullyStruck(asBlock)) continue
 
       const del = document.createElement(DEL_TAG)
-      del.setAttribute('data-change', id)
-      del.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
-      if (this.changeAuthor.name) {
-        del.setAttribute(
-          'data-author-name',
-          safeAttributeValue(this.changeAuthor.name)
-        )
-      }
-      del.setAttribute('data-session', this.sessionId)
-      del.setAttribute('data-time', new Date().toISOString())
+      this.stamp(del, id)
 
       if (asBlock) {
         // Record that this mark stands for the WHOLE BLOCK, not just the text
@@ -1502,16 +1484,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // their replacement pending, which is not a document anyone proposed.
     const id = gestureId ?? changeId()
     const ins = document.createElement(INS_TAG)
-    ins.setAttribute('data-change', id)
-    ins.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
-    if (this.changeAuthor.name) {
-      ins.setAttribute(
-        'data-author-name',
-        safeAttributeValue(this.changeAuthor.name)
-      )
-    }
-    ins.setAttribute('data-session', this.sessionId)
-    ins.setAttribute('data-time', new Date().toISOString())
+    this.stamp(ins, id)
     ins.setAttribute(BLOCK_INSERT_ATTR, '')
 
     // Content first, marks second: striking the originals would otherwise put
@@ -1571,6 +1544,20 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     })
     // A host that calls preventDefault() is overriding the refusal.
     return this.dispatchEvent(evt)
+  }
+
+  /**
+   * Stamp a change mark as this editor, this session. One address, so the five
+   * that used to write these attributes by hand cannot drift again — and one of
+   * them already had (`reviews/0.6.0-dx-review.md`, M-3). The rule lives in
+   * `changes.ts`'s `stampMark`, beside the sanitizer it has to apply.
+   */
+  private stamp(el: Element, id?: string): string {
+    return stampMark(el, {
+      id,
+      author: this.changeAuthor,
+      session: this.sessionId,
+    })
   }
 
   /** Every tracked change, in document order. */
@@ -3945,18 +3932,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!marks.length) return
     const id = changeId()
     for (const mark of Array.from(marks)) {
-      mark.setAttribute('data-change', id)
-      mark.setAttribute('data-author', safeAttributeValue(this.changeAuthor.id))
-      if (this.changeAuthor.name) {
-        mark.setAttribute(
-          'data-author-name',
-          safeAttributeValue(this.changeAuthor.name)
-        )
-      } else {
-        mark.removeAttribute('data-author-name')
-      }
-      mark.setAttribute('data-session', this.sessionId)
-      mark.setAttribute('data-time', new Date().toISOString())
+      // RE-stamping, not stamping: the inbound mark may carry someone else's
+      // name, and `stampMark` only sets a name when there is one to set.
+      if (!this.changeAuthor.name) mark.removeAttribute('data-author-name')
+      this.stamp(mark, id)
       // Block scope is a property of a deletion THIS editor performed, not
       // something inbound markup gets to assert. kilpi is an attribute
       // blocklist, so `data-*` survives paste, drop and `value` verbatim — and

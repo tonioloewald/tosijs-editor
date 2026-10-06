@@ -117,18 +117,55 @@ export function safeAttributeValue(value: string): string {
   return value.replace(/[<>]/g, '')
 }
 
+/**
+ * Stamp a change mark with its attribution. **The only place that writes these
+ * attributes.**
+ *
+ * It exists because they were written at five addresses — four in the component
+ * (`openInsertion`, `trackDeletion`, `trackStructuralEdit`, `restampPastedChanges`)
+ * and `mark()` here — and the five drifted. `mark()` omitted `data-session`, so
+ * a `reviseWith()` mark attributed to the editor's own author carried no
+ * session, the "is this insertion MINE, from THIS session?" predicate could
+ * never answer true for it, and typing over your own revision nested a second
+ * change inside it instead of un-typing it.
+ *
+ * That is the shape this file already documents one screen above: the 0.5.1
+ * attribute-injection fix covered four of five write sites and shipped still
+ * exploitable through the fifth, and the conclusion recorded there was that a
+ * guard belongs at the layer every writer shares. The guard was moved and the
+ * five writers were not. (`reviews/0.6.0-dx-review.md`, M-3.)
+ *
+ * `id` is generated when not given, so a caller that needs one gesture to be
+ * one change passes the id it already minted.
+ */
+export function stampMark(
+  el: Element,
+  attribution: { id?: string; author: ChangeAuthor; session: string }
+): string {
+  const id = attribution.id ?? changeId()
+  el.setAttribute('data-change', id)
+  el.setAttribute('data-author', safeAttributeValue(attribution.author.id))
+  if (attribution.author.name) {
+    el.setAttribute(
+      'data-author-name',
+      safeAttributeValue(attribution.author.name)
+    )
+  }
+  // Sanitized like the rest even though it is machine-generated: the guard
+  // belongs to the seam, not to an argument about which callers are trusted.
+  el.setAttribute('data-session', safeAttributeValue(attribution.session))
+  el.setAttribute('data-time', new Date().toISOString())
+  return id
+}
+
 function mark(
   kind: 'insert' | 'delete',
   text: string,
-  author: ChangeAuthor
+  author: ChangeAuthor,
+  session: string
 ): HTMLElement {
   const el = document.createElement(kind === 'insert' ? INS_TAG : DEL_TAG)
-  el.setAttribute('data-change', changeId())
-  el.setAttribute('data-author', safeAttributeValue(author.id))
-  if (author.name) {
-    el.setAttribute('data-author-name', safeAttributeValue(author.name))
-  }
-  el.setAttribute('data-time', new Date().toISOString())
+  stampMark(el, { author, session })
   el.textContent = text
   return el
 }
@@ -277,7 +314,8 @@ export function diffWords(before: string, after: string): DiffOp[] {
 export function applyRevision(
   node: Text,
   revised: string,
-  author: ChangeAuthor
+  author: ChangeAuthor,
+  session: string
 ): number {
   const ops = diffWords(node.data, revised)
   if (!ops.some((o) => o.op !== 'same')) return 0
@@ -289,7 +327,7 @@ export function applyRevision(
     if (op.op === 'same') {
       fragment.appendChild(document.createTextNode(op.text))
     } else {
-      fragment.appendChild(mark(op.op, op.text, author))
+      fragment.appendChild(mark(op.op, op.text, author, session))
       changes++
     }
   }

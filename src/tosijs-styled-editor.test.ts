@@ -3108,3 +3108,121 @@ describe('the footnote duplicate-key repair keeps authored text', () => {
     ).toEqual(['Footnote text'])
   })
 })
+
+/**
+ * M-3 from `reviews/0.6.0-dx-review.md`: the attribution stamp was written by
+ * hand at five addresses, and they drifted. `changes.ts`'s `mark()` — the
+ * `reviseWith` path — omitted `data-session`, so a revision attributed to the
+ * editor's own author carried no session, the "is this insertion mine, from
+ * THIS session?" predicate could never answer true for it, and typing over your
+ * own revision nested a second change inside it instead of un-typing it.
+ *
+ * This file already records the same shape one release earlier: the 0.5.1
+ * attribute-injection fix covered four of five write sites and shipped still
+ * exploitable through the fifth. The conclusion then was that a guard belongs
+ * at the layer every writer shares. The guard moved; the writers did not.
+ *
+ * `stampMark` is now the only thing that writes these attributes — asserted
+ * here per-path rather than by grepping, because "I grepped and found them all"
+ * is exactly what was wrong last time.
+ */
+describe('every change mark is stamped by one funnel', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const caretIn = (el: TosijsStyledEditor, offset: number): void => {
+    const p = el.parts.doc.querySelector('p')!
+    const range = document.createRange()
+    range.setStart(p.firstChild as Text, offset)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  const build = (): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = '<p>one two three</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = true
+    return el
+  }
+
+  /** The attributes every mark must carry, whichever path produced it. */
+  const attribution = (mark: Element): Record<string, string | null> => ({
+    change: mark.getAttribute('data-change'),
+    author: mark.getAttribute('data-author'),
+    name: mark.getAttribute('data-author-name'),
+    session: mark.getAttribute('data-session'),
+    time: mark.getAttribute('data-time'),
+  })
+
+  const complete = (mark: Element, session: string): void => {
+    const a = attribution(mark)
+    expect(a.change).toBeTruthy()
+    expect(a.author).toBe('alex')
+    expect(a.name).toBe('Alex')
+    expect(a.session).toBe(session)
+    expect(a.time).toBeTruthy()
+  }
+
+  test('a tracked deletion is fully stamped', () => {
+    const el = build()
+    caretIn(el, 3)
+    press(el, 'Backspace')
+    const del = el.parts.doc.querySelector('tosi-del')!
+    complete(del, el.sessionId)
+  })
+
+  test('a structural merge proposal is fully stamped', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = true
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    const range = document.createRange()
+    range.setStart(second.firstChild as Text, 0)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+    press(el, 'Backspace')
+    const ins = el.parts.doc.querySelector('[data-block-insert]')!
+    complete(ins, el.sessionId)
+  })
+
+  // THE DRIFT. This is the path that omitted data-session.
+  test('a reviseWith mark carries the session too', async () => {
+    const el = build()
+    await el.reviseWith(async (text) => text.replace('two', 'TWO'))
+    const marks = [...el.parts.doc.querySelectorAll('tosi-ins, tosi-del')]
+    expect(marks.length).toBeGreaterThan(0)
+    for (const mark of marks) complete(mark, el.sessionId)
+  })
+
+  test('and so its insertion is recognised as MINE, this session', async () => {
+    const el = build()
+    await el.reviseWith(async (text) => text.replace('two', 'TWO'))
+    const ins = el.parts.doc.querySelector('tosi-ins')!
+    // The consequence the missing session caused: the predicate behind
+    // "typing at the edge of my own insertion appends to it" is a comparison
+    // of data-author + data-session against this editor. With no session it
+    // could never match, so the mark was treated as someone else's.
+    expect(ins.getAttribute('data-author')).toBe(el.changeAuthor.id)
+    expect(ins.getAttribute('data-session')).toBe(el.sessionId)
+  })
+})
