@@ -2801,6 +2801,46 @@ describe('the unmergeable-blocks refusal is final', () => {
     }
   }
 
+  // M-2: the selection path's refusal sat BELOW the `!trackChanges` early
+  // return, so with the shipped default the same gesture dispatched nothing.
+  // The keystroke cases above loop over both modes; this one did not, which is
+  // why it was invisible. Nothing was destroyed — the observability was.
+  for (const tracking of [false, true]) {
+    test(`a cross-block selection delete announces the refusal (tracking ${
+      tracking ? 'on' : 'off'
+    })`, () => {
+      const el = build(tracking)
+      const lis = el.parts.doc.querySelectorAll('li')
+      const p = el.parts.doc.querySelector('p')!
+      el.selectable.removeBounds()
+      const start = document.createElement('span')
+      start.className = 'sel-start'
+      const end = document.createElement('span')
+      end.className = 'sel-end caret'
+      lis[lis.length - 1].appendChild(start)
+      p.appendChild(end)
+      el.selectable.extendSelection()
+
+      const reasons: string[] = []
+      el.addEventListener('structural-edit-refused', (evt) =>
+        reasons.push((evt as CustomEvent).detail.reason)
+      )
+      el.deleteSelection()
+      expect(reasons).toEqual(['merge-blocks-not-mergeable'])
+
+      // And the bad merge still does not happen — asserted as the thing the
+      // guard exists to PREVENT rather than as block survival. Untracked, the
+      // fully selected `<p>` is emptied and goes, which is the delete doing its
+      // job, not a merge; the list is what must not absorb loose text.
+      const list = el.parts.doc.querySelector('ul')
+      expect(list).not.toBeNull()
+      const looseText = [...list!.childNodes].some(
+        (n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== ''
+      )
+      expect(looseText).toBe(false)
+    })
+  }
+
   test('a cross-block selection delete stays TRACKED when refused, not raw', () => {
     const el = build(true)
     const lis = el.parts.doc.querySelectorAll('li')
@@ -3327,5 +3367,87 @@ describe('an empty block merges backwards, whichever key', () => {
     range.insertNode(el.selectable.createBounds())
     press(el, 'Delete')
     expect(shape(el)).toBe('<p>a|c</p>')
+  })
+})
+
+/**
+ * M-5 from `reviews/0.6.0-dx-review.md`: no-opping all three delegations in
+ * `handleAffordanceDragStart`/`Move`/`End` left the suite at a byte-identical
+ * 363 pass / 0 fail. `src/selection.test.ts` proves the `Selectable` methods
+ * and never that the component calls them — the same uncrossed seam that let
+ * `stickySelection` be write-once.
+ *
+ * The regression it guards is the originally reported bug returning on the one
+ * device where handles ARE how a selection is adjusted, so the mutation being
+ * invisible mattered more here than the line count suggests.
+ */
+describe('the affordance handles delegate to Selectable', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const build = (): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    // Through `value`, NOT `parts.doc.innerHTML`: the affordance elements are
+    // children of the doc element, and assigning innerHTML directly destroys
+    // them. `docHTML` detaches and re-attaches them for exactly this reason.
+    // (Writing it the other way made this whole describe fail with the handles
+    // simply absent, which reads like the delegation being gone.)
+    el.value = '<p>one two three</p>'
+    const p = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    p.appendChild(el.selectable.createBounds())
+    return el
+  }
+
+  /** happy-dom has no PointerEvent capture; the handler reads only these. */
+  const pointer = (type: string, target: Element): Event => {
+    const evt = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(evt, 'pointerId', { value: 1 })
+    Object.defineProperty(evt, 'clientX', { value: 50 })
+    Object.defineProperty(evt, 'clientY', { value: 5 })
+    Object.defineProperty(evt, 'currentTarget', { value: target })
+    return evt
+  }
+
+  const handleFor = (
+    el: TosijsStyledEditor,
+    which: 'start' | 'end'
+  ): Element => {
+    const handle = el.parts.doc.querySelector(`.touch-handle-${which}`)!
+    // setPointerCapture / releasePointerCapture are not implemented here.
+    ;(handle as any).setPointerCapture = (): void => {}
+    ;(handle as any).releasePointerCapture = (): void => {}
+    return handle
+  }
+
+  for (const which of ['start', 'end'] as const) {
+    test(`a pointerdown on the ${which} handle sets Selectable's drag anchor`, () => {
+      const el = build()
+      expect((el.selectable as any).dragAnchor).toBeNull()
+      const handle = handleFor(el, which)
+      handle.dispatchEvent(pointer('pointerdown', handle))
+      // beginBoundDrag's observable effects: an anchor exists, and touchMode is
+      // on because a handle only exists as a result of touch.
+      expect((el.selectable as any).dragAnchor).not.toBeNull()
+      expect(el.selectable.touchMode).toBe(true)
+    })
+  }
+
+  test('a pointerup clears it, so the next gesture is not sticky to this one', () => {
+    const el = build()
+    const handle = handleFor(el, 'end')
+    handle.dispatchEvent(pointer('pointerdown', handle))
+    expect((el.selectable as any).dragAnchor).not.toBeNull()
+    handle.dispatchEvent(pointer('pointerup', handle))
+    expect((el.selectable as any).dragAnchor).toBeNull()
   })
 })

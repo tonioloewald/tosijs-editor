@@ -3167,21 +3167,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // the group is atomic: accepting removes the blocks and their contents
     // together, rejecting unwraps outer then inner and restores everything.
     const crossesBlocks = blocks.length > 1
-    if (!this.trackChanges || !crossesBlocks) {
-      return this.runDeleteSelection(blocks, 'raw')
-    }
 
     // ASK FIRST, BEFORE ANYTHING IS MUTATED — the ends are the blocks whose
     // remnants get merged, so they are the ones whose pending changes matter.
-    const ends = [blocks[0], blocks[blocks.length - 1]]
-    if (!this.canMergeBlocks(ends)) {
-      // The refusal is final here too, and the text deletion still happens
-      // TRACKED with no merge — the words are representable, the paragraph
-      // break is not. Overriding used to drop to a raw untracked delete, which
-      // lost tracking of everything that could be tracked and STILL did not
-      // merge, because `runDeleteSelection` re-rejects the pair: the override
-      // destroyed more and achieved nothing it was invoked for.
-      this.refuseMerge()
+    //
+    // ABOVE the tracking check, so the refusal is announced in BOTH modes. The
+    // guard is about valid DOM and fires with tracking off on the keystroke
+    // paths, which is what README promises and `refuseMerge`'s own comment
+    // says — but here it sat BELOW the `!trackChanges` early return and was
+    // simply unreachable in the default mode. Same DOM, same gesture: tracking
+    // on dispatched `merge-blocks-not-mergeable`, tracking off dispatched
+    // nothing, on the commonest gesture in this class
+    // (`reviews/0.6.0-dx-review.md`, M-2). Nothing was destroyed — the
+    // observability was.
+    const ends = crossesBlocks ? [blocks[0], blocks[blocks.length - 1]] : null
+    const unmergeable = !!ends && !this.canMergeBlocks(ends)
+    if (unmergeable) this.refuseMerge()
+
+    if (!this.trackChanges || !crossesBlocks) {
+      // Untracked: `'raw'` still re-checks mergeability before merging, so an
+      // unmergeable pair deletes its text and leaves the blocks alone, exactly
+      // as before. Only the event is new.
+      return this.runDeleteSelection(blocks, 'raw')
+    }
+
+    if (unmergeable) {
+      // The refusal is final, and the text deletion still happens TRACKED with
+      // no merge — the words are representable, the paragraph break is not.
+      // Overriding used to drop to a raw untracked delete, which lost tracking
+      // of everything that could be tracked and STILL did not merge, because
+      // `runDeleteSelection` re-rejects the pair: the override destroyed more
+      // and achieved nothing it was invoked for.
       return this.runDeleteSelection(blocks, 'none')
     }
     return this.runDeleteSelection(blocks, 'tracked')
