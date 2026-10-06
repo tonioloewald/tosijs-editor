@@ -150,6 +150,16 @@ const MUTATIONS: Mutation[] = [
     expect: ['crosses the component seam'],
   },
   {
+    name: 'a cross-block merge is REFUSED unless trackStructuralEdits is on',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    if (this.trackStructuralEdits) return true
+    this.refuseStructural(reason)
+    return false`,
+    replace: `    void reason
+    return true`,
+    expect: ['cross-block merge is refused'],
+  },
+  {
     name: 'sticky selection measures PER LINE BOX, not the union rect',
     file: 'src/selection.ts',
     find: `    for (const r of Array.from(range.getClientRects())) {`,

@@ -945,6 +945,37 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   trackChanges = false
 
   /**
+   * Record a cross-block merge as *blocks out, blocks in* instead of refusing
+   * it. **OFF in 0.6.0, and that is a release decision rather than a default.**
+   *
+   * The representation is sound and the primitive is tested, but RESOLUTION has
+   * a confirmed defect: `trackStructuralEdit` asks `trackDeletion` to strike
+   * each outgoing block, `trackDeletion` silently declines any block with
+   * nothing to mark (empty, inline-wrapper-only, or already fully struck), and
+   * nothing reconciles the decline — so accepting such a merge leaves that
+   * block standing and anchors the replacement after it:
+   *
+   *     <p>First</p><p></p><p>Third</p>  + Delete in the empty block
+   *       tracking off          → <p>First|</p><p>Third</p>
+   *       tracking on, accepted → <p></p><p>First|</p><p>Third</p>
+   *
+   * A flag about REVIEW deciding document structure is the one class this
+   * release spent five correctness rounds eliminating, so the feature waits for
+   * 0.7.0 rather than shipping reachable (board #3107). `rejectChanges()` is
+   * correct; accept is the broken half.
+   *
+   * With it off, a cross-block merge is REFUSED while tracking — `0.5.x`'s
+   * behaviour — through `merge-blocks-backward`, `merge-blocks-forward` and
+   * `merge-blocks-selection`. Unlike 0.5.x those refusals are not overridable,
+   * for the same reason `merge-blocks-not-mergeable` is not: an override that
+   * half-applies a gesture is what three earlier rounds kept producing.
+   *
+   * Turning it on is supported for working ON the feature. It is not a
+   * supported configuration for a document you care about.
+   */
+  trackStructuralEdits = false
+
+  /**
    * When a drag selection snaps to word boundaries: `'touch'` (the default),
    * `'always'` or `'never'`.
    *
@@ -2988,6 +3019,19 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     later.remove()
   }
 
+  /**
+   * Should this gesture be RECORDED structurally, or refused?
+   *
+   * One address, so the four dispatch sites cannot disagree — which is the
+   * failure this release spent five rounds on. `reason` is the 0.5.x refusal
+   * string for the gesture, so a host's existing handler keeps working.
+   */
+  private mayTrackStructurally(reason: string): boolean {
+    if (this.trackStructuralEdits) return true
+    this.refuseStructural(reason)
+    return false
+  }
+
   private mergeBlocksTracked(earlier: Element, later: Element): void {
     this.trackStructuralEdit([earlier, later])
     this.normalize()
@@ -3049,6 +3093,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (this.refuseIfUnmergeable(deletionBlock, caretBlock)) return
 
       if (this.trackChanges && crossesBlocks) {
+        if (!this.mayTrackStructurally('merge-blocks-backward')) return
         // Backspace looks BACK, so the deletion target is the earlier block.
         this.mergeBlocksTracked(deletionBlock as Element, caretBlock as Element)
         return
@@ -3098,6 +3143,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (emptyBlock && intoPrevious) {
         if (this.refuseIfUnmergeable(intoPrevious, emptyBlock)) return
         if (this.trackChanges) {
+          if (!this.mayTrackStructurally('merge-blocks-forward')) return
           this.mergeBlocksTracked(intoPrevious, emptyBlock)
         } else {
           // `mergeBlocksRaw` carries the bounds markers along, since they are
@@ -3126,6 +3172,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
       if (this.trackChanges && crossesBlocks) {
         // Delete looks FORWARD, so the caret's block is the earlier one.
+        if (!this.mayTrackStructurally('merge-blocks-forward')) return
         this.mergeBlocksTracked(caretBlock as Element, deletionBlock as Element)
         return
       }
@@ -3198,6 +3245,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // of everything that could be tracked and STILL did not merge, because
       // `runDeleteSelection` re-rejects the pair: the override destroyed more
       // and achieved nothing it was invoked for.
+      return this.runDeleteSelection(blocks, 'none')
+    }
+    if (!this.mayTrackStructurally('merge-blocks-selection')) {
+      // The text is still deleted and still MARKED — only the merge is
+      // refused, as in 0.5.x. The words are representable; the paragraph break
+      // is what has no mark until 0.7.0.
       return this.runDeleteSelection(blocks, 'none')
     }
     return this.runDeleteSelection(blocks, 'tracked')

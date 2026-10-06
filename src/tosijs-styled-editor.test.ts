@@ -1089,6 +1089,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>hello world</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const p = el.parts.doc.querySelector('p')!
       p.appendChild(el.selectable.createBounds())
       return el
@@ -1202,6 +1203,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>hello world</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const p = el.parts.doc.querySelector('p')!
       const text = p.firstChild as Text
       const range = document.createRange()
@@ -1232,6 +1234,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>one</p><p>two</p><p>three</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const middle = el.parts.doc.querySelectorAll('p')[1] as HTMLElement
       middle.classList.add('selected-block')
 
@@ -1264,6 +1267,7 @@ describe('TosijsStyledEditor', () => {
         el.parts.doc.innerHTML = '<p>one</p><p>two</p><p>three</p>'
         el.changeAuthor = { id: 'alex', name: 'Alex' }
         el.trackChanges = true
+        el.trackStructuralEdits = true
         ;(el.parts.doc.querySelectorAll('p')[1] as HTMLElement).classList.add(
           'selected-block'
         )
@@ -1327,6 +1331,7 @@ describe('TosijsStyledEditor', () => {
         name: 'A</style><img src=x onerror=boom()>',
       }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const style = el.parts.doc.querySelector('style')!
       const range = document.createRange()
       range.setStart(style.firstChild as Text, (style.textContent || '').length)
@@ -1456,6 +1461,7 @@ describe('TosijsStyledEditor', () => {
         '<p><tosi-ins data-change="c1" data-author="sam" data-session="other"><b>quick</b></tosi-ins></p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const b = el.parts.doc.querySelector('b')!
       const range = document.createRange()
       range.setStart(b.firstChild as Text, 5) // caret at the END of "quick"
@@ -1497,6 +1503,7 @@ describe('TosijsStyledEditor', () => {
         el.parts.doc.innerHTML = `<p><tosi-ins data-change="c1" data-author="sam" data-session="other">keep${html}</tosi-ins></p>`
         el.changeAuthor = { id: 'alex', name: 'Alex' }
         el.trackChanges = true
+        el.trackStructuralEdits = true
         const mark = el.parts.doc.querySelector('tosi-ins')!
         const range = document.createRange()
         range.setStart(mark.firstChild as Text, 4) // between "keep" and the element
@@ -1520,6 +1527,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>the <b>quick</b> brown</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const p = el.parts.doc.querySelector('p')!
       for (const node of [...p.childNodes]) {
         const span = document.createElement('span')
@@ -1557,6 +1565,7 @@ describe('TosijsStyledEditor', () => {
         '<p>keep<tosi-del data-change="c1" data-author="sam">gone</tosi-del></p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const p = el.parts.doc.querySelector('p')!
       p.appendChild(el.selectable.createBounds())
 
@@ -1576,6 +1585,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>one</p><p>two</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const first = el.parts.doc.querySelector('p')!
       const text = first.firstChild as Text
       const span = document.createElement('span')
@@ -1600,6 +1610,7 @@ describe('TosijsStyledEditor', () => {
         '<p>A<tosi-ins data-change="c1" data-author="sam" data-session="other">QUICKBROWN</tosi-ins>Z</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const mark = el.parts.doc.querySelector('tosi-ins')!
       const range = document.createRange()
       range.setStart(mark.firstChild as Text, 5) // between QUICK and BROWN
@@ -1626,6 +1637,7 @@ describe('TosijsStyledEditor', () => {
         '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a1</li><li>b1</li><li>SECRET</li><li>b2</li></ul>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const cells = [...el.parts.doc.querySelectorAll('li')]
       cells[2].appendChild(el.selectable.createBounds())
 
@@ -1688,6 +1700,7 @@ describe('TosijsStyledEditor', () => {
         '<ul class="editor-table" style="grid-template-columns: 1fr 1fr"><li>a1</li><li>b1</li><li>SECRET</li><li>b2</li></ul>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const cells = [...el.parts.doc.querySelectorAll('li')]
       cells[2].appendChild(el.selectable.createBounds())
       el.addEventListener('structural-edit-refused', (e) => e.preventDefault())
@@ -1725,6 +1738,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       return el
     }
     const caretAtStartOfSecond = (el: TosijsStyledEditor): void => {
@@ -1803,6 +1817,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>keep1 cut1</p><p>cut2 keep2</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const ps = [...el.parts.doc.querySelectorAll('p')]
       ps[0].classList.add('selected-block', 'first-block')
       ps[1].classList.add('selected-block', 'last-block')
@@ -1843,6 +1858,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>keep1 cut1</p><p>cut2 keep2</p>'
       el.changeAuthor = { id: 'alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const ps = [...el.parts.doc.querySelectorAll('p')]
       ps[0].classList.add('selected-block', 'first-block')
       ps[1].classList.add('selected-block', 'last-block')
@@ -1875,6 +1891,7 @@ describe('TosijsStyledEditor', () => {
       el.parts.doc.innerHTML = '<p>Alpha.</p>'
       el.changeAuthor = { id: 'alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       el.parts.doc.querySelector('p')!.appendChild(el.selectable.createBounds())
       type(el, 'xy')
       el.rejectChanges()
@@ -1953,6 +1970,7 @@ describe('TosijsStyledEditor', () => {
         '<p>Alpha.</p><p><tosi-ins data-change="c1" data-author="sam" data-session="s9">theirs </tosi-ins>Beta.</p>'
       el.changeAuthor = { id: 'alex', name: 'Alex' }
       el.trackChanges = true
+      el.trackStructuralEdits = true
       const seen: string[] = []
       el.addEventListener('structural-edit-refused', (e) => {
         seen.push((e as CustomEvent).detail.reason)
@@ -2008,6 +2026,7 @@ describe('TosijsStyledEditor', () => {
         el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
         el.changeAuthor = { id: 'alex', name: 'Alex' }
         el.trackChanges = true
+        el.trackStructuralEdits = true
         const at = (p: Element): void => {
           const range = document.createRange()
           range.setStart(p.firstChild as Text, 0)
@@ -2086,6 +2105,7 @@ describe('TosijsStyledEditor', () => {
         el.parts.doc.innerHTML = `${before}<p>Beta.</p>`
         el.changeAuthor = { id: 'alex' }
         el.trackChanges = true
+        el.trackStructuralEdits = true
         const seen: string[] = []
         el.addEventListener('structural-edit-refused', (e) => {
           seen.push((e as CustomEvent).detail.reason)
@@ -2538,6 +2558,7 @@ describe('a tracked merge over a footnote', () => {
     el: TosijsStyledEditor
   ): Promise<void> => {
     el.trackChanges = true
+    el.trackStructuralEdits = true
     atStartOfSecondParagraph(el)
     press(el, 'Backspace')
     await flush()
@@ -2879,6 +2900,7 @@ describe('the unmergeable-blocks refusal is final', () => {
     el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
     el.changeAuthor = { id: 'alex', name: 'Alex' }
     el.trackChanges = true
+    el.trackStructuralEdits = true
     const reasons: string[] = []
     el.addEventListener('structural-edit-refused', (evt) =>
       reasons.push((evt as CustomEvent).detail.reason)
@@ -3051,6 +3073,7 @@ describe('resolving a chain of merges leaves no residue', () => {
     el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p><p>Gamma.</p>'
     el.changeAuthor = { id: 'alex', name: 'Alex' }
     el.trackChanges = true
+    el.trackStructuralEdits = true
     caretAtStartOf(el, 'Beta.')
     press(el, 'Backspace')
     caretAtStartOf(el, 'Gamma.')
@@ -3199,6 +3222,7 @@ describe('every change mark is stamped by one funnel', () => {
     el.parts.doc.innerHTML = '<p>one two three</p>'
     el.changeAuthor = { id: 'alex', name: 'Alex' }
     el.trackChanges = true
+    el.trackStructuralEdits = true
     return el
   }
 
@@ -3234,6 +3258,7 @@ describe('every change mark is stamped by one funnel', () => {
     el.parts.doc.innerHTML = '<p>Alpha.</p><p>Beta.</p>'
     el.changeAuthor = { id: 'alex', name: 'Alex' }
     el.trackChanges = true
+    el.trackStructuralEdits = true
     const second = el.parts.doc.querySelectorAll('p')[1]
     const range = document.createRange()
     range.setStart(second.firstChild as Text, 0)
@@ -3575,6 +3600,7 @@ describe('a cross-block selection delete keeps the FIRST block', () => {
     el.value = html
     el.changeAuthor = { id: 'alex', name: 'Alex' }
     el.trackChanges = tracking
+    el.trackStructuralEdits = tracking
     const restore = installGeometry(el)
     const doc = el.parts.doc
     doc.dispatchEvent(
@@ -3676,5 +3702,157 @@ describe('a cross-block selection delete keeps the FIRST block', () => {
       false
     )
     expect(clean(el)).toBe('<p>A <b>BB</b>|</p>')
+  })
+})
+
+/**
+ * WHAT 0.6.0 ACTUALLY SHIPS: with `trackChanges` on and `trackStructuralEdits`
+ * off — the default — a cross-block merge is REFUSED, as in 0.5.x.
+ *
+ * The feature is gated rather than deleted because its representation is sound
+ * and only resolution is wrong: `trackStructuralEdit` asks `trackDeletion` to
+ * strike each outgoing block, `trackDeletion` declines any block with nothing
+ * to mark, and nothing reconciles the decline — so accepting left that block
+ * standing and anchored the replacement after it. A flag about REVIEW deciding
+ * document structure is the class this release spent five correctness rounds
+ * eliminating, so it waits for 0.7.0 (board #3107).
+ *
+ * These tests are the ones that matter for the release: they assert the
+ * DEFAULT. The structural-tracking describes above all set the flag, which is
+ * exactly why the default needed its own coverage — 25 fixtures turned the
+ * feature on and nothing exercised it off.
+ */
+describe('with the default flags, a cross-block merge is refused', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const build = (html: string): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = html
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = true
+    // trackStructuralEdits deliberately NOT set — this is the shipped default.
+    return el
+  }
+
+  const shape = (el: TosijsStyledEditor): string =>
+    el.value
+      .replace(/<span class="sel-[^"]*"><\/span>/g, '|')
+      .replace(/ class=""/g, '')
+      .replace(/\|\|/g, '|')
+
+  const caretAtStartOfSecond = (el: TosijsStyledEditor): void => {
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    const range = document.createRange()
+    range.setStart(second.firstChild as Text, 0)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+  }
+
+  test('the flag is off by default', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    expect(el.trackStructuralEdits).toBe(false)
+  })
+
+  test('Backspace across a block boundary refuses and changes nothing', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    const reasons: string[] = []
+    el.addEventListener('structural-edit-refused', (evt) =>
+      reasons.push((evt as CustomEvent).detail.reason)
+    )
+    caretAtStartOfSecond(el)
+    const before = shape(el)
+    press(el, 'Backspace')
+    // 0.5.x's reason string, so an existing host handler keeps working.
+    expect(reasons).toEqual(['merge-blocks-backward'])
+    expect(shape(el)).toBe(before)
+    expect(el.changes.length).toBe(0)
+  })
+
+  test('Delete at the end of a block refuses with the forward reason', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    const reasons: string[] = []
+    el.addEventListener('structural-edit-refused', (evt) =>
+      reasons.push((evt as CustomEvent).detail.reason)
+    )
+    const first = el.parts.doc.querySelector('p')!
+    const range = document.createRange()
+    range.setStart(first.firstChild as Text, 5)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+    const before = shape(el)
+    press(el, 'Delete')
+    expect(reasons).toEqual(['merge-blocks-forward'])
+    expect(shape(el)).toBe(before)
+    expect(el.changes.length).toBe(0)
+  })
+
+  // The case that produced the blocker: an empty block has nothing to strike.
+  test('an empty block refuses too, rather than resolving wrongly', () => {
+    const el = build('<p>First</p><p></p><p>Third</p>')
+    const reasons: string[] = []
+    el.addEventListener('structural-edit-refused', (evt) =>
+      reasons.push((evt as CustomEvent).detail.reason)
+    )
+    const empty = el.parts.doc.querySelectorAll('p')[1]
+    el.selectable.removeBounds()
+    empty.appendChild(el.selectable.createBounds())
+    press(el, 'Delete')
+    expect(reasons.length).toBe(1)
+    // Three blocks still, and no change recorded: nothing to resolve wrongly.
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(3)
+    expect(el.changes.length).toBe(0)
+  })
+
+  test('the refusal is not overridable, as with merge-blocks-not-mergeable', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    el.addEventListener('structural-edit-refused', (evt) =>
+      evt.preventDefault()
+    )
+    caretAtStartOfSecond(el)
+    const before = shape(el)
+    press(el, 'Backspace')
+    expect(shape(el)).toBe(before)
+    expect(el.changes.length).toBe(0)
+  })
+
+  // Untracked is untouched by any of this — the gate is about recording, and
+  // 0.6.0's other block fixes all live on the untracked path.
+  test('with tracking OFF the merge still happens, break only', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    el.trackChanges = false
+    caretAtStartOfSecond(el)
+    press(el, 'Backspace')
+    expect(shape(el)).toBe('<p>First|Second</p>')
+  })
+
+  test('an inline deletion inside one block is still tracked normally', () => {
+    const el = build('<p>First</p><p>Second</p>')
+    const second = el.parts.doc.querySelectorAll('p')[1]
+    const range = document.createRange()
+    range.setStart(second.firstChild as Text, 3)
+    range.collapse(true)
+    el.selectable.removeBounds()
+    range.insertNode(el.selectable.createBounds())
+    press(el, 'Backspace')
+    expect(el.parts.doc.querySelector('tosi-del')).not.toBeNull()
+    expect(el.changes.length).toBe(1)
   })
 })

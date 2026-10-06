@@ -457,12 +457,21 @@ Two deletions behave specially, because the pedantic version would be noise:
   })
   ```
 
-  `detail.reason` is one of `merge-blocks-not-mergeable`, `remove-list-item`,
+  `detail.reason` is one of `merge-blocks-backward`, `merge-blocks-forward`,
+  `merge-blocks-selection`, `merge-blocks-not-mergeable`, `remove-list-item`,
   `merge-list-items`, `delete-table-row`, `delete-table-col`.
+
+  The first three are a cross-block merge while `trackChanges` is on. They stop
+  firing if you enable `trackStructuralEdits`, which records those edits instead
+  — see the Component API table; it is off in 0.6.0 and not a supported
+  configuration yet.
 
   **Calling `preventDefault()` performs the edit untracked** — if tracking could
   have represented it, there would have been nothing to refuse — **except for
-  `merge-blocks-not-mergeable`, which is not overridable.** That one is about
+  the four `merge-blocks-*` reasons, which are not overridable.** 0.5.x allowed
+  it; an override that half-applies a gesture is the shape several remediation
+  rounds kept producing, so the document is now left alone and the event is
+  there to tell the user why. That one is about
   valid DOM rather than review policy, and it fires with `trackChanges` **off**
   as well, where "perform it untracked" means nothing: merging a list or a grid
   table produces loose text as a direct child of a `<ul>`, or a mark that
@@ -790,6 +799,7 @@ Custom widgets you add follow the same rules and get translated too.
 | `widgets`   | `'none' \| 'minimal' \| 'default'`                  | Attribute — built-in toolbar preset                                   |
 | `localized` | `boolean`                                           | Attribute — translate the built-in widgets and show a language picker |
 | `stickySelection` | `'touch' \| 'always' \| 'never'`                 | When a drag snaps to word boundaries. Default `'touch'`: a finger snaps, a mouse keeps character precision. `'always'` restores pre-0.6.0 mouse behaviour |
+| `trackStructuralEdits` | `boolean` | Record cross-block merges as blocks-out/blocks-in instead of refusing them. **Off in 0.6.0 and not supported** — accepting such a merge resolves wrongly when an outgoing block has nothing to strike. 0.7.0 finishes it |
 
 ### Change tracking
 

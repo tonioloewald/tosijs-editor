@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Structural edits are tracked, not refused.** Merging paragraphs is recorded
-  the brute-force way — _these blocks out, these blocks in_. A change mark wraps
+- **Structural change tracking, BEHIND AN OFF-BY-DEFAULT FLAG**
+  (`editor.trackStructuralEdits`). Not reachable in 0.6.0, and not a supported
+  configuration for a document you care about — see the first note under
+  **Changed** for why. The rest of this entry describes what it does when
+  enabled, which is what 0.7.0 will ship.
+  Merging paragraphs is recorded the brute-force way — _these blocks out, these
+  blocks in_. A change mark wraps
   content and a paragraph break is not content, so merging two paragraphs
   strikes both originals (`data-block-delete`) and proposes a third
   (`data-block-insert`); all three share one `data-change`, because one
@@ -49,6 +54,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A cross-block merge is still refused while `trackChanges` is on, and the
+  refusal is no longer overridable.** The structural representation above is
+  complete and tested, but RESOLUTION has a confirmed defect: accepting a merge
+  whose outgoing block has nothing to strike — empty, holding only an empty
+  inline wrapper, or already fully struck — leaves that block standing and
+  anchors the replacement after it:
+
+  ```
+  <p>First</p><p></p><p>Third</p>  + Delete in the empty block
+    tracking off          → <p>First</p><p>Third</p>
+    tracking on, accepted → <p></p><p>First</p><p>Third</p>
+  ```
+
+  A flag about review deciding document structure is the one class this release
+  spent five correctness rounds eliminating, so the feature is gated off rather
+  than shipped reachable. `rejectChanges()` was correct throughout; accept was
+  the broken half. 0.7.0 finishes it.
+
+  0.5.x allowed `preventDefault()` on these refusals to perform the edit
+  untracked. That is gone, for the same reason it is gone for
+  `merge-blocks-not-mergeable`: an override that half-applies a gesture is the
+  shape three earlier remediation rounds kept producing.
+
 - **A mouse drag no longer snaps to word boundaries; a touch drag does.**
   `stickySelection` is the knob — `'touch'` (the default), `'always'`, or
   `'never'` — on both the component and `Selectable`, live and settable at any
@@ -75,10 +103,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **`merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
-  no longer fire** as `structural-edit-refused` reasons — those edits are
-  recorded now rather than refused. A listener keyed on those strings becomes
-  dead code that still compiles and still passes its own tests.
+- **Nothing was removed from the `structural-edit-refused` vocabulary.**
+  `merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
+  still fire with the default flags, so a 0.5.x listener keyed on them keeps
+  working. They stop firing only when `trackStructuralEdits` is enabled, which
+  0.6.0 does not do.
 - **`merge-blocks-not-mergeable` is no longer overridable.** 0.5.x documented
   `preventDefault()` on `structural-edit-refused` as "performs the edit
   untracked"; that stands for `remove-list-item`, `merge-list-items`,
