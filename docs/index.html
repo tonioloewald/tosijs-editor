@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=5e829cd4aaa2" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=0c20b0090d67" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -505,19 +505,32 @@ part of the review.</p>
 </tr>
 <tr>
 <td><strong>Click-drag</strong></td>
-<td>Selects words, sticky at boundaries</td>
+<td>Character precision; a FINGER snaps to words</td>
 </tr>
 </tbody></table>
-<p><strong>Click-drag is sticky at word boundaries.</strong> Snapping engages only once the drag
-leaves the word it began in — in practice, as soon as you cross a space. Inside
-that first word you keep character precision, so pulling <code>fix</code> out of <code>prefix</code>
-still works; cross into another word and both ends snap, including the anchor,
-because a selection that spans words but starts mid-word is almost never what was
-meant. Punctuation comes along only when the pointer reaches it, and a selection
-never ends in a trailing space you did not ask for. Sticky within a block only —
-a double-click drag is already word-granular, and a cross-block selection has
-larger units than words. <code>stickySelectionBounds(text, anchor, head)</code> is exported
-if you want the rule without the editor.</p>
+<p><strong>Word stickiness is per pointer, and since 0.6.0 a mouse drag does NOT snap.</strong>
+A mouse user gets the platform&#39;s behaviour — character precision, and
+double-click when they want a word — because rounding a drag they aimed out to
+the nearest word boundaries overrides a precise gesture. A fingertip has no such
+precision to override, so a touch drag snaps, which is the only way a drag across
+a word ends up selecting that word.</p>
+<p><code>editor.stickySelection</code> chooses: <code>&#39;touch&#39;</code> (the default), <code>&#39;always&#39;</code> — which
+restores the pre-0.6.0 behaviour for the mouse as well — or <code>&#39;never&#39;</code>. It is a
+live property, settable at any time, and it takes effect on the next drag.</p>
+<p><strong>When snapping does apply</strong>, it engages only once the drag leaves the word it
+began in — in practice, as soon as you cross a space. Inside that first word you
+keep character precision, so pulling <code>fix</code> out of <code>prefix</code> still works; cross
+into another word and both ends snap, including the anchor, because a selection
+that spans words but starts mid-word is almost never what was meant. Punctuation
+comes along only when the pointer reaches it, and a selection never ends in a
+trailing space you did not ask for. Sticky within a block only — a double-click
+drag is already word-granular, and a cross-block selection has larger units than
+words.</p>
+<p>Whether the pointer has left the anchor word is asked <strong>visually</strong>, per line box,
+not by comparing logical offsets: inside a right-to-left run on a left-to-right
+line, x decreases as the logical index rises, so the two directions oppose and an
+offset comparison answers about the wrong one. <code>stickySelectionBounds(text, anchor, head, leftTheAnchorWord?)</code> is exported if you want the rule without the
+editor.</p>
 <h3>Inside a table cell</h3>
 <table>
 <thead>
@@ -688,6 +701,13 @@ Pass <code>_self</code> to clear both.</p>
 inserting one in the middle renumbers the rest and reorders the list to match.
 Deleting a marker drops its entry on the next renumber, and deleting the last
 one removes the list. The stable identity is <code>data-footnote</code>, not the number.</p>
+<p><strong>Numbering is per NOTE, not per reference</strong> (since 0.6.0): two references
+sharing a <code>data-footnote</code> are two pointers at one note, so they show the same
+number and share its single list entry. That matters because a reference can
+legitimately exist twice — copy one, or make a tracked edit that proposes a
+merged paragraph, and the same marker is in the document twice until the change
+is resolved. Numbering per reference minted a second list entry for the same
+note, sharing one <code>id</code>, carrying placeholder text.</p>
 <p>Inside the editor a link is text you are editing, so clicking it places the
 caret rather than navigating. Ctrl/Cmd-click follows it.</p>
 <h3>Table commands</h3>
@@ -800,6 +820,11 @@ Custom widgets you add follow the same rules and get translated too.</p>
 <td><code>localized</code></td>
 <td><code>boolean</code></td>
 <td>Attribute — translate the built-in widgets and show a language picker</td>
+</tr>
+<tr>
+<td><code>stickySelection</code></td>
+<td><code>&#39;touch&#39; | &#39;always&#39; | &#39;never&#39;</code></td>
+<td>When a drag snaps to word boundaries. Default <code>&#39;touch&#39;</code>: a finger snaps, a mouse keeps character precision. <code>&#39;always&#39;</code> restores pre-0.6.0 mouse behaviour</td>
 </tr>
 </tbody></table>
 <h3>Change tracking</h3>
