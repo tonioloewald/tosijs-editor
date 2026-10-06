@@ -44,7 +44,8 @@
     "typecheck": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "test:browser": "bun bin/test-browser.ts",
     "dev:stop": "bun bin/dev-stop.ts",
-    "release:ready": "bun ../tosijs-coding-practices/tools/attest.ts"
+    "release:ready": "bun ../tosijs-coding-practices/tools/attest.ts",
+    "falsify": "bun bin/falsify.ts"
   },
   "releaseDoctor": {
     "attestedLanes": [

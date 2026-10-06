@@ -993,3 +993,188 @@ describe('a handle drag is sticky too', () => {
     expect((sel as any).dragAnchor).toBeNull()
   })
 })
+
+/**
+ * `pointerInAnchorWord` measures the anchor word PER LINE BOX, and this is the
+ * test that notices when it stops.
+ *
+ * Found by `bun run falsify`: replacing `range.getClientRects()` with
+ * `[range.getBoundingClientRect()]` — the union rect the method's own comment
+ * calls wrong — left the whole suite green and typecheck clean. The method said
+ * why the union is wrong and nothing checked it.
+ *
+ * A wrapped word has TWO boxes with a gap between them, and the union covers
+ * the gap. So a pointer in the gap is outside the word but inside its union:
+ * per-line-box snaps (the pointer has left the word), the union keeps character
+ * precision. That is the only observable difference, which is why ordinary
+ * single-line geometry cannot express it.
+ *
+ * The two methods read DIFFERENT Range surfaces — `characterAtPoint` uses
+ * `getBoundingClientRect`, `pointerInAnchorWord` uses `getClientRects` — so the
+ * stub can give the wrapped geometry to one and leave hit-testing alone.
+ */
+describe('a wrapped anchor word is measured per line box', () => {
+  const TEXT = 'the quick brown fox'
+  let root: HTMLElement
+  let sel: Selectable
+  let rangeProto: any
+  let realRect: () => DOMRect
+  let realRects: () => DOMRectList
+
+  beforeEach(() => {
+    root = document.createElement('div')
+    root.innerHTML = `<p>${TEXT}</p>`
+    document.body.appendChild(root)
+    sel = new Selectable(root)
+    // The mouse is not sticky by default, so force it: this is about HOW the
+    // question is measured, not about which pointer asks it.
+    sel.stickySelection = 'always'
+
+    rangeProto = Object.getPrototypeOf(document.createRange())
+    realRect = rangeProto.getBoundingClientRect
+    realRects = rangeProto.getClientRects
+
+    // Hit-testing: one line, 10px per character. Logical position, so the
+    // bounds markers splitting the text node cannot skew it.
+    const logical = (node: Node, offset: number): number => {
+      const block = root.querySelector('p')!
+      let seen = 0
+      let found: number | null = null
+      const walk = (n: Node): void => {
+        if (found !== null) return
+        if (n === node) {
+          found = seen + offset
+          return
+        }
+        if (n.nodeType === 3) {
+          seen += (n as Text).data.length
+          return
+        }
+        for (const c of Array.from(n.childNodes)) walk(c)
+      }
+      walk(block)
+      return found ?? offset
+    }
+    rangeProto.getBoundingClientRect = function (this: Range) {
+      const a = logical(this.startContainer, this.startOffset)
+      const b = Math.max(logical(this.endContainer, this.endOffset), a + 1)
+      // THE ANCHOR WORD IS THE UNION OF ITS LINE BOXES, because in a real
+      // engine `getBoundingClientRect` IS that union. Leaving this as a
+      // single-line box made the two surfaces disagree, and swapping one for
+      // the other then changed nothing — the test passed under both geometries
+      // while `bun run falsify` still reported the guarantee unguarded. The
+      // harness was wrong, not the code: a stub for one surface has to model
+      // its relationship to the other.
+      if (a === 4 && b === 9) {
+        return {
+          left: 0,
+          right: 50,
+          top: 0,
+          bottom: 30,
+          width: 50,
+          height: 30,
+          x: 0,
+          y: 0,
+        } as DOMRect
+      }
+      return {
+        left: a * 10,
+        right: b * 10,
+        top: 0,
+        bottom: 10,
+        width: (b - a) * 10,
+        height: 10,
+        x: a * 10,
+        y: 0,
+      } as DOMRect
+    }
+    // The anchor word, WRAPPED: `quick` ends a line at x 40..50 and continues
+    // on the next at x 0..40. Their union is x 0..50, y 0..30 — which covers
+    // (45, 15), a point in neither box.
+    rangeProto.getClientRects = function (this: Range) {
+      return [
+        {
+          left: 40,
+          right: 50,
+          top: 0,
+          bottom: 10,
+          width: 10,
+          height: 10,
+          x: 40,
+          y: 0,
+        },
+        {
+          left: 0,
+          right: 40,
+          top: 20,
+          bottom: 30,
+          width: 40,
+          height: 10,
+          x: 0,
+          y: 20,
+        },
+      ] as unknown as DOMRectList
+    }
+  })
+
+  afterEach(() => {
+    rangeProto.getBoundingClientRect = realRect
+    rangeProto.getClientRects = realRects
+    sel.destroy()
+    root.remove()
+  })
+
+  const selectedText = (): string => {
+    const block = root.querySelector('p')!
+    let out = ''
+    let inside = false
+    const walk = (n: Node): void => {
+      if (n instanceof Element) {
+        if (n.classList.contains('sel-start')) {
+          inside = true
+          return
+        }
+        if (n.classList.contains('sel-end')) {
+          inside = false
+          return
+        }
+      }
+      if (n.nodeType === 3) {
+        if (inside) out += (n as Text).data
+        return
+      }
+      for (const c of Array.from(n.childNodes)) walk(c)
+    }
+    walk(block)
+    return out
+  }
+
+  test('a pointer in the GAP between the two boxes has left the word', () => {
+    const block = root.querySelector('p')!
+    // Down at x 45 → character 4, inside `quick` (4..9).
+    block.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 45,
+        clientY: 5,
+        detail: 1,
+      })
+    )
+    // Move to (45, 15): inside the UNION of the word's boxes, inside NEITHER.
+    block.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 45, clientY: 15 })
+    )
+    block.dispatchEvent(
+      new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: 45,
+        clientY: 15,
+        detail: 1,
+      })
+    )
+    // Per line box: the pointer is outside the word, so both ends snap to it.
+    // Union: the pointer reads as still inside, so character precision holds
+    // and the selection stays a character or two.
+    expect(selectedText()).toBe('quick')
+  })
+})
