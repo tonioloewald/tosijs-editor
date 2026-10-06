@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=d3df3f732fb3" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=3d64b085d6a7" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=07e69a30d456" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=5e829cd4aaa2" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -361,7 +361,8 @@ the editor does not decide that for you.</p>
 <p>Lists and grid tables are the one refusal (<code>merge-blocks-not-mergeable</code>), and it
 is about valid DOM rather than about review policy: merging them produces loose
 text as a direct child of a <code>&lt;ul&gt;</code>, or a mark that becomes a grid item and
-shifts every <code>cellIndex</code>.</p>
+shifts every <code>cellIndex</code>. It is therefore <strong>not overridable</strong> — see
+<code>structural-edit-refused</code> below.</p>
 <h3>Everything else</h3>
 <p>Typing then lands inside a <code>&lt;tosi-ins&gt;</code>, and <strong>every</strong> deletion wraps in
 <code>&lt;tosi-del&gt;</code> instead of removing — caret Backspace and Delete, a selection
@@ -406,10 +407,20 @@ tracked. (Paragraph merges ARE tracked — see Structural edits above.)</p>
 <span class="token punctuation">}</span><span class="token punctuation">)</span>
 </code></pre>
 <p><code>detail.reason</code> is one of <code>merge-blocks-not-mergeable</code>, <code>remove-list-item</code>,
-<code>merge-list-items</code>, <code>delete-table-row</code>, <code>delete-table-col</code>. <strong>Calling <code>preventDefault()</code> performs the edit
-untracked</strong> — if tracking could have represented it, there would have been
-nothing to refuse. A custom command refuses the same way, through
-<code>ctx.refuseStructural(reason)</code>; see EXTENSIBILITY.md.</p>
+<code>merge-list-items</code>, <code>delete-table-row</code>, <code>delete-table-col</code>.</p>
+<p><strong>Calling <code>preventDefault()</code> performs the edit untracked</strong> — if tracking could
+have represented it, there would have been nothing to refuse — <strong>except for
+<code>merge-blocks-not-mergeable</code>, which is not overridable.</strong> That one is about
+valid DOM rather than review policy, and it fires with <code>trackChanges</code> <strong>off</strong>
+as well, where &quot;perform it untracked&quot; means nothing: merging a list or a grid
+table produces loose text as a direct child of a <code>&lt;ul&gt;</code>, or a mark that
+becomes a grid item and shifts every <code>cellIndex</code>. The refusal event still
+fires, so you can tell the user why nothing happened; the document is left
+alone. A cross-block selection delete that hits it still deletes the selected
+TEXT, tracked, and simply does not merge the remnants — the words are
+representable, the paragraph break is not.</p>
+<p>A custom command refuses the same way, through <code>ctx.refuseStructural(reason)</code>,
+and its result IS honoured; see EXTENSIBILITY.md.</p>
 </li>
 <li><p><strong>no merge story.</strong> Changes-as-content gets attribution, review and round-trip,
 but not collaborative merge. That needs an operation log, which is a larger
@@ -920,6 +931,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=d3df3f732fb3"></script>
+  <script type="module" src="hydrate.js?v=3d64b085d6a7"></script>
 </body>
 </html>
