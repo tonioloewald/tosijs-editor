@@ -362,10 +362,34 @@ allowlist** of globals (`windowProps`) onto `globalThis`. If a test fails with
 `X is not defined`, add `X` to that list rather than working around it.
 
 **There are three test lanes, and passing in one is not passing in another.**
-`bun test` (happy-dom) is the bulk; the doc system executes ```test fences in doc
-comments and markdown as in-page browser tests, which is the project's only
-layout-capable check; and some things are verifiable in neither and must be driven by
-hand via `bun start`. Do not write "verified in a real browser" in a comment without
+`bun test` (happy-dom) is the bulk; `bun run test:browser` drives real engines —
+`browser-tests/` plus the doc system's ```test fences, which execute the examples in
+doc comments and markdown; and some things are verifiable in neither and must be
+driven by hand via `bun start`.
+
+**The fences are gated now, and that was the point.** They were in NO gate —
+release-doctor discovers `test`/`test:*` scripts and a fence ran only when a human
+opened the page — while *documentation asserting the opposite of the code held the
+0.6.0 tag three times*: CLAUDE.md's superseded-proposal rule, CHANGELOG's copy of the
+same sentence, README's sticky-drag claim. Three instances fixed, and the mechanism
+that would make the fourth FAIL rather than ship was already here, shipped and
+documented as load-bearing, with nothing running it.
+`browser-tests/doc-fences.test.ts` runs it. Four things about fences that are
+discoverable only by reading tosijs-ui's source (filed there as a docs issue):
+
+- **examples are inserted client-side** — `grep tosi-example docs/*.html` finds
+  nothing, so checking them needs a browser, not a parse of the built output
+- **tests are enabled by default on localhost and disabled elsewhere**
+  (tosijs-ui#113: "off" and "none exist" rendered identically, which bit hardest down
+  the tunnel, whose hostname is necessarily not localhost); `enableTests()` forces it
+- **the result is a CLASS on `<tosi-example>`**: `-has-tests` plus `-test-running`,
+  settling to `-test-passed` or `-test-failed`
+- **a build or execution failure counts as a failure** even with no `test` block,
+  which is what catches an illustrative fence that throws — this repo has shipped
+  that twice
+
+So a claim in a doc comment or README can be made executable, and an executable claim
+now blocks the tag. Prefer that to asserting behaviour in prose. Do not write "verified in a real browser" in a comment without
 pointing at the fence that does it — a comment that claims coverage which does not
 exist is worse than no coverage, because it stops the next reader looking.
 
