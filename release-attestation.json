@@ -1,0 +1,35 @@
+{
+  "version": "0.6.0",
+  "tree": "0bbc817a440ff3961cd36aea936bb324851f4dbf",
+  "commit": "a7467d82749c984afa4d0e5558e8212a7e168851",
+  "bun": "1.4.2",
+  "lanes": {
+    "test:browser": {
+      "command": "bun bin/test-browser.ts",
+      "exitCode": 0,
+      "durationMs": 37886,
+      "tail": "browser-tests/doc-fences.test.ts:\n\n 11 pass\n 0 fail\n 27 expect() calls\nRan 11 tests across 2 files. [36.75s]"
+    }
+  },
+  "shipped": {
+    "CHANGELOG.md": "582753efb0a43f72be96dba48eb23d25c6dd3d855028690d2a8c1737d37ac26c",
+    "LICENSE": "0775c96210bab6eb8dfbe2586b7955c5e17a10f47d466a91b5e4d14901ba0466",
+    "NOTICE": "6e3067164e731697179f5daeaac558accccb0c5a8a296a49193c95f1a9f30c87",
+    "README.md": "02596eceba8d4c31712665dcbe4f7bda7126e5606ec4bc421b7c01fa330f44cb",
+    "SECURITY.md": "017c14e24446605793382c67c325df90e1e88283cd2cae8a228f6d29db93ff35",
+    "dist/changes.d.ts": "11ccaf8882cb9578646012d6b4a15d02c9e1aadb9e37cffc259b1c820ed56611",
+    "dist/commands.d.ts": "bd1a9ac7e770a1748aeef217994a1a49f738951e4dfb3a60456e650e90c878c5",
+    "dist/dom-utils.d.ts": "024f94e27c65e4c976656919d6c12c180611bd8faf33ffda22c76fc2dbb7beca",
+    "dist/footnote.d.ts": "6ec9c587a0519dbf8fb33033b0e05da5a4b6a02c8de5237bb18f15f7936d84c3",
+    "dist/index.d.ts": "613ca4eb3ae1a664cd4e3d0ecf48280eab8a2588c3715beeb76f18ffe6d08b3c",
+    "dist/index.js": "80e0590d926e3c3c4e46065a678894093007f95fb42ec50b3998bd2b0e4168b2",
+    "dist/module.js": "cf15d5337af93357dac3d14f8ce68a5d303a7a776d3c3f7e82da6c652b10bc60",
+    "dist/selection.d.ts": "c68cc599fdd106d52838ef0746a84b943527018a7843af309ec1436cb08f2161",
+    "dist/spelling.d.ts": "3c2c8ad1785d74ec74dfec430aa71d812beadab341f0bef75636f6c0bcd176fd",
+    "dist/table-utils.d.ts": "08f9559e0a0af75476a21cdf49a401fec0e826dc0a370e91ba691b0782b93cac",
+    "dist/toolbar.d.ts": "e8e7d6d911e1a3d98a4b83855186d5b9270e6dffa587a86ccc2e541bb470b050",
+    "dist/tosijs-styled-editor.d.ts": "f3686c8aea17706037c23f4791cbe272f1acb76c264e2b407974648d607f2509",
+    "dist/version.d.ts": "ff575295ae96d99c67a345de1a60b2dc22039093bb5fd1df05693b84adaede26",
+    "package.json": "c5b12030cbef98b80edec4e352107b469528b2672192259701ca4611b741f526"
+  }
+}
