@@ -3312,16 +3312,28 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         // proposed block reads as the deletion WOULD read once accepted.
         this.trackStructuralEdit([firstBlock, lastBlock], gesture)
       } else if (mergeable && merge === 'raw') {
-        // REVERSE ORDER. Repeatedly inserting `firstChild` before
-        // `lastChild.firstChild` puts each node in front of the previous one,
-        // so `A <b>B</b> C<i>D</i>` + `tail` merged to
-        // `<i>D</i> C<b>B</b>A tail`. Take a snapshot and insert before a
-        // fixed anchor instead.
-        const anchor = lastBlock.firstChild
-        for (const node of Array.from(firstBlock.childNodes)) {
-          lastBlock.insertBefore(node, anchor)
-        }
-        firstBlock.remove()
+        // THE FIRST BLOCK SURVIVES, which is the owner's rule for every block
+        // gesture: deleting across blocks leaves you with a block of the type
+        // at the START of the selection.
+        //
+        // This was the fourth implementation of block merge and the only one
+        // that kept the LAST block — `mergeBlocksRaw`, `trackStructuralEdit`
+        // (via `blockLike(blocksOut[0])`) and both list-item loops all keep the
+        // earlier one. Before 0.6.0 the disagreement was unreachable, because
+        // the tracked path REFUSED cross-block merges; once both paths merged,
+        // `trackChanges` silently decided which element type and which `id`
+        // survived. Measured on
+        // `<h1 id="t">Heading</h1><p class="a">Paragraph</p>` with a drag from
+        // mid-heading to mid-paragraph: untracked gave `<p class="a">Headgraph`
+        // and tracked-then-accepted gave `<h1 id="t">Headgraph`. Same text,
+        // different wrapper, decided by a flag about review.
+        //
+        // Routed through `mergeBlocksRaw` rather than fixed in place, so there
+        // is one untracked merge and not two — and its append-in-order loop is
+        // why the reverse-order bug this branch used to carry (`A <b>B</b>
+        // C<i>D</i>` + `tail` merging to `<i>D</i> C<b>B</b>A tail`) cannot
+        // come back: there is no anchor to insert before.
+        this.mergeBlocksRaw(firstBlock, lastBlock)
       }
       this.selectable.markBounds()
       this.focus()

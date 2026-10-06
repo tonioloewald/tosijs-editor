@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a Surface Pro) answers differently for its two pointers on the same document,
   because the decision is per gesture. A stylus counts as a mouse: pen input
   arrives as pointer plus compatibility mouse events, not touch events.
+- **Deleting across blocks now keeps the block at the START of the selection**,
+  with its type and its attributes. A selection delete used to keep the LAST
+  block while every other block merge kept the first, so dragging from a heading
+  into a paragraph and deleting left a `<p>` — and once tracked merges stopped
+  being refused, `trackChanges` silently decided which element type and which
+  `id` survived: the same gesture gave `<p class="a">Headgraph</p>` untracked and
+  `<h1 id="t">Headgraph</h1>` tracked. Same text, different wrapper, chosen by a
+  flag about review. One rule now, on every path.
 - **Word stickiness now applies to touch at all, including the affordance
   handles.** It had been wired to the mouse only, which is backwards — and on a
   phone the handles are how a selection is adjusted, so a touch user could not

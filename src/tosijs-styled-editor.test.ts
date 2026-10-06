@@ -3451,3 +3451,230 @@ describe('the affordance handles delegate to Selectable', () => {
     expect((el.selectable as any).dragAnchor).toBeNull()
   })
 })
+
+/**
+ * M-1 from `reviews/0.6.0-dx-review.md`, and the owner's rule: deleting across
+ * blocks leaves you with a block of the type at the START of the selection.
+ *
+ * Block merge was implemented four times and the selection-delete copy was the
+ * only one that kept the LAST block. Before 0.6.0 that was unreachable, because
+ * the tracked path REFUSED cross-block merges; once both paths merged,
+ * `trackChanges` silently decided which element type and which `id` survived.
+ *
+ * **This describe exists because nothing could see that.** Every drag test in
+ * the repo used the single-line geometry stub in `selection.test.ts`, which
+ * cannot express two blocks, so no test had ever crossed a block boundary with
+ * a real drag — and three attempts to fake a partial multi-block selection by
+ * placing markers by hand all deleted more than the selected range, which reads
+ * exactly like a product defect. The stub below gives every block its own 20px
+ * y band, so `mousedown`/`mousemove`/`mouseup` produce a FAITHFUL selection:
+ * `.selected` lands on real leaf content and `first-block`/`last-block` are set
+ * by the editor rather than by the test.
+ */
+describe('a cross-block selection delete keeps the FIRST block', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  /** Per-block y bands, 10px characters. Returns the restore function. */
+  const installGeometry = (el: TosijsStyledEditor): (() => void) => {
+    const proto = Object.getPrototypeOf(document.createRange())
+    const realRect = proto.getBoundingClientRect
+    const realRects = proto.getClientRects
+    const blocks = (): Element[] =>
+      [...el.parts.doc.children].filter(
+        (c) => !c.classList.contains('touch-affordances')
+      )
+    const locate = (
+      node: Node,
+      offset: number
+    ): { b: number; i: number } | null => {
+      const bs = blocks()
+      for (let b = 0; b < bs.length; b++) {
+        if (!bs[b].contains(node) && bs[b] !== node) continue
+        let seen = 0
+        let found: number | null = null
+        const walk = (n: Node): void => {
+          if (found !== null) return
+          if (n === node) {
+            found = seen + offset
+            return
+          }
+          if (n.nodeType === 3) {
+            seen += (n as Text).data.length
+            return
+          }
+          for (const c of Array.from(n.childNodes)) walk(c)
+        }
+        walk(bs[b])
+        return { b, i: found ?? 0 }
+      }
+      return null
+    }
+    const rect = function (this: Range) {
+      const a = locate(this.startContainer, this.startOffset)
+      const z = locate(this.endContainer, this.endOffset)
+      if (!a) {
+        return {
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: 0,
+        } as DOMRect
+      }
+      const top = a.b * 20
+      const right = (z && z.b === a.b ? Math.max(z.i, a.i + 1) : a.i + 1) * 10
+      return {
+        left: a.i * 10,
+        right,
+        top,
+        bottom: top + 20,
+        width: right - a.i * 10,
+        height: 20,
+        x: a.i * 10,
+        y: top,
+      } as DOMRect
+    }
+    proto.getBoundingClientRect = rect
+    proto.getClientRects = function (this: Range) {
+      return [rect.call(this)] as unknown as DOMRectList
+    }
+    return () => {
+      proto.getBoundingClientRect = realRect
+      proto.getClientRects = realRects
+    }
+  }
+
+  const clean = (el: TosijsStyledEditor): string =>
+    el.value
+      .replace(/<span class="sel-[^"]*"><\/span>/g, '|')
+      .replace(/<span class="selected"[^>]*>/g, '')
+      .replace(/<\/span>/g, '')
+      .replace(/ class="(first-block |last-block )*selected-block"/g, '')
+      .replace(/ class=""/g, '')
+      .replace(/\|\|/g, '|')
+
+  /** Drag mid-first-block to mid-second-block, then Backspace. */
+  const dragAcrossAndDelete = (
+    html: string,
+    tracking: boolean
+  ): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = html
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = tracking
+    const restore = installGeometry(el)
+    const doc = el.parts.doc
+    doc.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 35,
+        clientY: 10,
+        detail: 1,
+      })
+    )
+    doc.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 35, clientY: 30 })
+    )
+    doc.dispatchEvent(
+      new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: 35,
+        clientY: 30,
+        detail: 1,
+      })
+    )
+    doc.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      })
+    )
+    restore()
+    return el
+  }
+
+  const HEADING_THEN_PARA = '<h1 id="t">Heading</h1><p class="a">Paragraph</p>'
+
+  // THE PRECONDITION. Everything below is about what a cross-block drag does,
+  // so a harness that does not produce one would make the lot of them vacuous.
+  test('the harness really does select across two blocks', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = HEADING_THEN_PARA
+    const restore = installGeometry(el)
+    const doc = el.parts.doc
+    doc.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 35,
+        clientY: 10,
+        detail: 1,
+      })
+    )
+    doc.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 35, clientY: 30 })
+    )
+    doc.dispatchEvent(
+      new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: 35,
+        clientY: 30,
+        detail: 1,
+      })
+    )
+    const marked = [...doc.querySelectorAll('.selected-block')].map(
+      (b) => b.tagName
+    )
+    restore()
+    expect(marked).toEqual(['H1', 'P'])
+    // and the editor, not the test, decided the ends
+    expect(doc.querySelector('.first-block')!.tagName).toBe('H1')
+    expect(doc.querySelector('.last-block')!.tagName).toBe('P')
+  })
+
+  test('untracked: the heading survives, with its id', () => {
+    const el = dragAcrossAndDelete(HEADING_THEN_PARA, false)
+    expect(clean(el)).toBe('<h1 id="t">Head|graph</h1>')
+  })
+
+  test('tracked and accepted: the same block survives', () => {
+    const el = dragAcrossAndDelete(HEADING_THEN_PARA, true)
+    el.acceptChanges()
+    expect(clean(el)).toBe('<h1 id="t">Head|graph</h1>')
+  })
+
+  // The point of the whole finding: a flag about REVIEW must not decide
+  // document structure.
+  test('tracking on and off agree about the surviving element', () => {
+    const untracked = clean(dragAcrossAndDelete(HEADING_THEN_PARA, false))
+    const tracked = dragAcrossAndDelete(HEADING_THEN_PARA, true)
+    tracked.acceptChanges()
+    expect(clean(tracked)).toBe(untracked)
+  })
+
+  // The branch this replaced inserted before an anchor in the LAST block, which
+  // reversed the first block's children: `A <b>BB</b> C<i>DD</i>` + `tail`
+  // merged to `<i>DD</i> C<b>BB</b>A tail`. `mergeBlocksRaw` appends in order,
+  // so there is no anchor for that to come back through.
+  test('inline children keep their order', () => {
+    const el = dragAcrossAndDelete(
+      '<p>A <b>BB</b> C<i>DD</i></p><p>tail</p>',
+      false
+    )
+    expect(clean(el)).toBe('<p>A <b>BB</b>|</p>')
+  })
+})
