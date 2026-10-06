@@ -485,11 +485,27 @@ unattested tag fails Tier 0 saying so.
 **Producing the attestation is `bun run release:ready`, and the ORDER is load-bearing:**
 
 ```bash
-# everything committed, version stamped, docs/ rebuilt — then, last:
+# everything committed, version stamped, docs/ rebuilt — then, in THIS order:
 bun run release:ready        # runs the attested lanes, writes release-attestation.json
-git add release-attestation.json && git commit -m "Attest 0.6.0"   # that file ALONE
-git tag v0.6.0               # the attestation commit is what gets tagged
+git add release-attestation.json && git commit -m "attest: v0.6.0"   # that file ALONE
+git push
+gh workflow run publish.yml --ref <branch> -f tag=<branch> -f dry_run=true
+#   ^ dry run AFTER attesting, and with the BRANCH as `tag`
+git tag -a v0.6.0 -m "…" && git push origin v0.6.0
+gh workflow run publish.yml --ref <branch> -f tag=v0.6.0
 ```
+
+**The dry run comes AFTER the attestation, not before it** — which inverts the order
+`publish.yml`'s own header suggests, and the inversion is caused by declaring
+`attestedLanes`. The workflow's "Attested lanes need an attestation" step fails any run
+without `release-attestation.json`, dry or not, so a dry run attempted first dies there
+(measured, 0.6.0). Attesting first is safe: the attestation records the tree, and a dry run
+adds no commits, so the attestation still verifies when the tag lands on it.
+
+**`tag` takes the BRANCH name for a dry run.** `dry_run` checks out `inputs.tag` as a ref
+directly, so passing the future tag fails with "A branch or tag with the name 'v0.6.0' could
+not be found". The tag/version match is explicitly skipped on a dry run and the version comes
+from `package.json`, so the branch is the right ref to hand it.
 
 `verifyAttestation` requires HEAD to change **only** `release-attestation.json` and HEAD's
 parent to be the tree the lanes ran on, so any other change in that commit invalidates it —
