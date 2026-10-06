@@ -458,6 +458,26 @@ which is why `package.json` declares `releaseDoctor.attestedLanes: ["test:browse
 carries `release-attestation.json` recording that the lane ran locally on exactly that tree; an
 unattested tag fails Tier 0 saying so.
 
+**Producing the attestation is `bun run release:ready`, and the ORDER is load-bearing:**
+
+```bash
+# everything committed, version stamped, docs/ rebuilt — then, last:
+bun run release:ready        # runs the attested lanes, writes release-attestation.json
+git add release-attestation.json && git commit -m "Attest 0.6.0"   # that file ALONE
+git tag v0.6.0               # the attestation commit is what gets tagged
+```
+
+`verifyAttestation` requires HEAD to change **only** `release-attestation.json` and HEAD's
+parent to be the tree the lanes ran on, so any other change in that commit invalidates it —
+and so does amending anything afterwards. Getting it wrong is not a re-run: the tag has to be
+deleted and recreated. `publish.yml` with `dry_run` on the branch catches it before any tag
+exists, which is why its own header tells you to run that first.
+
+The script needs a pulled sibling checkout of `tosijs-coding-practices`
+(`../tosijs-coding-practices`), since that is where `tools/attest.ts` lives. Local Tier 0
+reports this lane as PASS with no attestation, because release-doctor only fails an attested
+lane it CANNOT run — so a green local Tier 0 does not mean the tag will pass.
+
 **WebKit is the point.** `ENGINE=chromium` is a control, not coverage: Chromium measures
 ~0 for everything this lane exists to catch. haltija's own `--headless` is Chromium-only,
 so the bridge is backed by Playwright directly — `BrowserBridge` is structural (four

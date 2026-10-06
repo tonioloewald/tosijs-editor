@@ -515,18 +515,35 @@ part of the review.
 | **Shift+Click**  | Extends selection to click position |
 | **Double-click** | Selects word                        |
 | **Triple-click** | Selects block                       |
-| **Click-drag**   | Selects words, sticky at boundaries |
+| **Click-drag**   | Character precision; a FINGER snaps to words |
 
-**Click-drag is sticky at word boundaries.** Snapping engages only once the drag
-leaves the word it began in — in practice, as soon as you cross a space. Inside
-that first word you keep character precision, so pulling `fix` out of `prefix`
-still works; cross into another word and both ends snap, including the anchor,
-because a selection that spans words but starts mid-word is almost never what was
-meant. Punctuation comes along only when the pointer reaches it, and a selection
-never ends in a trailing space you did not ask for. Sticky within a block only —
-a double-click drag is already word-granular, and a cross-block selection has
-larger units than words. `stickySelectionBounds(text, anchor, head)` is exported
-if you want the rule without the editor.
+**Word stickiness is per pointer, and since 0.6.0 a mouse drag does NOT snap.**
+A mouse user gets the platform's behaviour — character precision, and
+double-click when they want a word — because rounding a drag they aimed out to
+the nearest word boundaries overrides a precise gesture. A fingertip has no such
+precision to override, so a touch drag snaps, which is the only way a drag across
+a word ends up selecting that word.
+
+`editor.stickySelection` chooses: `'touch'` (the default), `'always'` — which
+restores the pre-0.6.0 behaviour for the mouse as well — or `'never'`. It is a
+live property, settable at any time, and it takes effect on the next drag.
+
+**When snapping does apply**, it engages only once the drag leaves the word it
+began in — in practice, as soon as you cross a space. Inside that first word you
+keep character precision, so pulling `fix` out of `prefix` still works; cross
+into another word and both ends snap, including the anchor, because a selection
+that spans words but starts mid-word is almost never what was meant. Punctuation
+comes along only when the pointer reaches it, and a selection never ends in a
+trailing space you did not ask for. Sticky within a block only — a double-click
+drag is already word-granular, and a cross-block selection has larger units than
+words.
+
+Whether the pointer has left the anchor word is asked **visually**, per line box,
+not by comparing logical offsets: inside a right-to-left run on a left-to-right
+line, x decreases as the logical index rises, so the two directions oppose and an
+offset comparison answers about the wrong one. `stickySelectionBounds(text,
+anchor, head, leftTheAnchorWord?)` is exported if you want the rule without the
+editor.
 
 ### Inside a table cell
 
@@ -651,6 +668,14 @@ inserting one in the middle renumbers the rest and reorders the list to match.
 Deleting a marker drops its entry on the next renumber, and deleting the last
 one removes the list. The stable identity is `data-footnote`, not the number.
 
+**Numbering is per NOTE, not per reference** (since 0.6.0): two references
+sharing a `data-footnote` are two pointers at one note, so they show the same
+number and share its single list entry. That matters because a reference can
+legitimately exist twice — copy one, or make a tracked edit that proposes a
+merged paragraph, and the same marker is in the document twice until the change
+is resolved. Numbering per reference minted a second list entry for the same
+note, sharing one `id`, carrying placeholder text.
+
 Inside the editor a link is text you are editing, so clicking it places the
 caret rather than navigating. Ctrl/Cmd-click follows it.
 
@@ -764,6 +789,7 @@ Custom widgets you add follow the same rules and get translated too.
 | `commands`  | `object`                                            | Command registry (extend to add custom commands)                      |
 | `widgets`   | `'none' \| 'minimal' \| 'default'`                  | Attribute — built-in toolbar preset                                   |
 | `localized` | `boolean`                                           | Attribute — translate the built-in widgets and show a language picker |
+| `stickySelection` | `'touch' \| 'always' \| 'never'`                 | When a drag snaps to word boundaries. Default `'touch'`: a finger snaps, a mouse keeps character precision. `'always'` restores pre-0.6.0 mouse behaviour |
 
 ### Change tracking
 

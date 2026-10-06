@@ -47,6 +47,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
   no longer fire — those edits are recorded now.
 
+### Changed
+
+- **A mouse drag no longer snaps to word boundaries; a touch drag does.**
+  `stickySelection` is the knob — `'touch'` (the default), `'always'`, or
+  `'never'` — on both the component and `Selectable`, live and settable at any
+  time. **0.5.x snapped for every pointer**, so if you relied on that, set
+  `editor.stickySelection = 'always'`.
+  The reasoning is per-pointer: rounding a drag a mouse user aimed out to the
+  nearest words overrides a precise gesture, and double-click already means
+  "select this word". A fingertip has no precision to override. A hybrid device
+  (a Surface Pro) answers differently for its two pointers on the same document,
+  because the decision is per gesture. A stylus counts as a mouse: pen input
+  arrives as pointer plus compatibility mouse events, not touch events.
+- **Word stickiness now applies to touch at all, including the affordance
+  handles.** It had been wired to the mouse only, which is backwards — and on a
+  phone the handles are how a selection is adjusted, so a touch user could not
+  reach it even after the two `Selectable` paths were fixed.
+
+### Removed
+
+- **`merge-blocks-backward`, `merge-blocks-forward` and `merge-blocks-selection`
+  no longer fire** as `structural-edit-refused` reasons — those edits are
+  recorded now rather than refused. A listener keyed on those strings becomes
+  dead code that still compiles and still passes its own tests.
+- **`merge-blocks-not-mergeable` is no longer overridable.** 0.5.x documented
+  `preventDefault()` on `structural-edit-refused` as "performs the edit
+  untracked"; that stands for `remove-list-item`, `merge-list-items`,
+  `delete-table-row` and `delete-table-col`, and **not** for
+  `merge-blocks-not-mergeable`, which is about valid DOM rather than review
+  policy and fires with `trackChanges` off as well, where "untracked" means
+  nothing.
+  Before → after for a host doing
+  `if (e.detail.reason.startsWith('merge-blocks')) e.preventDefault()`: an
+  ordinary paragraph merge used to fire `merge-blocks-backward` and be performed
+  untracked; it now fires **no event** and is recorded as a tracked structural
+  change. Only a list or grid-table merge still refuses, and `preventDefault()`
+  on it has no effect — the document is left alone and the event is there to tell
+  the user why.
+
 ### Fixed
 
 - **A partially struck block was skipped, and its text then appeared twice.**
@@ -57,6 +96,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rejecting a block-scoped insertion left an empty paragraph** where the
   proposal had been, and took the caret with it — the mirror of a fix already
   made on the accept side. The caret is now rescued out before the block goes.
+- **With `trackChanges: false` — the default — Backspace at the start of a block
+  and Delete at the end of one ATE A CHARACTER of the neighbouring block.**
+  `<p>one</p><p>two</p>` + Backspace at the start of `two` produced `"ontwo"`;
+  Delete at the end of `one` produced `"onewo"`. The character deletion ran and
+  then the blocks merged, where a gesture crossing a block boundary should delete
+  the paragraph break and nothing else. Present since at least 0.4.4 and
+  unaffected by tracking being off, so **every 0.5.x build loses a character on
+  every cross-paragraph Backspace.**
+- **A footnote reference duplicated in the document minted a second list item**
+  sharing one `data-footnote` and one `id`, carrying placeholder text, which
+  survived accept, reject and an explicit renumber and reached `value`. Reachable
+  in 0.5.x by pasting a reference. Footnote numbering is now per distinct note
+  rather than per reference, so repeated references to one note share its number
+  and its single list entry.
+- **Rejecting a chain of merges left one stray empty paragraph per intermediate
+  step**, in the document and in `value`.
 
 ## [0.5.2] - 2026-09-26
 

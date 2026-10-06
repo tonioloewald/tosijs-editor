@@ -43,7 +43,8 @@
     "tls": "bunx tosijs-dev-certs",
     "typecheck": "bun tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "test:browser": "bun bin/test-browser.ts",
-    "dev:stop": "bun bin/dev-stop.ts"
+    "dev:stop": "bun bin/dev-stop.ts",
+    "release:ready": "bun ../tosijs-coding-practices/tools/attest.ts"
   },
   "releaseDoctor": {
     "attestedLanes": [

@@ -462,9 +462,20 @@ describe('sticky word selection', () => {
     // show character precision, which is why only RTL looked broken.
     //
     // `Selectable.pointerInAnchorWord` answers it against the word's rendered
-    // client rects instead. That needs layout, so it is verified in the browser
-    // lane; what is pinned here is that the parameter overrides the offset test
-    // in both directions.
+    // client rects instead.
+    //
+    // NO LANE COVERS THAT, and this comment used to say it was "verified in the
+    // browser lane" — which CLAUDE.md forbids precisely because it stops the
+    // next reader looking. `browser-tests/` is entirely mark layout; nothing
+    // there drags. The real-engine confirmation is the owner's, by hand, on
+    // 2026-10-05 (board #2429, desktop and phone), with no fence to point at.
+    // Closing the gap is board #3084.
+    //
+    // What IS pinned here is narrower: that the parameter overrides the offset
+    // test in both directions. A mutation that keeps the parameter and swaps
+    // `getClientRects()` for the union `getBoundingClientRect()` — the thing
+    // the method's own comment calls wrong for a wrapped word — passes this
+    // file and typecheck both.
     const T = 'the quick brown fox'
 
     test('claiming we are still inside keeps character precision', () => {
