@@ -374,6 +374,41 @@ happy-dom implements neither `attachInternals()` nor the `Touch` constructor. Fo
 `Component` — rather than leaving the form-association behaviour unasserted; see
 `withInternals` in the spelling tests.
 
+## Fixing a blocker: find the other copies, and ask whether the guard is needed
+
+**Every blocker and major in 0.6.0 was one shape: one rule, several copies, and nothing that
+makes a divergence fail.** Word stickiness in three copies (mouse, touch, affordance handle).
+The mergeability gate pasted into `backspace()` twice and `forwardDelete()` not at all.
+`refuseStructural`'s return value read at one of three sites. Both resolution sweeps deriving a
+block by `parentElement`. `renumberFootnotes` and `resolvedClone` each handling identity as if
+the other did not exist. The superseded-proposal rule stated one way in CHANGELOG and the
+opposite way in CLAUDE.md and the code. The suite was green for all of them.
+
+So two questions, after any blocker, before calling it fixed:
+
+1. **What is the OTHER copy of this?** Grep for the rule, not for the symptom, and verify
+   PLACEMENT — print which function each call site is in. `grep -c` returning 2 was read as
+   "one per path" when it was two in one path and none in the other.
+2. **If the fix adds a guard, would a different call shape make the guard unnecessary?**
+   `deletionTarget` is the worked example: four callers pass the container the deletion may not
+   leave (`li`, `cell`) and cannot get it wrong, while the two block paths pass
+   `this.parts.doc` and have to REMEMBER that crossing a boundary deletes a break rather than a
+   character. They forgot, and an untracked Backspace ate a character of the neighbouring
+   block. The `crossesBlocks` guard that fixes it reproduces at the call site what the other
+   four get free from an argument (board #3091).
+
+And the counter-rule, because over-reach is its own failure: **fix the cause you have evidence
+for, not a grander one you have inferred.** The 0.6.0 footnote corruption was caused by
+`renumberFootnotes` keying its map so a second reference minted a duplicate item — proven,
+since every test for it passes with only that fixed. Stripping `id` from the proposal "for the
+general case" on top of that implemented neither coherent model of identity ownership and
+permanently destroyed every descendant `id` on accept. A second fix for a cause nobody
+demonstrated is a new defect with a rationale.
+
+**The lens whose job this is does not run by default.** `dryness` is in the `dx` tier, not in
+`always-on` or `pre-minor`, so a release can pass the gate twice with twins intact — which is
+what happened here.
+
 **A passing test is not evidence until you have made it fail.** Break the thing under
 test and confirm that specific test goes red. In the 0.5.0 review remediation, four
 tests written against confirmed, reproduced bugs passed against the UNFIXED code and
