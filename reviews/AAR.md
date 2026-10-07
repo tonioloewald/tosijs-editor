@@ -12,6 +12,81 @@ quarterly lens had to reconstruct seven reports by hand.
 
 ---
 
+## 0.6.0 — published 2026-10-07
+
+- **Four reviews, all BLOCK, five correctness blockers — three of them introduced by the
+  previous round's remediation.** Reports: `0.6.0-pre-release.md`, `0.6.0-remediation-rereview.md`,
+  `0.6.0-dx-review.md` (all CLEARED) and `0.6.0-final-rereview.md`, which is filed as
+  **RESOLVED BY DE-SCOPING, not fixed**. Same ratio as 0.5.0's four rounds, in the same
+  subsystem.
+- **Every blocker and major was one shape: one rule, several copies, and nothing that makes a
+  divergence fail.** Word stickiness in three copies (mouse, touch, affordance handle); the
+  mergeability gate pasted into `backspace()` twice and into `forwardDelete()` not at all;
+  `refuseStructural`'s return value read at one of three sites; both resolution sweeps deriving
+  a block by `parentElement`; `renumberFootnotes` and `resolvedClone` each handling identity as
+  if the other did not exist. The suite was green for all of them. The lens whose job that is —
+  `dryness` — sits in the `dx` tier, not in `always-on` or `pre-minor`, so the gate passed twice
+  with the twins intact and the tier did not run until round three.
+- **The owner de-scoped rather than fix.** `trackStructuralEdits` now defaults false and
+  cross-block merges are refused via 0.5.x's reason strings, non-overridable; the remaining
+  blocker was verified unreachable by default. The headline feature of the release therefore
+  ships behind a flag, and finishing it is #3107 against 0.7.0.
+- **A second fix for a cause nobody had demonstrated turned a fixed blocker into a worse one.**
+  The footnote corruption was proven to be `renumberFootnotes` keying its map so a second
+  reference minted a duplicate item; `resolvedClone` stripping `id` was added on top "for the
+  general case", implemented neither coherent model of identity ownership, and permanently
+  destroyed every descendant `id` on accept. Reverted rather than patched — all 8 footnote tests
+  pass without it, which is what proved it unnecessary. Counter-rule written into CLAUDE.md;
+  identity ownership filed as #3090.
+- **Documentation asserting the opposite of the code held the tag three times in one release** —
+  CLAUDE.md's superseded-proposal rule, CHANGELOG's copy of the same sentence, README's
+  sticky-drag claim. The CLAUDE.md one had taught the inverse since 2026-09-26 and was found by
+  verifying blockers against code rather than against commit messages. The mechanism that would
+  make the fourth FAIL rather than ship — the doc-system ```test fences, this project's only
+  layout-capable check — already existed, shipped, and was documented as load-bearing, in **no
+  gate**: release-doctor discovers `test`/`test:*` scripts and a fence ran only when a human
+  opened the page. `browser-tests/doc-fences.test.ts` runs it now, and found 4 examples across
+  three generated pages with exactly **1** carrying tests (#3084).
+- **Mutation testing added as a lane** (`bin/falsify.ts`, 14 guarantees as data, verdicts
+  `caught`/`SURVIVED`/`MISDIRECTED`/`STALE`). It was prompted by the dx review finding two fixes
+  in this release that could be deleted outright with the suite fully green — the RTL sticky
+  parameter and the whole affordance-handle delegation. Final run 14/14 guarded. One entry was
+  itself vacuous on first write: the empty-block guarantee reported GUARDED while tracked mode
+  went unexercised, in the lane built to catch exactly that. Same family as 0.5.0's two wrong
+  falsification checks.
+- **The harness was wrong at least three times, each time looking like a product defect.** A
+  single-line geometry stub could not express two blocks (fixed with per-block y bands);
+  hand-placed markers plus `extendSelection()` deleted more than the selected range (fixed by
+  driving real mouse events); and leaving `getBoundingClientRect` inconsistent with
+  `getClientRects` made a mutation undetectable, since in a real engine the bounding rect *is*
+  the union of the client rects. Also recorded: `parts.doc.innerHTML = …` destroys the affordance
+  elements, so a describe-style probe reported handles absent.
+- **`test:browser` depended on what the operator had running.** It assumed `bun start` was open;
+  release-doctor runs every `test*` script, so the same commit reported red or green depending on
+  that. `bin/test-browser.ts` now reuses a server already serving this repo and leaves it
+  running, starts one if absent and stops only that, and refuses a port held by another directory
+  — or by this one without answering. The ~1 GB `bunx playwright install webkit` prerequisite is
+  machine-scoped and was undocumented; CLAUDE.md says so now.
+- **`git checkout src/selection.ts` during a by-hand falsification destroyed uncommitted work.**
+  `bin/falsify.ts` refuses a dirty tree for that reason, restores from an in-memory copy in a
+  `finally`, and handles SIGINT/SIGTERM.
+- **Two ordering facts about `attestedLanes`, both learned by failing first.** The dry run comes
+  **after** the attestation — which inverts `publish.yml`'s own header, because its "Attested
+  lanes need an attestation" step fails any run without `release-attestation.json`, dry or not.
+  And `tag` takes the **branch** name for a dry run, since `dry_run` checks out `inputs.tag` as a
+  ref directly. Both in CLAUDE.md.
+- **Published and verified were two separate events, correctly labelled.** Approval landed after
+  the 60-minute window, so the stage job timed out at 1h0m28s and `verify` was skipped; the run
+  still went green, annotated "staged but was not approved within 60 minutes, so NOTHING has been
+  verified." Recovered with `verify_only=true` on the same tag, which is what the annotation
+  prescribes — published bytes identical to the staged tarball, `latest → 0.6.0`, consumer smoke
+  test green against the registry's own copy. The 0.5.1 practice change (#2495) earning its keep:
+  green did not read as verified.
+- Final: npm 0.6.0, tag `v0.6.0` on `1809246` ("attest: v0.6.0", the only commit touching
+  `release-attestation.json`), repo and registry agree. 48 commits, 44 files, +6992/−691. 381
+  unit tests, 11 browser tests, 14 falsifications. release-doctor 0 failed, 0 warnings.
+  Deferred and filed: #3083–#3091, #3100, #3104, #3107.
+
 ## 0.5.1 — 2026-09-26
 
 - **A security fix that the 0.6.0 branch review found in code shipped four days
