@@ -160,6 +160,44 @@ const MUTATIONS: Mutation[] = [
     expect: ['cross-block merge is refused'],
   },
   {
+    name: 'a live handle drag stands the doc’s own touchmove down',
+    file: 'src/selection.ts',
+    find: `    if (!this.selecting || evt.touches.length !== 1) return
+    if (this.boundDrag) return`,
+    replace: `    if (!this.selecting || evt.touches.length !== 1) return`,
+    expect: ['does not drive the bound'],
+  },
+  {
+    name: 'a live handle drag stands the doc’s own touchend down',
+    file: 'src/selection.ts',
+    find: `    if (this.boundDrag) return
+    if (this.selecting) {`,
+    replace: `    if (this.selecting) {`,
+    expect: ['does not tear the drag down'],
+  },
+  {
+    name: 'a CANCELLED handle drag runs the same teardown as a finished one',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `      handle.addEventListener('pointercancel', this.handleAffordanceDragEnd)
+      handle.addEventListener(
+        'lostpointercapture',
+        this.handleAffordanceDragEnd
+      )
+`,
+    replace: ``,
+    expect: ['leaving nothing stale'],
+  },
+  {
+    name: 'one pointermove re-marks the selection once',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    this.selectable.extendTo(cursorX, cursorY, drag.target)
+`,
+    replace: `    this.selectable.extendTo(cursorX, cursorY, drag.target)
+    this.selectable.markBounds()
+`,
+    expect: ['once, not twice'],
+  },
+  {
     name: 'sticky selection measures PER LINE BOX, not the union rect',
     file: 'src/selection.ts',
     find: `    for (const r of Array.from(range.getClientRects())) {`,

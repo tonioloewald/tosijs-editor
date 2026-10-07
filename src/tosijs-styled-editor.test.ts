@@ -3475,6 +3475,73 @@ describe('the affordance handles delegate to Selectable', () => {
     handle.dispatchEvent(pointer('pointerup', handle))
     expect((el.selectable as any).dragAnchor).toBeNull()
   })
+
+  /**
+   * The platform can take the gesture away — an incoming call, a system edge
+   * swipe, a second finger the browser rules a pinch — and only `pointerup`
+   * was listened for. The drag entry then survived the gesture, and because
+   * every later `handleAffordanceDragEnd` is guarded on `touchDrags.size === 0`
+   * before tearing down, `endBoundDrag`, `despanify` and `selectionChanged`
+   * stopped running for the rest of the session.
+   *
+   * `lostpointercapture` is the second route to the same teardown rather than a
+   * second teardown, which is the mistake this repo keeps making: one rule,
+   * several copies.
+   */
+  for (const ending of ['pointercancel', 'lostpointercapture'] as const) {
+    test(`a ${ending} ends the drag, leaving nothing stale`, () => {
+      const el = build()
+      const handle = handleFor(el, 'start')
+      handle.dispatchEvent(pointer('pointerdown', handle))
+      expect((el as any).touchDrags.size).toBe(1)
+      expect(el.selectable.draggingBound).toBe('start')
+
+      handle.dispatchEvent(pointer(ending, handle))
+      expect((el as any).touchDrags.size).toBe(0)
+      expect(el.selectable.draggingBound).toBeNull()
+      expect((el.selectable as any).dragAnchor).toBeNull()
+    })
+  }
+
+  /**
+   * `extendTo` already ends in `markRange` via `extendSelection`; the handler
+   * then called `markBounds()`, which re-marked the identical range. One
+   * pointer move, the O(document) selection sweep twice, on the one device
+   * where the handles ARE the gesture.
+   *
+   * Counted through `onBoundsChanged` because that is what the duplication
+   * actually costs downstream — it is the caret repaint and the affordance
+   * reposition — and because counting it needs no geometry stub.
+   */
+  test('one pointermove re-marks the selection once, not twice', () => {
+    const el = build()
+    const handle = handleFor(el, 'end')
+    handle.dispatchEvent(pointer('pointerdown', handle))
+
+    // THE PRECONDITION, and the first version of this test did not have it:
+    // `handleAffordanceDragMove` resolves the element under the OFFSET cursor
+    // before it touches the selection, happy-dom answers null, so the handler
+    // returned before reaching any of this and the assertion below passed
+    // whether the duplicate `markBounds()` was there or not. Restoring the bug
+    // left the suite byte-identically green — in a test written to catch it.
+    ;(el.shadowRoot as any).elementFromPoint = () =>
+      el.parts.doc.querySelector('p')
+
+    let fired = 0
+    const previous = el.selectable.onBoundsChanged
+    el.selectable.onBoundsChanged = () => {
+      fired++
+      previous?.()
+    }
+    // There is still no LAYOUT here, so `characterAtPoint` finds nothing and
+    // `extendTo` returns early. That is the bail-out path, and it must not
+    // re-mark either: nothing `extendTo` does before returning changes the DOM,
+    // so a `markBounds()` after it is pure duplicate work.
+    handle.dispatchEvent(pointer('pointermove', handle))
+    expect(fired).toBe(0)
+
+    el.selectable.onBoundsChanged = previous
+  })
 })
 
 /**

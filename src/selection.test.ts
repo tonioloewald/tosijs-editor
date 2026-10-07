@@ -878,6 +878,7 @@ describe('a handle drag is sticky too', () => {
   let rangeProto: any
   let realRect: () => DOMRect
   let realRects: () => DOMRectList
+  let realFromPoint: (x: number, y: number) => Element | null
 
   const logical = (node: Node, offset: number): number => {
     const block = root.querySelector('p')!
@@ -925,11 +926,21 @@ describe('a handle drag is sticky too', () => {
     rangeProto.getClientRects = function (this: Range) {
       return [rect.call(this)] as unknown as DOMRectList
     }
+    // The handles live inside `root`, so their touch events bubble to the doc
+    // listeners. Reaching those at all needs the element-under-finger stub,
+    // since happy-dom answers null and the handler bails first.
+    realFromPoint = (document as any).elementFromPoint
+    ;(document as any).elementFromPoint = (x: number, y: number) => {
+      const block = root.querySelector('p')
+      if (!block) return null
+      return x >= 0 && x <= 110 && y >= 0 && y <= 10 ? block : null
+    }
   })
 
   afterEach(() => {
     rangeProto.getBoundingClientRect = realRect
     rangeProto.getClientRects = realRects
+    ;(document as any).elementFromPoint = realFromPoint
     sel.destroy()
     root.remove()
   })
@@ -957,6 +968,15 @@ describe('a handle drag is sticky too', () => {
     }
     walk(block)
     return out
+  }
+
+  /** happy-dom has no `Touch` constructor; the handlers read only these. */
+  const touchEvent = (type: string, x: number, y: number): Event => {
+    const evt = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(evt, 'touches', {
+      value: [{ clientX: x, clientY: y }],
+    })
+    return evt
   }
 
   test('beginBoundDrag anchors on the OPPOSITE bound', () => {
@@ -991,6 +1011,70 @@ describe('a handle drag is sticky too', () => {
     expect((sel as any).dragAnchor).not.toBeNull()
     sel.endBoundDrag()
     expect((sel as any).dragAnchor).toBeNull()
+  })
+
+  /**
+   * A handle drag runs on POINTER events, and the handles live inside the doc
+   * element, so their touch events bubble to the doc's own touch listeners.
+   * `beginBoundDrag` sets `selecting = 1` — deliberately, because `extendSticky`
+   * requires it — and that re-armed `handleTouchMove` underneath the drag.
+   *
+   * It only shows when `handleAffordanceDragMove` bails WITHOUT repositioning
+   * the handle (offset cursor over `.not-selectable` content, or above the
+   * first line): the handle stops tracking, the finger leaves the stale 44px
+   * box, and this path extends the selection to the UN-OFFSET coordinate —
+   * roughly half a line and half a handle away from where the user is aiming.
+   */
+  describe('and it owns the gesture while it lasts', () => {
+    const recordExtend = (): string[] => {
+      const calls: string[] = []
+      const real = sel.extendTo.bind(sel)
+      sel.extendTo = (x: number, y: number, which?: 'start' | 'end') => {
+        calls.push(`${x},${y},${which ?? 'end'}`)
+        real(x, y, which)
+      }
+      return calls
+    }
+
+    test('a bubbled touchmove does not drive the bound', () => {
+      sel.placeCaretAt(25, 5)
+      sel.beginBoundDrag('start')
+      const calls = recordExtend()
+      root.dispatchEvent(touchEvent('touchmove', 85, 5))
+      expect(calls).toEqual([])
+    })
+
+    // THE PRECONDITION. `handleTouchMove` bails on several things before it
+    // reaches `extendTo` — no `selecting`, a null element-under-finger — so
+    // "no calls" above is only evidence if this harness can produce a call.
+    test('…and does once the drag has ended', () => {
+      sel.placeCaretAt(25, 5)
+      sel.beginBoundDrag('start')
+      sel.endBoundDrag()
+      sel.selecting = 1
+      const calls = recordExtend()
+      root.dispatchEvent(touchEvent('touchmove', 85, 5))
+      expect(calls).toEqual(['85,5,end'])
+    })
+
+    test('a bubbled touchend does not tear the drag down', () => {
+      sel.placeCaretAt(25, 5)
+      sel.beginBoundDrag('end')
+      root.dispatchEvent(touchEvent('touchend', 85, 5))
+      // Still live: the handle's own pointerup is what ends it.
+      expect(sel.draggingBound).toBe('end')
+      expect(sel.selecting).toBe(1)
+      expect((sel as any).dragAnchor).not.toBeNull()
+    })
+
+    test('draggingBound reports which bound, and endBoundDrag clears it', () => {
+      expect(sel.draggingBound).toBeNull()
+      sel.placeCaretAt(25, 5)
+      sel.beginBoundDrag('start')
+      expect(sel.draggingBound).toBe('start')
+      sel.endBoundDrag()
+      expect(sel.draggingBound).toBeNull()
+    })
   })
 })
 

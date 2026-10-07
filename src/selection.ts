@@ -252,6 +252,27 @@ export class Selectable {
   touchMode = false
 
   /**
+   * Which bound a touch affordance handle is currently dragging, if any.
+   *
+   * This exists because the handles live INSIDE `root` and get only pointer
+   * listeners, so their touch events bubble here and `handleTouchMove` runs
+   * underneath a live handle drag. That is normally invisible — the handle
+   * tracks the finger, so `elementFromPoint(finger)` keeps resolving to the
+   * handle's own `.not-selectable` box and the move handler bails — but
+   * `handleAffordanceDragMove` returns early WITHOUT repositioning the handle
+   * whenever the offset cursor lands on `.not-selectable` content or above the
+   * first line. The handle then stops tracking, the finger walks out of the
+   * stale box, and this path extends the selection to the UN-offset
+   * coordinate, leaving a stale `touchDrags` entry behind it.
+   *
+   * A flag rather than reading `selecting`, which `beginBoundDrag` must keep
+   * setting: `extendSticky` requires `selecting === 1` to treat the handle drag
+   * as the same gesture as a drag across text, which is the whole point of the
+   * delegation.
+   */
+  private boundDrag: 'start' | 'end' | null = null
+
+  /**
    * When word stickiness applies.
    *
    * `'touch'` by default, because the two pointers want different things. A
@@ -477,8 +498,12 @@ export class Selectable {
       range.insertNode(marker)
       this.root.normalize()
     }
+    // `extendSelection` ends in `markRange` AND fires `onBoundsChanged`, so
+    // firing it again here repainted the caret and repositioned the
+    // affordances a second time for one move — on the one device where the
+    // handles ARE the gesture. The notification belongs to whichever call
+    // actually re-marks, not to every wrapper around it.
     this.extendSelection()
-    this.onBoundsChanged?.()
   }
 
   /**
@@ -501,6 +526,7 @@ export class Selectable {
     const block = anchorEl && this.topLevelAncestor(anchorEl)
     this.selecting = 1
     this.touchMode = true
+    this.boundDrag = which
     this.dragAnchor =
       anchorEl && block
         ? { block, index: this.textOffsetOf(block, anchorEl) }
@@ -510,7 +536,13 @@ export class Selectable {
   /** End a handle drag, clearing the anchor as mouseup and touchend do. */
   endBoundDrag(): void {
     this.selecting = false
+    this.boundDrag = null
     this.dragAnchor = null
+  }
+
+  /** Is a touch affordance handle dragging a bound right now? */
+  get draggingBound(): 'start' | 'end' | null {
+    return this.boundDrag
   }
 
   /**
@@ -800,6 +832,9 @@ export class Selectable {
 
   private handleTouchStart = (evt: TouchEvent): void => {
     if (evt.touches.length !== 1) return
+    // A handle owns the gesture: its pointer handlers are driving the bound,
+    // and this path would drive it again from the un-offset coordinate.
+    if (this.boundDrag) return
     this.touchMode = true
     const touch = evt.touches[0]
     let target = evt.target as Element
@@ -832,6 +867,7 @@ export class Selectable {
 
   private handleTouchMove = (evt: TouchEvent): void => {
     if (!this.selecting || evt.touches.length !== 1) return
+    if (this.boundDrag) return
     const touch = evt.touches[0]
     const rootNode = this.root.getRootNode() as Document | ShadowRoot
     let target = (
@@ -855,6 +891,10 @@ export class Selectable {
   }
 
   private handleTouchEnd = (evt: TouchEvent): void => {
+    // The handle's own pointerup runs the teardown, including the despanify
+    // below. Running both ends the drag twice and clears `selecting` out from
+    // under the handle's remaining pointer moves.
+    if (this.boundDrag) return
     if (this.selecting) {
       this.extendSelection()
       this.normalizeBoundsOrder()

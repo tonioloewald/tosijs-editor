@@ -2014,11 +2014,24 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     )
     doc.appendChild(this.touchAffordances)
 
-    // Drag handlers for touch affordance handles
+    // Drag handlers for touch affordance handles.
+    //
+    // `pointercancel` is not optional: the gesture can be taken away by the
+    // platform — an incoming call, a system edge swipe, a second finger the
+    // browser decides is a pinch — and only `pointerup` was listened for. A
+    // cancelled drag therefore left the `touchDrags` entry behind, after which
+    // `endBoundDrag`, `despanify` and `selectionChanged` stopped running for
+    // every later drag. `lostpointercapture` covers the capture being released
+    // out from under us for any other reason; both run the same teardown.
     for (const handle of [this.touchHandleStart, this.touchHandleEnd]) {
       handle.addEventListener('pointerdown', this.handleAffordanceDragStart)
       handle.addEventListener('pointermove', this.handleAffordanceDragMove)
       handle.addEventListener('pointerup', this.handleAffordanceDragEnd)
+      handle.addEventListener('pointercancel', this.handleAffordanceDragEnd)
+      handle.addEventListener(
+        'lostpointercapture',
+        this.handleAffordanceDragEnd
+      )
     }
     this.touchContextMenu.addEventListener(
       'pointerdown',
@@ -4391,8 +4404,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // bound to the character under the pointer", so it stayed character-precise
     // while the mouse and touch paths inside Selectable became sticky. One copy
     // now, and the handle inherits whatever `stickySelection` says.
+    // `extendTo` already ends in `markRange` via `extendSelection`, so the
+    // `markBounds()` that used to follow it re-marked the identical range —
+    // the same O(document) sweep twice per pointer move. Nor is it needed on
+    // the bail-out path: `extendTo` only returns early when there is no hit or
+    // no marker, and neither changes the DOM.
     this.selectable.extendTo(cursorX, cursorY, drag.target)
-    this.selectable.markBounds()
 
     // Just move the dragged handle to follow the pointer
     const docRect = this.parts.doc.getBoundingClientRect()
@@ -4410,7 +4427,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     if (!this.touchDrags.has(evt.pointerId)) return
 
     const handle = evt.currentTarget as HTMLElement
-    handle.releasePointerCapture(evt.pointerId)
+    // Already released on `pointercancel`, and gone by definition on
+    // `lostpointercapture` — where releasing again throws NotFoundError and
+    // would take the rest of this teardown with it.
+    if (handle.hasPointerCapture?.(evt.pointerId)) {
+      handle.releasePointerCapture(evt.pointerId)
+    }
     this.touchDrags.delete(evt.pointerId)
 
     // Only despanify when all drags are done
