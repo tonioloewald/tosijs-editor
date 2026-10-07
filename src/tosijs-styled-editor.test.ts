@@ -3,8 +3,8 @@ import { renumberFootnotes } from './commands'
 import {
   TosijsStyledEditor,
   tosijsStyledEditor,
-  menuAffordanceX,
-  AFFORDANCE_SIZE,
+  lozengePlacement,
+  LOZENGE_GAP,
 } from './tosijs-styled-editor'
 import { changeId, diffWords, MAX_DIFF_TOKENS } from './changes'
 
@@ -343,11 +343,11 @@ describe('TosijsStyledEditor', () => {
       expect(affordances).not.toBeNull()
     })
 
-    test('touch affordances contain three children', () => {
+    test('the affordance container holds the two handles', () => {
       const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
       container.appendChild(el)
       const affordances = el.parts.doc.querySelector('.touch-affordances')!
-      expect(affordances.children.length).toBe(3)
+      expect(affordances.children.length).toBe(2)
     })
 
     test('touch affordances have correct classes', () => {
@@ -355,8 +355,32 @@ describe('TosijsStyledEditor', () => {
       container.appendChild(el)
       const doc = el.parts.doc
       expect(doc.querySelector('.touch-handle-start')).not.toBeNull()
-      expect(doc.querySelector('.touch-context-menu')).not.toBeNull()
       expect(doc.querySelector('.touch-handle-end')).not.toBeNull()
+    })
+
+    /**
+     * The lozenge is a sibling of [part="doc"], not a child, for the reason
+     * written at `content`: a child of the doc element is a document BLOCK and
+     * turns up in `selectedBlocks()`, `block()` and arrow navigation. The
+     * handles have to be in there because they are anchored to scrolling text;
+     * the lozenge is centred on the page, so it does not.
+     *
+     * The concrete symptom when it WAS a child: its seven labels joined the
+     * document's own text, and four unrelated deletion tests started reading
+     * "onetwoCutCopyPasteDeleteBoldItalicPlain".
+     */
+    test('the lozenge is beside the document, not inside it', () => {
+      const el = tosijsStyledEditor({}, '<p>Test</p>') as TosijsStyledEditor
+      container.appendChild(el)
+      expect(el.parts.doc.querySelector('.touch-lozenge')).toBeNull()
+      const lozenge = el.shadowRoot!.querySelector('.touch-lozenge')
+      expect(lozenge).not.toBeNull()
+      // A direct child of the shadow root, so it has no parentElement at all —
+      // which is the assertion: it is not inside any element of the document.
+      expect(lozenge!.parentElement).toBeNull()
+      // The point of the move, stated directly.
+      expect(el.parts.doc.textContent).not.toContain('Cut')
+      expect(el.parts.doc.textContent).not.toContain('Paste')
     })
 
     test('touch affordances not visible without touch interaction', () => {
@@ -2416,58 +2440,106 @@ describe('TosijsStyledEditor', () => {
 })
 
 /**
- * Reported from an iPhone: with the start and end bounds close together in x,
- * the context-menu affordance overlapped the start handle.
+ * `lozengePlacement` — where the condensed action lozenge goes (#3104).
  *
- * The menu was centred on the selection and the start handle sits at
- * `[startX - 44, startX]` on the SAME row, so the two collide whenever the
- * selection is narrower than one handle — i.e. for most selections, since 44px
- * is a few characters. Pure maths, so it is testable without layout, which is
- * the point of extracting it.
+ * **This replaces `menuAffordanceX` and its six tests, which are deleted
+ * rather than carried.** That function's whole job was keeping a
+ * SELECTION-centred menu off the start handle, because the two shared a row and
+ * a selection narrower than one handle put them on top of each other (reported
+ * from an iPhone, fixed in 0.6.0). Centring on the PAGE makes the overlap
+ * unreachable, so the guard has no need left — and a guard kept past its need
+ * is a rule the next reader cannot explain. iOS centres on the page, which is
+ * what made the question worth asking at all.
+ *
+ * Pure maths, so it is testable without layout. The thing that is NOT testable
+ * here is whether the measured selection rects are right; that is the browser
+ * lane's job (`browser-tests/affordances.test.ts`).
  */
-describe('menuAffordanceX', () => {
-  const S = AFFORDANCE_SIZE
-  const ROOMY = 1000
+describe('lozengePlacement', () => {
+  const SIZE = { width: 300, height: 44 }
+  const PAGE = { left: 0, top: 0, right: 800, bottom: 600 }
 
-  test('a wide selection keeps the menu centred', () => {
-    // 400px of selection: centred at 300, which clears the handle easily.
-    expect(menuAffordanceX(100, 500, S, ROOMY)).toBe(300 - S / 2)
+  test('centred on the PAGE, not on the selection', () => {
+    const narrow = lozengePlacement({ top: 300, bottom: 320 }, SIZE, PAGE)
+    const wide = lozengePlacement({ top: 300, bottom: 320 }, SIZE, PAGE)
+    // Same page, same answer, whatever the selection is doing horizontally —
+    // which the signature enforces by not taking an x at all.
+    expect(narrow.x).toBe(250)
+    expect(wide.x).toBe(250)
   })
 
-  test('THE BUG: a selection narrower than a handle no longer overlaps it', () => {
-    // 10px apart — the reported case. Centred would be 105 - 22 = 83, which is
-    // inside the start handle's [56, 100].
-    const x = menuAffordanceX(100, 110, S, ROOMY)
-    expect(x).toBeGreaterThanOrEqual(100)
-    // and specifically: immediately right of the handle, not floating.
-    expect(x).toBe(100)
+  test('above the selection when there is room', () => {
+    const { y, side } = lozengePlacement({ top: 300, bottom: 320 }, SIZE, PAGE)
+    expect(side).toBe('above')
+    expect(y).toBe(300 - LOZENGE_GAP - SIZE.height)
   })
 
-  test('a collapsed caret puts the menu immediately right of the handle', () => {
-    expect(menuAffordanceX(100, 100, S, ROOMY)).toBe(100)
+  test('below it when there is not', () => {
+    // 20px from the top: no room for a 44px lozenge above.
+    const { y, side } = lozengePlacement({ top: 20, bottom: 40 }, SIZE, PAGE)
+    expect(side).toBe('below')
+    expect(y).toBe(40 + LOZENGE_GAP)
   })
 
-  test('the overlap is impossible for ANY selection width', () => {
-    // The property, rather than three examples of it.
-    for (let width = 0; width <= 200; width += 1) {
-      const startX = 300
-      const x = menuAffordanceX(startX, startX + width, S, ROOMY)
-      expect(x).toBeGreaterThanOrEqual(startX)
+  test('above again near the BOTTOM edge', () => {
+    const { y, side } = lozengePlacement({ top: 560, bottom: 580 }, SIZE, PAGE)
+    expect(side).toBe('above')
+    expect(y).toBe(560 - LOZENGE_GAP - SIZE.height)
+  })
+
+  test('THE PROPERTY: it never overlaps the selection, at any y', () => {
+    // One example per side proves the two branches; this proves the contract.
+    for (let top = 0; top <= 560; top += 4) {
+      const sel = { top, bottom: top + 20 }
+      const { y, side } = lozengePlacement(sel, SIZE, PAGE)
+      const overlaps = y < sel.bottom && y + SIZE.height > sel.top
+      expect(overlaps).toBe(false)
+      // And the side it reports is the side it actually used.
+      expect(side).toBe(y < sel.top ? 'above' : 'below')
     }
   })
 
-  test('no room on the right: the menu goes LEFT of the start handle', () => {
-    // maxX only just past the start, so right is not an option.
-    const x = menuAffordanceX(100, 105, S, 120)
-    expect(x).toBe(100 - S * 2)
-    // Left of the handle's own left edge, so they cannot overlap.
-    expect(x + S).toBeLessThanOrEqual(100 - S)
+  test('always inside the visible band, so it can always be tapped', () => {
+    for (let top = 0; top <= 600; top += 4) {
+      const { x, y } = lozengePlacement({ top, bottom: top + 20 }, SIZE, PAGE)
+      expect(y).toBeGreaterThanOrEqual(PAGE.top)
+      expect(y + SIZE.height).toBeLessThanOrEqual(PAGE.bottom)
+      expect(x).toBeGreaterThanOrEqual(PAGE.left)
+      expect(x + SIZE.width).toBeLessThanOrEqual(PAGE.right)
+    }
   })
 
-  test('never off the left edge, even when neither side fits', () => {
-    // Pinned at the very left with no room either way: overlapping a handle is
-    // the lesser evil against a menu that cannot be tapped at all.
-    expect(menuAffordanceX(10, 12, S, 20)).toBe(0)
+  test('a scrolled document places in the same coordinates as the text', () => {
+    // `bounds` is the VISIBLE band in doc coordinates, so a scrolled document
+    // moves the band rather than needing a second rule. Passing the unscrolled
+    // box instead would park the lozenge off screen.
+    const scrolled = { left: 0, top: 1000, right: 800, bottom: 1600 }
+    const { y, side } = lozengePlacement(
+      { top: 1300, bottom: 1320 },
+      SIZE,
+      scrolled
+    )
+    expect(side).toBe('above')
+    expect(y).toBe(1300 - LOZENGE_GAP - SIZE.height)
+  })
+
+  test('a lozenge wider than the page sits at its left edge, not off it', () => {
+    const { x } = lozengePlacement(
+      { top: 300, bottom: 320 },
+      { width: 900, height: 44 },
+      PAGE
+    )
+    expect(x).toBe(0)
+  })
+
+  test('taller than the viewport: the side with more room, still on screen', () => {
+    // The one case with no clean answer — the selection's first and last lines
+    // are both off screen. It must still be reachable.
+    const tall = { top: -200, bottom: 590 }
+    const { y, side } = lozengePlacement(tall, SIZE, PAGE)
+    expect(side).toBe('below')
+    expect(y).toBeGreaterThanOrEqual(PAGE.top)
+    expect(y + SIZE.height).toBeLessThanOrEqual(PAGE.bottom)
   })
 })
 
@@ -3541,6 +3613,127 @@ describe('the affordance handles delegate to Selectable', () => {
     expect(fired).toBe(0)
 
     el.selectable.onBoundsChanged = previous
+  })
+})
+
+/**
+ * The action lozenge (#3104): condensed by default, expanding to a vertical
+ * menu on its chevron.
+ *
+ * ONE element in two states, which is the structural claim worth guarding. The
+ * design it replaces was a 44px round button that BUILT a separate menu — two
+ * things to place, two dismissal paths, and two action lists that could
+ * disagree. These tests assert the single list and the single element, because
+ * a later "just add one more item to the expanded menu" is exactly how that
+ * divergence comes back.
+ */
+describe('the action lozenge', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const build = (): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = '<p>one two three</p>'
+    const p = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    p.appendChild(el.selectable.createBounds())
+    return el
+  }
+
+  const lozengeOf = (el: TosijsStyledEditor): HTMLElement =>
+    el.shadowRoot!.querySelector('.touch-lozenge') as HTMLElement
+
+  const chevronOf = (el: TosijsStyledEditor): HTMLElement =>
+    el.shadowRoot!.querySelector('.touch-lozenge-chevron') as HTMLElement
+
+  const press = (target: Element): void => {
+    target.dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+  }
+
+  test('condensed: the common actions inline, the rest marked extra', () => {
+    const el = build()
+    const items = [
+      ...lozengeOf(el).querySelectorAll('.touch-lozenge-item'),
+    ] as HTMLElement[]
+    const inline = items
+      .filter((i) => !i.classList.contains('-extra'))
+      .map((i) => i.textContent)
+    expect(inline).toEqual(['Cut', 'Copy', 'Paste'])
+    // The extras exist in the SAME list — it is CSS that hides them, so the
+    // two states cannot hold different actions.
+    expect(items.length).toBeGreaterThan(inline.length)
+  })
+
+  test('the chevron expands it, and expanding again collapses it', () => {
+    const el = build()
+    const lozenge = lozengeOf(el)
+    expect(lozenge.classList.contains('-expanded')).toBe(false)
+
+    press(chevronOf(el))
+    expect(lozenge.classList.contains('-expanded')).toBe(true)
+
+    press(chevronOf(el))
+    expect(lozenge.classList.contains('-expanded')).toBe(false)
+  })
+
+  test('a tap on the document collapses it', () => {
+    const el = build()
+    press(chevronOf(el))
+    expect(lozengeOf(el).classList.contains('-expanded')).toBe(true)
+
+    press(el.parts.doc)
+    expect(lozengeOf(el).classList.contains('-expanded')).toBe(false)
+  })
+
+  /**
+   * The outside-tap listener is registered on expand and removed on collapse,
+   * so there is exactly one and it exists only while there is something to
+   * dismiss. A leaked listener is invisible — it does no harm until the next
+   * expand, when two of them collapse the lozenge the user just opened.
+   */
+  test('collapsing takes the outside-tap listener with it', () => {
+    const el = build()
+    press(chevronOf(el))
+    expect((el as any).lozengeDismiss).not.toBeNull()
+    press(chevronOf(el))
+    expect((el as any).lozengeDismiss).toBeNull()
+  })
+
+  test('choosing an action collapses it', () => {
+    const el = build()
+    press(chevronOf(el))
+    const bold = [
+      ...lozengeOf(el).querySelectorAll('.touch-lozenge-item'),
+    ].find((i) => i.textContent === 'Bold')!
+    press(bold)
+    expect(lozengeOf(el).classList.contains('-expanded')).toBe(false)
+  })
+
+  test('a handle drag takes it out of the way and collapses it', () => {
+    const el = build()
+    press(chevronOf(el))
+    expect(lozengeOf(el).classList.contains('-expanded')).toBe(true)
+
+    const handle = el.parts.doc.querySelector('.touch-handle-start')!
+    ;(handle as any).setPointerCapture = (): void => {}
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperty(down, 'pointerId', { value: 1 })
+    Object.defineProperty(down, 'currentTarget', { value: handle })
+    handle.dispatchEvent(down)
+
+    expect(lozengeOf(el).classList.contains('-expanded')).toBe(false)
+    expect(lozengeOf(el).classList.contains('-dragging')).toBe(true)
   })
 })
 

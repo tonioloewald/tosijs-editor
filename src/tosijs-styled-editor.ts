@@ -241,39 +241,83 @@ const MERGEABLE_BLOCKS = new Set([
 ])
 
 /**
- * Edge length of a touch affordance, in px. Referenced by the CSS that sizes
- * them AND by the maths that places them — they were two independent 44s, and
- * the placement maths is where that drifts silently.
+ * The HIT TARGET of a selection handle, in px — the invisible box a finger
+ * aims at. 44px is Apple's own minimum, and it stays 44 however small the
+ * painted dot gets.
+ *
+ * Split from the painted size deliberately. It used to be one `AFFORDANCE_SIZE`
+ * meaning both, so the handles were visually as large as their hit area and
+ * therefore covered the text they were bracketing. iOS paints a small dot
+ * inside a generous hit box; that split is the thing worth copying, and it
+ * cannot be expressed with one constant.
+ *
+ * Referenced by the CSS that sizes them AND by the maths that places them —
+ * they were two independent 44s once, and the placement maths is where that
+ * drifts silently.
  */
-export const AFFORDANCE_SIZE = 44
+export const AFFORDANCE_HIT = 44
 
 /**
- * Where the context-menu affordance goes, horizontally, in doc coordinates.
+ * The PAINTED diameter of a selection handle's dot, in px.
  *
- * The start handle occupies `[startX - size, startX]` on the SAME row as the
- * menu (both sit a handle's height above the first line), so a menu centred on
- * the selection overlaps it whenever the selection is narrower than one
- * handle — which is most selections, since 44px is only a few characters at any
- * normal size. Reported from an iPhone.
- *
- * So: centred when there is room, otherwise forced right of the start handle,
- * otherwise left of it. The collapsed-caret case already placed the menu at
- * exactly `startX`, which is this rule's floor — so both cases go through here
- * now rather than one of them being right by hand.
+ * The CSS draws the ring with `box-shadow` rather than `border` on purpose:
+ * a border adds to the box, so the painted circle would stop being
+ * `AFFORDANCE_DOT` across while this constant still claimed it was — and the
+ * placement maths below measures clearance in exactly these units.
  */
-export function menuAffordanceX(
-  startX: number,
-  endX: number,
-  size: number,
-  maxX: number
-): number {
-  const centred = (startX + endX) / 2 - size / 2
-  // Right of the start handle, never over it.
-  let x = Math.max(centred, startX)
-  // Out of room on the right? Left of the start handle instead.
-  if (x + size > maxX) x = startX - size * 2
-  // Never off the left edge: overlapping a handle beats being unreachable.
-  return Math.max(x, 0)
+export const AFFORDANCE_DOT = 14
+
+/** Gap between the action lozenge and the selection it belongs to, in px. */
+export const LOZENGE_GAP = 8
+
+/**
+ * Where the condensed action lozenge goes, in doc coordinates.
+ *
+ * **It is centred on the PAGE, not on the selection**, and that is what retired
+ * `menuAffordanceX`. That function existed to keep a selection-centred menu off
+ * the start handle, because the two shared a row and a selection narrower than
+ * one handle put them on top of each other (reported from an iPhone, 0.6.0).
+ * Centre on the page instead and the overlap cannot arise — so the rule goes,
+ * rather than being carried with a condition nobody can explain later.
+ *
+ * Vertically it is ABOVE the selection when there is room and BELOW otherwise,
+ * never over it. `bounds` is the VISIBLE band of the document in the same
+ * coordinates, so a lozenge is only ever placed somewhere a finger can reach.
+ *
+ * The one case with no good answer is a selection with room for the lozenge on
+ * neither side — it is taller than the viewport, so its first and last lines
+ * are off screen anyway. That takes the side with more room and clamps, which
+ * is the only choice left; `side` is returned so the caller can style what
+ * actually happened rather than what it asked for.
+ */
+export function lozengePlacement(
+  selection: { top: number; bottom: number },
+  size: { width: number; height: number },
+  bounds: { left: number; top: number; right: number; bottom: number },
+  gap: number = LOZENGE_GAP
+): { x: number; y: number; side: 'above' | 'below' } {
+  const centred = (bounds.left + bounds.right - size.width) / 2
+  // Clamped into the visible band, and `max` LAST so a lozenge wider than the
+  // document sits at its left edge rather than off it.
+  const x = Math.max(bounds.left, Math.min(centred, bounds.right - size.width))
+
+  const roomAbove = selection.top - gap - bounds.top
+  const roomBelow = bounds.bottom - (selection.bottom + gap)
+  const side: 'above' | 'below' =
+    roomAbove >= size.height
+      ? 'above'
+      : roomBelow >= size.height
+      ? 'below'
+      : roomAbove >= roomBelow
+      ? 'above'
+      : 'below'
+
+  const wanted =
+    side === 'above'
+      ? selection.top - gap - size.height
+      : selection.bottom + gap
+  const y = Math.max(bounds.top, Math.min(wanted, bounds.bottom - size.height))
+  return { x, y, side }
 }
 
 export class TosijsStyledEditor extends WebComponent<EditableParts> {
@@ -590,8 +634,8 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     },
     ':host .touch-affordance': {
       position: 'absolute',
-      width: `${AFFORDANCE_SIZE}px`,
-      height: `${AFFORDANCE_SIZE}px`,
+      width: `${AFFORDANCE_HIT}px`,
+      height: `${AFFORDANCE_HIT}px`,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -603,55 +647,98 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     ':host .touch-affordances.dragging .touch-affordance': {
       transition: 'none',
     },
+    // The painted dot: centred in its hit box by the flex rules above, so the
+    // placement maths positions the DOT and the box follows for free.
+    //
+    // The ring is a `box-shadow`, not a `border`: a border would add 3px to a
+    // 14px circle and the geometry would be measuring something the CSS no
+    // longer draws.
     ':host .touch-icon': {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '24px',
-      height: '24px',
+      width: `${AFFORDANCE_DOT}px`,
+      height: `${AFFORDANCE_DOT}px`,
+      borderRadius: '50%',
       background: '#0078ff',
-      color: 'white',
-      fontSize: '13px',
-      fontWeight: 'bold',
-      border: '2px solid white',
-      boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
+      boxShadow: '0 0 0 1.5px white, 0 1px 3px rgba(0,0,0,0.4)',
     },
-    ':host .touch-icon svg': {
-      width: '16px',
-      height: '16px',
-      stroke: 'white',
-      fill: 'none',
-    },
-    ':host .touch-handle-start .touch-icon': {
-      borderRadius: '4px 4px 0 4px',
-    },
-    ':host .touch-handle-end .touch-icon': {
-      borderRadius: '0 4px 4px 4px',
-    },
-    ':host .touch-context-menu .touch-icon': {
-      borderRadius: '4px',
-    },
-    ':host .touch-menu': {
+    // The action lozenge. Condensed by default — the common actions inline,
+    // behind a chevron that turns the same element into a vertical menu. One
+    // element in two states rather than a button that spawns a menu, so there
+    // is nothing to position twice and no second dismissal path.
+    ':host .touch-lozenge': {
       position: 'absolute',
       display: 'flex',
-      gap: '0',
-      background: 'rgba(0,0,0,0.85)',
-      borderRadius: '8px',
-      padding: '0',
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      background: 'rgba(30,30,30,0.72)',
+      // Translucency only reads as glass over the text it covers, and without
+      // the blur the text shows through as noise behind the labels.
+      backdropFilter: 'blur(12px) saturate(140%)',
+      WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+      borderRadius: `${AFFORDANCE_HIT / 2}px`,
+      border: '0.5px solid rgba(255,255,255,0.18)',
       zIndex: '1001',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
       pointerEvents: 'auto',
+      touchAction: 'none',
       overflow: 'hidden',
+      transition:
+        'left 0.1s ease-out, top 0.1s ease-out, opacity 0.1s ease-out',
     },
-    ':host .touch-menu-item': {
+    // Out of the way while a bound is being dragged: the finger is where the
+    // lozenge would be, and the selection it describes is still moving. Its own
+    // class, because it is no longer a descendant of `.touch-affordances`.
+    ':host .touch-lozenge.-dragging': {
+      opacity: '0',
+      pointerEvents: 'none',
+      transition: 'none',
+    },
+    ':host .touch-lozenge.-expanded': {
+      flexDirection: 'column',
+      borderRadius: '14px',
+    },
+    ':host .touch-lozenge-item': {
       background: 'transparent',
       color: 'white',
       border: 'none',
-      padding: '12px 16px',
-      fontSize: '15px',
       borderRadius: '0',
-      whiteSpace: 'nowrap',
       margin: '0',
+      padding: '0 18px',
+      minHeight: `${AFFORDANCE_HIT}px`,
+      fontSize: '15px',
+      whiteSpace: 'nowrap',
+      textAlign: 'left',
+    },
+    // Hidden in the condensed state, revealed by the chevron. `display: none`
+    // rather than a second element list, so the expanded menu cannot drift out
+    // of step with the condensed one.
+    ':host .touch-lozenge:not(.-expanded) .touch-lozenge-item.-extra': {
+      display: 'none',
+    },
+    ':host .touch-lozenge-item:active': {
+      background: 'rgba(255,255,255,0.22)',
+    },
+    ':host .touch-lozenge-chevron': {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: `${AFFORDANCE_HIT}px`,
+      minHeight: `${AFFORDANCE_HIT}px`,
+      padding: '0',
+      background: 'transparent',
+      border: 'none',
+      borderRadius: '0',
+      margin: '0',
+      color: 'white',
+    },
+    ':host .touch-lozenge-chevron svg': {
+      width: '18px',
+      height: '18px',
+      stroke: 'white',
+      fill: 'none',
+      transition: 'transform 0.15s ease-out',
+    },
+    ':host .touch-lozenge.-expanded .touch-lozenge-chevron svg': {
+      transform: 'rotate(90deg)',
     },
   }
 
@@ -738,9 +825,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
   // Touch affordance state
   private touchAffordances: HTMLElement | null = null
   private touchHandleStart: HTMLElement | null = null
-  private touchContextMenu: HTMLElement | null = null
   private touchHandleEnd: HTMLElement | null = null
-  private touchMenuEl: HTMLElement | null = null
+  /**
+   * The action lozenge. Built once alongside the handles rather than created on
+   * demand: it is as much a part of a touch selection as the handles are, and
+   * the old round button that spawned a separate menu meant two things to
+   * place, two dismissal paths and two action lists.
+   */
+  private touchLozenge: HTMLElement | null = null
+  private lozengeExpanded = false
   private isTouchInteraction = false
   // Per-pointer drag state for multitouch support
   private touchDrags = new Map<
@@ -1983,36 +2076,41 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     this.touchAffordances.className =
       'touch-affordances not-selectable do-not-spanify'
 
+    // Plain dots, no glyph: at 14px there is nothing an icon can say, and the
+    // asymmetric chevrons it replaces were saying which bound they were \u2014 which
+    // the dot's POSITION already says, above the line or below it.
     this.touchHandleStart = document.createElement('div')
     this.touchHandleStart.className =
       'touch-affordance touch-handle-start not-selectable do-not-spanify'
     const startIcon = document.createElement('span')
     startIcon.className = 'touch-icon'
-    startIcon.appendChild(icons.chevronLeft())
     this.touchHandleStart.appendChild(startIcon)
-
-    this.touchContextMenu = document.createElement('div')
-    this.touchContextMenu.className =
-      'touch-affordance touch-context-menu not-selectable do-not-spanify'
-    const menuIcon = document.createElement('span')
-    menuIcon.className = 'touch-icon'
-    menuIcon.innerHTML = '\u22EE'
-    this.touchContextMenu.appendChild(menuIcon)
 
     this.touchHandleEnd = document.createElement('div')
     this.touchHandleEnd.className =
       'touch-affordance touch-handle-end not-selectable do-not-spanify'
     const endIcon = document.createElement('span')
     endIcon.className = 'touch-icon'
-    endIcon.appendChild(icons.chevronRight())
     this.touchHandleEnd.appendChild(endIcon)
 
-    this.touchAffordances.append(
-      this.touchHandleStart,
-      this.touchContextMenu,
-      this.touchHandleEnd
-    )
+    this.touchAffordances.append(this.touchHandleStart, this.touchHandleEnd)
     doc.appendChild(this.touchAffordances)
+
+    // The lozenge goes BESIDE the document, not inside it — the same reason the
+    // caret overlay and the selection edges do, written at `content` above: a
+    // child of [part="doc"] is a document block, and shows up in
+    // `selectedBlocks()`, `block()` and arrow navigation. The handles have to
+    // live in there because they are anchored to text that scrolls; the lozenge
+    // is centred on the PAGE, so it does not.
+    //
+    // It also has seven text labels in it. Inside the doc element they joined
+    // the document's own `textContent` — caught immediately by four unrelated
+    // deletion tests reading "onetwoCutCopyPasteDeleteBoldItalicPlain", which
+    // is what a consumer calling `doc.textContent` would have got too. `docHTML`
+    // detaches the affordances, so `value` was clean and the leak was only in
+    // the direct read.
+    this.touchLozenge = this.buildLozenge()
+    this.shadowRoot!.appendChild(this.touchLozenge)
 
     // Drag handlers for touch affordance handles.
     //
@@ -2033,16 +2131,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         this.handleAffordanceDragEnd
       )
     }
-    this.touchContextMenu.addEventListener(
-      'pointerdown',
-      this.handleTouchContextMenu
-    )
-
     // Selection change updates undo and touch affordances
     doc.addEventListener('selectionchanged', () => {
       this.isTouchInteraction = this.selectable.touchMode
-      if (!this.touchMenuEl) {
-        // Don't push undo while touch menu is open
+      if (!this.lozengeExpanded) {
+        // Don't push undo while the lozenge's menu is open
         this.updateUndo('new', 'selectionchanged')
       }
       this.updateTouchAffordances()
@@ -4238,8 +4331,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // repainted on the way OUT as well as on the way in. The ResizeObserver
     // should also catch this, but the caret is cheap (0.015ms) and correctness
     // here should not depend on which box the host's layout happens to change.
-    if (!this.isTouchInteraction && !this.touchMenuEl) {
+    if (!this.isTouchInteraction && !this.lozengeExpanded) {
       this.touchAffordances.style.display = 'none'
+      this.touchLozenge!.style.display = 'none'
       this.parts.doc.style.paddingTop = ''
       this.parts.doc.style.paddingBottom = ''
       this.syncCaret()
@@ -4250,6 +4344,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const selEnd = this.parts.doc.querySelector('.sel-end')
     if (!selStart || !selEnd) {
       this.touchAffordances.style.display = 'none'
+      this.touchLozenge!.style.display = 'none'
       this.parts.doc.style.paddingTop = ''
       this.parts.doc.style.paddingBottom = ''
       this.syncCaret()
@@ -4260,17 +4355,33 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const startRect = this.markerRect(selStart)
     const endRect = this.markerRect(selEnd)
 
-    // Check if padding is needed (skip during drag)
+    // Make room for the DOTS, if they would otherwise fall outside the
+    // document box. It is the dot that has to be visible, not the 44px hit box
+    // around it — that box is invisible and overlapping the edge costs nothing
+    // — so the clearance is one dot plus a little, derived from the constant
+    // rather than written out. It used to be a hand-written 48/52 pair sized
+    // for the old square handle: the same quantity in two places, in the file
+    // that already says that is where it drifts.
+    //
+    // The lozenge gets no padding of its own on purpose. It floats over the
+    // text, as iOS's does, and `lozengePlacement` already keeps it inside the
+    // visible band; reserving space for it would push every line around
+    // whenever a selection changed.
     if (this.touchDrags.size === 0) {
+      const clearance = AFFORDANCE_DOT + 4
+      const pad = `${clearance}px`
       // Subtract existing padding to check where selection would be without it
       const existingTopPad = parseFloat(this.parts.doc.style.paddingTop) || 0
       const existingBottomPad =
         parseFloat(this.parts.doc.style.paddingBottom) || 0
-      const selTop = Math.min(startRect.top, endRect.top) - 48 - existingTopPad
+      const selTop =
+        Math.min(startRect.top, endRect.top) - clearance - existingTopPad
       const selBottom =
-        Math.max(startRect.bottom, endRect.bottom) + 48 + existingBottomPad
-      const wantTop = selTop < docRect.top ? '52px' : ''
-      const wantBottom = selBottom > docRect.bottom ? '52px' : ''
+        Math.max(startRect.bottom, endRect.bottom) +
+        clearance +
+        existingBottomPad
+      const wantTop = selTop < docRect.top ? pad : ''
+      const wantBottom = selBottom > docRect.bottom ? pad : ''
       const hadTop = this.parts.doc.style.paddingTop
       const hadBottom = this.parts.doc.style.paddingBottom
       if (wantTop !== hadTop || wantBottom !== hadBottom) {
@@ -4284,9 +4395,13 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // so they follow the text instead of being hidden for a guessed 160ms and
     // reappearing. That guess also had a failure mode this does not: if the
     // transition never ran, the affordances stayed invisible.
-    this.positionAffordances()
     this.touchAffordances.style.display = 'block'
     this.touchAffordances.style.opacity = '1'
+    this.touchLozenge!.style.display = 'flex'
+    // AFTER display, not before: `positionLozenge` measures `offsetWidth`, and
+    // a `display: none` element measures zero — which centred it at half the
+    // page width and then moved it on the next reposition. Show, then place.
+    this.positionAffordances()
   }
 
   private positionAffordances(): void {
@@ -4303,26 +4418,66 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const endX = endRect.right - docRect.left + this.parts.doc.scrollLeft
     const endY = endRect.bottom - docRect.top + this.parts.doc.scrollTop
 
-    const size = AFFORDANCE_SIZE
+    // The DOTS bracket the selection: the start dot sits directly above its
+    // first character and the end dot directly below its last, each centred on
+    // the character's own x. The hit box then centres on the dot, which the
+    // flex rules in the stylesheet do for free — so these two writes place the
+    // painted circle and the 44px target together, and splitting
+    // AFFORDANCE_SIZE in two is what makes that expressible.
+    const half = AFFORDANCE_HIT / 2
+    const dot = AFFORDANCE_DOT / 2
+    this.touchHandleStart!.style.left = `${startX - half}px`
+    this.touchHandleStart!.style.top = `${startY - dot - half}px`
+    this.touchHandleEnd!.style.left = `${endX - half}px`
+    this.touchHandleEnd!.style.top = `${endY + dot - half}px`
 
-    // The handles bracket the selection: start above-left of its first
-    // character, end below-right of its last.
-    this.touchHandleStart!.style.left = `${startX - size}px`
-    this.touchHandleStart!.style.top = `${startY - size}px`
-    this.touchHandleEnd!.style.left = `${endX}px`
-    this.touchHandleEnd!.style.top = `${endY}px`
+    this.positionLozenge(startRect, endRect)
+  }
 
-    // The menu shares the start handle's row, so its x comes from the rule
-    // rather than from the selection's midpoint. Collapsed and ranged
-    // selections differ only in where that midpoint is.
-    const maxX = this.parts.doc.clientWidth + this.parts.doc.scrollLeft
-    this.touchContextMenu!.style.left = `${menuAffordanceX(
-      startX,
-      endX,
-      size,
-      maxX
-    )}px`
-    this.touchContextMenu!.style.top = `${Math.min(startY, endY) - size}px`
+  /**
+   * Place the lozenge above or below the selection, centred on the page.
+   *
+   * In HOST coordinates, not document ones, because the lozenge is a sibling of
+   * `[part="doc"]` rather than a child of it. That also removes the scroll
+   * arithmetic the handles need: the visible band is simply the doc element's
+   * box, so scrolling moves the band and `lozengePlacement` re-answers, instead
+   * of a doc-coordinate placement needing `scrollTop` added back to stay on
+   * screen. `handleGeometryChange` already repositions on scroll and resize.
+   *
+   * The dots' own clearance is added to the selection's box before asking, so
+   * "clear of the selection" means clear of the handles too — a lozenge tucked
+   * neatly against the text but underneath the start dot is not clear of
+   * anything a finger can see.
+   */
+  private positionLozenge(
+    startRect: { top: number; bottom: number },
+    endRect: { top: number; bottom: number }
+  ): void {
+    const lozenge = this.touchLozenge
+    if (!lozenge) return
+
+    const hostRect = this.getBoundingClientRect()
+    const docRect = this.parts.doc.getBoundingClientRect()
+    const clearance = AFFORDANCE_DOT
+
+    const { x, y } = lozengePlacement(
+      {
+        top: Math.min(startRect.top, endRect.top) - hostRect.top - clearance,
+        bottom:
+          Math.max(startRect.bottom, endRect.bottom) - hostRect.top + clearance,
+      },
+      // Measured, not assumed: the condensed and expanded states are different
+      // sizes, and the labels are set in the host page's font.
+      { width: lozenge.offsetWidth, height: lozenge.offsetHeight },
+      {
+        left: docRect.left - hostRect.left,
+        top: docRect.top - hostRect.top,
+        right: docRect.right - hostRect.left,
+        bottom: docRect.bottom - hostRect.top,
+      }
+    )
+    lozenge.style.left = `${x}px`
+    lozenge.style.top = `${y}px`
   }
 
   private handleAffordanceDragStart = (evt: PointerEvent): void => {
@@ -4330,25 +4485,25 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const which = handle === this.touchHandleStart ? 'start' : 'end'
     handle.setPointerCapture(evt.pointerId)
 
-    // The cursor position is at the handle's anchor corner offset by
-    // half a line-height. A's anchor is its bottom-right, C's is top-left.
-    const handleRect = handle.getBoundingClientRect()
+    // Where the BOUND is, relative to the finger — so the drag moves the
+    // character under the bound, not the character under the fingertip, which
+    // the dot is deliberately not sitting on.
+    //
+    // Taken from the marker's own geometry rather than reconstructed from the
+    // handle's box plus half a line height. That reconstruction was correct
+    // only while the handle was a square whose anchor CORNER touched the
+    // character; with a dot centred above the line it would be wrong by half a
+    // hit box, and `markerRect` is the function whose whole job is this
+    // measurement. (A marker generates no box of its own — see `markerRect` —
+    // so measuring the marker directly is exactly the mistake this avoids.)
     const markerSelector = which === 'start' ? '.sel-start' : '.sel-end'
     const marker = this.parts.doc.querySelector(markerSelector)
-    const rawLineHeight = marker
-      ? parseFloat(getComputedStyle(marker).lineHeight)
-      : NaN
-    const halfLine = isNaN(rawLineHeight) ? 10 : rawLineHeight / 2
+    const boundRect = marker ? this.markerRect(marker) : null
 
-    let offsetX: number
-    let offsetY: number
-    if (which === 'start') {
-      offsetX = handleRect.right - evt.clientX
-      offsetY = handleRect.bottom + halfLine - evt.clientY
-    } else {
-      offsetX = handleRect.left - evt.clientX
-      offsetY = handleRect.top - halfLine - evt.clientY
-    }
+    const offsetX = boundRect ? boundRect.left - evt.clientX : 0
+    const offsetY = boundRect
+      ? (boundRect.top + boundRect.bottom) / 2 - evt.clientY
+      : 0
 
     this.touchDrags.set(evt.pointerId, {
       target: which,
@@ -4363,11 +4518,14 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // adjusted, so nothing a user did there ever snapped.
     this.selectable.beginBoundDrag(which)
 
-    // Dismiss context menu when starting a drag
-    this.hideTouchMenu()
+    // A moving selection makes the actions it describes stale, and the finger
+    // is about to be where the lozenge is. The CSS fades it out for the
+    // duration; collapsing it also drops the outside-tap listener.
+    this.collapseLozenge()
 
     // Disable transitions during drag
     this.touchAffordances!.classList.add('dragging')
+    this.touchLozenge!.classList.add('-dragging')
 
     evt.preventDefault()
     evt.stopPropagation()
@@ -4411,13 +4569,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // no marker, and neither changes the DOM.
     this.selectable.extendTo(cursorX, cursorY, drag.target)
 
-    // Just move the dragged handle to follow the pointer
+    // Just move the dragged handle to follow the pointer: the HIT BOX centres
+    // on the finger, so the dot does too, and the bound stays at the offset
+    // position the drag started with.
     const docRect = this.parts.doc.getBoundingClientRect()
     const handle = evt.currentTarget as HTMLElement
     const handleX = evt.clientX - docRect.left + this.parts.doc.scrollLeft
     const handleY = evt.clientY - docRect.top + this.parts.doc.scrollTop
-    handle.style.left = `${handleX - AFFORDANCE_SIZE / 2}px`
-    handle.style.top = `${handleY - AFFORDANCE_SIZE / 2}px`
+    handle.style.left = `${handleX - AFFORDANCE_HIT / 2}px`
+    handle.style.top = `${handleY - AFFORDANCE_HIT / 2}px`
 
     evt.preventDefault()
     evt.stopPropagation()
@@ -4445,6 +4605,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       // Remove dragging class after reposition so handles settle with transition
       requestAnimationFrame(() => {
         this.touchAffordances!.classList.remove('dragging')
+        this.touchLozenge!.classList.remove('-dragging')
       })
     }
 
@@ -4452,30 +4613,30 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     evt.stopPropagation()
   }
 
-  private handleTouchContextMenu = (evt: Event): void => {
-    evt.preventDefault()
-    evt.stopPropagation()
+  /**
+   * Build the action lozenge: the common actions inline, the rest behind a
+   * chevron that turns the same element into a vertical menu.
+   *
+   * ONE action list, with `extra` marking what the chevron reveals. The
+   * previous design had a condensed button and a separately-built menu, which
+   * is two lists that can disagree; here `display: none` is the only
+   * difference between the two states, so they cannot.
+   */
+  private buildLozenge(): HTMLElement {
+    const lozenge = document.createElement('div')
+    lozenge.className = 'touch-lozenge not-selectable do-not-spanify'
 
-    if (this.touchMenuEl) {
-      this.hideTouchMenu()
-      return
-    }
-    this.showTouchMenu(evt)
-  }
-
-  private showTouchMenu(openedBy: Event): void {
-    this.hideTouchMenu()
-
-    const menu = document.createElement('div')
-    menu.className = 'touch-menu not-selectable do-not-spanify'
-
-    const selectedText = () =>
+    const selectedText = (): string =>
       this.selectable
         .findAll('.selected')
         .map((el) => el.textContent)
         .join('')
 
-    const actions: Array<{ label: string; action: () => void }> = [
+    const actions: Array<{
+      label: string
+      extra?: boolean
+      action: () => void
+    }> = [
       {
         label: 'Cut',
         action: () => {
@@ -4510,6 +4671,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
       {
         label: 'Delete',
+        extra: true,
         action: () => {
           this.deleteSelection()
           this.updateUndo('new')
@@ -4517,14 +4679,17 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
       {
         label: 'Bold',
+        extra: true,
         action: () => this.doCommand('setText font-weight bold'),
       },
       {
         label: 'Italic',
+        extra: true,
         action: () => this.doCommand('setText font-style italic'),
       },
       {
         label: 'Plain',
+        extra: true,
         action: () =>
           this.doCommand(
             'setText font-weight normal; setText font-style normal; setText text-decoration none'
@@ -4532,80 +4697,69 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
     ]
 
-    for (const { label, action } of actions) {
+    for (const { label, extra, action } of actions) {
       const btn = document.createElement('button')
-      btn.className = 'touch-menu-item not-selectable'
+      btn.className = `touch-lozenge-item not-selectable${
+        extra ? ' -extra' : ''
+      }`
       btn.textContent = label
       btn.addEventListener('pointerdown', (e) => {
         e.stopPropagation()
         e.preventDefault()
         action()
-        this.hideTouchMenu()
+        this.collapseLozenge()
       })
-      menu.appendChild(btn)
+      lozenge.appendChild(btn)
     }
 
-    // Add close button
-    const closeBtn = document.createElement('button')
-    closeBtn.className = 'touch-menu-item touch-menu-close not-selectable'
-    closeBtn.textContent = '\u00D7'
-    closeBtn.addEventListener('pointerdown', (e) => {
+    const chevron = document.createElement('button')
+    chevron.className = 'touch-lozenge-chevron not-selectable'
+    chevron.setAttribute('aria-label', 'More actions')
+    chevron.appendChild(icons.chevronRight())
+    chevron.addEventListener('pointerdown', (e) => {
       e.stopPropagation()
       e.preventDefault()
-      this.hideTouchMenu()
+      this.toggleLozenge()
     })
-    menu.appendChild(closeBtn)
+    lozenge.appendChild(chevron)
 
-    // Position above the context menu button, clamped to doc boundaries
-    const bRect = this.touchContextMenu!.getBoundingClientRect()
-    const docRect = this.parts.doc.getBoundingClientRect()
-    const menuWidth = (actions.length + 1) * 70
-    let menuLeft =
-      bRect.left - docRect.left + this.parts.doc.scrollLeft + 22 - menuWidth / 2
-    // Clamp horizontally
-    if (menuLeft < 0) menuLeft = 4
-    if (menuLeft + menuWidth > docRect.width)
-      menuLeft = docRect.width - menuWidth - 4
-    menu.style.left = `${menuLeft}px`
-    let menuTop = bRect.top - docRect.top + this.parts.doc.scrollTop - 44
-    // If menu would clip above doc, position below the context menu button instead
-    if (menuTop < 0) {
-      menuTop = bRect.bottom - docRect.top + this.parts.doc.scrollTop + 4
-    }
-    menu.style.top = `${menuTop}px`
-
-    this.touchMenuEl = menu
-    this.touchAffordances!.appendChild(menu)
-
-    // Dismiss when tapping outside the menu. The listener goes on immediately
-    // rather than being deferred by a timeout, which guessed at ordering and
-    // left a window in which an outside tap did not dismiss.
-    //
-    // The `openedBy` check is DEFENCE IN DEPTH, not the load-bearing guard:
-    // handleTouchContextMenu calls stopPropagation() before this runs, so the
-    // opening event does not reach the doc listener today. It is kept, and the
-    // argument is required, so that removing that stopPropagation() later
-    // cannot silently make the menu close the instant it opens.
-    this.touchMenuDismiss = (e: Event) => {
-      if (e === openedBy) return
-      if (this.touchMenuEl && !this.touchMenuEl.contains(e.target as Node)) {
-        this.hideTouchMenu()
-      }
-    }
-    this.parts.doc.addEventListener('pointerdown', this.touchMenuDismiss)
+    return lozenge
   }
 
-  private touchMenuDismiss: ((e: Event) => void) | null = null
+  private toggleLozenge(): void {
+    if (this.lozengeExpanded) {
+      this.collapseLozenge()
+      return
+    }
+    this.lozengeExpanded = true
+    this.touchLozenge!.classList.add('-expanded')
+    // Taller now, so where it fits has changed — the same placement rule, run
+    // again, rather than a second rule for the expanded case.
+    this.positionAffordances()
 
-  private hideTouchMenu(): void {
-    if (this.touchMenuDismiss) {
-      this.parts.doc.removeEventListener('pointerdown', this.touchMenuDismiss)
-      this.touchMenuDismiss = null
+    // Dismiss on a tap outside. Registered on expand and removed on collapse,
+    // so there is exactly one listener and it exists only while there is
+    // something to dismiss. The chevron's own pointerdown stops propagating
+    // before this can see it.
+    this.lozengeDismiss = (e: Event) => {
+      if (this.touchLozenge && !this.touchLozenge.contains(e.target as Node)) {
+        this.collapseLozenge()
+      }
     }
-    if (this.touchMenuEl) {
-      this.touchMenuEl.remove()
-      this.touchMenuEl = null
+    this.parts.doc.addEventListener('pointerdown', this.lozengeDismiss)
+  }
+
+  private lozengeDismiss: ((e: Event) => void) | null = null
+
+  private collapseLozenge(): void {
+    if (this.lozengeDismiss) {
+      this.parts.doc.removeEventListener('pointerdown', this.lozengeDismiss)
+      this.lozengeDismiss = null
     }
+    if (!this.lozengeExpanded) return
+    this.lozengeExpanded = false
+    this.touchLozenge?.classList.remove('-expanded')
+    this.positionAffordances()
   }
 
   private handleResizePointerDown = (evt: PointerEvent): void => {

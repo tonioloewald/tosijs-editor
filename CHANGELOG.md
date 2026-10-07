@@ -5,6 +5,96 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **iOS-style touch affordances** (board #3104). iOS shipped much of what this
+  editor was building independently, so the direction is to match its observable
+  behaviour and improve on it rather than go our own way.
+  **Round drag handles.** A 14px painted dot (`AFFORDANCE_DOT`) above the start
+  of the selection and below its end, each centred in an invisible 44px hit box
+  (`AFFORDANCE_HIT`). The handles used to be 44px squares with an asymmetric
+  rounded-corner icon, i.e. visually as large as their own hit area, so they
+  covered the text they were bracketing. The dot's POSITION says which bound it
+  is — above the line or below it — which is what the chevron glyphs were for.
+  **An action lozenge** replaces the round context-menu button and the
+  horizontal strip it opened. Translucent, blurred, centred on the PAGE, placed
+  above the selection when there is room and below it otherwise, never over it.
+  Cut / Copy / Paste inline; a chevron expands the SAME element into a vertical
+  menu with Delete, Bold, Italic and Plain. It fades out and collapses while a
+  handle is being dragged.
+  One element in two states, and one action list: `-extra` plus `display: none`
+  is the only difference between condensed and expanded, so they cannot hold
+  different actions. The design it replaces built a separate menu element — two
+  things to place, two dismissal paths and two lists.
+- `lozengePlacement(selection, size, bounds, gap?)`, exported, with the
+  placement rule as a pure function.
+- `browser-tests/affordances.test.ts`: the affordance geometry measured in real
+  WebKit layout. The lozenge never intersects the selection's LINE BOXES (not
+  its union rect — a wrapped selection has a gap between lines that the union
+  would call "inside"), it flips above/below at the document's edges, it is
+  centred on the page wherever the selection sits, and the painted dot really is
+  14px rather than 44. No unit test in this repo can check any of that: every
+  rect in happy-dom is zero.
+
+### Changed
+
+- **`AFFORDANCE_SIZE` is removed, replaced by `AFFORDANCE_HIT` (44) and
+  `AFFORDANCE_DOT` (14).** It meant the hit target and the painted size at once,
+  which is not expressible as one number once the two differ.
+- **`menuAffordanceX` is removed**, with its six tests. It existed to keep a
+  SELECTION-centred menu off the start handle, because the two shared a row and
+  a selection narrower than one handle put them on top of each other. Centring
+  on the page makes that unreachable, so the guard is deleted rather than
+  carried with a condition nobody could explain later.
+- The lozenge is a sibling of `[part="doc"]`, not a child of it — the same
+  reason the caret overlay and selection edges are. A child of the doc element
+  is a document BLOCK and turns up in `selectedBlocks()`, `block()` and arrow
+  navigation; and the lozenge's seven labels joined the document's own
+  `textContent`, which is what a consumer reading `doc.textContent` would have
+  seen too. (`value` was unaffected: `docHTML` detaches the affordances.)
+- The top/bottom padding that keeps the handles reachable near a document edge
+  is now `AFFORDANCE_DOT + 4` rather than a hand-written 48/52 pair sized for
+  the old square handle — one quantity, derived, not written twice.
+- A handle drag takes its offset from the bound's own measured geometry
+  (`markerRect`) instead of reconstructing it from the handle's box plus half a
+  line height. That reconstruction was only correct while the handle was a
+  square whose anchor CORNER touched the character.
+- `bun run test:browser` **rebuilds `docs/` before running.** `docs/` is the
+  generated web root and it is committed, so the dev server answers from the
+  previous release's build the moment it binds — readiness proved the server
+  responded, not that it was serving this working tree. Measured here: every
+  affordance was redesigned, the whole lane went GREEN, and the bundle under
+  test still contained `touch-context-menu`, an element the source no longer
+  creates. It surfaced only because one new test asserted that the thing it was
+  about to measure exists.
+
+### Fixed
+
+- **A live handle drag no longer has `Selectable`'s own touchmove running
+  underneath it** (board #3083). The handles carry only POINTER listeners and
+  live inside the doc element, so their touch events bubble to the doc, and
+  `beginBoundDrag` sets `selecting = 1` deliberately — `extendSticky` requires
+  it. Normally invisible, because the handle tracks the finger and
+  `elementFromPoint` keeps resolving to its own `.not-selectable` box; it bites
+  when the drag handler bails WITHOUT repositioning the handle (the offset
+  cursor over `.not-selectable` content, or above the first line), after which
+  the finger walks out of the stale 44px box and the doc path extends the
+  selection to the UN-OFFSET coordinate.
+- **A cancelled handle drag now runs the same teardown as a finished one.**
+  Nothing listened for `pointercancel`, so a gesture the platform took away — an
+  incoming call, a system edge swipe, a second finger ruled a pinch — left its
+  `touchDrags` entry behind; because the teardown is guarded on `size === 0`,
+  `endBoundDrag`, `despanify` and `selectionChanged` then stopped running for
+  every later drag. `pointercancel` and `lostpointercapture` reach the one
+  teardown.
+- **One pointer move re-marks the selection once, not three times.** `extendTo`
+  ends in `markRange` via `extendSelection`, so the `markBounds()` after it
+  repeated the identical O(document) sweep; `extendTo` also fired
+  `onBoundsChanged` a second time itself, repainting the caret and repositioning
+  the affordances again — on the one device where the handles ARE the gesture.
+
 ## [0.6.0] - 2026-10-07
 
 ### Added

@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=4b84780b4daf" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=0ddf85ec416f" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=1fca5d683861" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=0cac6630efdc" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -81,7 +81,7 @@ nothing is handed back to the browser to edit.</p>
 <li>Fully styleable selections</li>
 <li>Exact control over editing behavior</li>
 <li>Exact control over cursor behavior</li>
-<li>Touch-friendly selection</li>
+<li>Touch selection with iOS-style affordances — round drag handles with large hit targets, and a condensed action lozenge that expands to a menu</li>
 </ul>
 <h2>Development</h2>
 <pre><code class="language-bash" data-highlighted>bun <span class="token function">install</span>
@@ -539,6 +539,25 @@ not by comparing logical offsets: inside a right-to-left run on a left-to-right
 line, x decreases as the logical index rises, so the two directions oppose and an
 offset comparison answers about the wrong one. <code>stickySelectionBounds(text, anchor, head, leftTheAnchorWord?)</code> is exported if you want the rule without the
 editor.</p>
+<h3>Touch affordances</h3>
+<p>A selection made or adjusted by touch gets two things, modelled on iOS because
+iOS got there first and copying observable behaviour beats inventing our own.</p>
+<p><strong>Round drag handles.</strong> A small painted dot — <code>AFFORDANCE_DOT</code>, 14px — above the
+start of the selection and below its end, each centred in an invisible 44px hit
+box (<code>AFFORDANCE_HIT</code>, Apple&#39;s own minimum). The two are separate constants on
+purpose: before 0.7.0 there was one <code>AFFORDANCE_SIZE</code> meaning both, so the
+handles were visually as large as their hit area and covered the text they were
+bracketing. Dragging a handle is the SAME gesture as dragging across text, so it
+obeys <code>stickySelection</code>.</p>
+<p><strong>An action lozenge</strong>, translucent, centred on the PAGE and placed above the
+selection when there is room, below it otherwise, never over it. Cut / Copy /
+Paste inline; a chevron expands the same element into a vertical menu with
+Delete, Bold, Italic and Plain. It fades out while a handle is being dragged.</p>
+<p>Centring on the page rather than on the selection is what retired
+<code>menuAffordanceX</code> (removed in 0.7.0): that function existed to keep a
+selection-centred menu off the start handle, and with page centring the overlap
+cannot arise. <code>lozengePlacement(selection, size, bounds, gap?)</code> is exported if
+you want the geometry.</p>
 <h3>Inside a table cell</h3>
 <table>
 <thead>
@@ -951,7 +970,8 @@ Custom widgets you add follow the same rules and get translated too.</p>
 <td><code>(root: Element) =&gt; void</code> applied to pasted and dropped content</td>
 </tr>
 </tbody></table>
-<p>Also exported from the package: <code>stickySelectionBounds</code>, <code>sanitizeInPlace</code> and
+<p>Also exported from the package: <code>stickySelectionBounds</code>, <code>lozengePlacement</code>,
+<code>AFFORDANCE_HIT</code>, <code>AFFORDANCE_DOT</code>, <code>LOZENGE_GAP</code>, <code>sanitizeInPlace</code> and
 <code>isSafeNavigationUrl</code> (re-exported from
 <a href="https://www.npmjs.com/package/tosijs-kilpi">tosijs-kilpi</a>), <code>changeId</code>,
 <code>diffWords</code>, <code>acceptChange</code>/<code>rejectChange</code>, <code>checkSpelling</code>, <code>wordsIn</code>,
@@ -969,6 +989,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=4b84780b4daf"></script>
+  <script type="module" src="hydrate.js?v=0ddf85ec416f"></script>
 </body>
 </html>

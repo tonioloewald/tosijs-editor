@@ -164,6 +164,43 @@ if (existing === process.cwd()) {
   console.log(`• dev server up on :${PORT}`)
 }
 
+// REBUILD BEFORE TESTING, and this is not belt and braces.
+//
+// `docs/` is the generated web root and it is COMMITTED, so the dev server has
+// something to serve the instant it binds — which means readiness proves the
+// server answers, not that what it answers with is this working tree. The lane
+// therefore ran happily against a `docs/` built for the previous release.
+//
+// Measured, 0.7.0: every affordance was redesigned in `src/`, the whole lane
+// went GREEN, and the bundle it tested still contained `touch-context-menu` —
+// an element the source no longer creates. Eleven tests passed against the
+// shipped 0.6.0 build. It surfaced only because one new test carried a
+// precondition asserting the thing it was about to measure exists; without
+// that, "0 fail" was the report.
+//
+// Same family as the defect this file was written to fix — a result that
+// depends on state the lane does not control — but worse, because that one
+// failed loudly and this one passes. ~2.5s against a 38s lane.
+//
+// A delegated build is fine here: CLAUDE.md warns that a `--build` handed to a
+// running dev server reports different bundle SIZES than a clean build, and
+// this lane measures layout, not sizes.
+console.log('• rebuilding docs/ so the lane tests THIS tree')
+const built = Bun.spawn(['bun', 'bin/site.ts', '--build'], {
+  stdout: 'pipe',
+  stderr: 'pipe',
+})
+if ((await built.exited) !== 0) {
+  console.error(
+    'refusing: the build failed, so the lane would test stale code.'
+  )
+  console.error(await new Response(built.stderr).text())
+  console.error(await new Response(built.stdout).text())
+  // Same teardown as the end of the run: stop only a server we started.
+  if (server && server.exitCode === null) server.kill()
+  process.exit(1)
+}
+
 // Extra arguments pass through, so `bun run test:browser -t "<name>"` works and
 // ENGINE=chromium still selects the control engine.
 const tests = Bun.spawn(

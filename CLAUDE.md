@@ -470,6 +470,20 @@ held by another directory — or held by this one without answering. It used to 
 was open, which made the result depend on what the operator had running: release-doctor runs
 every `test*` script, so the same commit reported red or green depending on that.
 
+**And it REBUILDS `docs/` first, because readiness is not freshness.** `docs/` is the generated
+web root and it is COMMITTED, so the dev server answers from the last release's build the moment
+it binds — the readiness probe proves the server responds, not that what it serves is this
+working tree. Measured 2026-10-07: every touch affordance was redesigned in `src/`, the whole
+lane went GREEN, and the bundle under test still contained `touch-context-menu`, an element the
+source no longer creates. Eleven tests passed against the shipped 0.6.0 build.
+
+Two things worth keeping from that. First, **it passed** — the same family as the defect this
+script was written to fix, a result depending on state the lane does not control, but worse,
+because loud failure is the easy case. Second, **what caught it was a precondition**: one new
+test asserted that the element it was about to measure exists. Every describe in this repo that
+drives a browser should carry one, for the same reason `doc-fences.test.ts` does — a lane that
+cannot see its subject reports zero failures.
+
 **One-time setup, and it is NOT in the repo:** `bunx playwright install webkit`. That writes
 ~1 GB into `~/Library/Caches/ms-playwright` (measured 3.2 GB here across three revisions each of
 chromium, headless shell, firefox and webkit) or into `$PLAYWRIGHT_BROWSERS_PATH`. That cache is

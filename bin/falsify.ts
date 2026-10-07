@@ -160,6 +160,39 @@ const MUTATIONS: Mutation[] = [
     expect: ['cross-block merge is refused'],
   },
   {
+    name: 'the lozenge lives BESIDE the document, never inside it',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    this.shadowRoot!.appendChild(this.touchLozenge)`,
+    replace: `    this.touchAffordances.appendChild(this.touchLozenge)`,
+    expect: ['beside the document'],
+  },
+  {
+    name: 'the condensed and expanded menus are ONE action list',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `      btn.className = \`touch-lozenge-item not-selectable\${
+        extra ? ' -extra' : ''
+      }\``,
+    replace: `      btn.className = 'touch-lozenge-item not-selectable'`,
+    expect: ['the rest marked extra'],
+  },
+  {
+    name: 'a handle drag takes the lozenge out of the way',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    this.collapseLozenge()
+
+    // Disable transitions during drag`,
+    replace: `
+    // Disable transitions during drag`,
+    expect: ['out of the way'],
+  },
+  {
+    name: 'expanding the lozenge registers exactly one outside-tap dismissal',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    this.parts.doc.addEventListener('pointerdown', this.lozengeDismiss)`,
+    replace: `    void 0`,
+    expect: ['tap on the document collapses it'],
+  },
+  {
     name: 'a live handle drag stands the doc’s own touchmove down',
     file: 'src/selection.ts',
     find: `    if (!this.selecting || evt.touches.length !== 1) return

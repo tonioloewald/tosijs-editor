@@ -38,7 +38,7 @@ What you get instead:
 - Fully styleable selections
 - Exact control over editing behavior
 - Exact control over cursor behavior
-- Touch-friendly selection
+- Touch selection with iOS-style affordances — round drag handles with large hit targets, and a condensed action lozenge that expands to a menu
 
 ## Development
 
@@ -554,6 +554,30 @@ offset comparison answers about the wrong one. `stickySelectionBounds(text,
 anchor, head, leftTheAnchorWord?)` is exported if you want the rule without the
 editor.
 
+### Touch affordances
+
+A selection made or adjusted by touch gets two things, modelled on iOS because
+iOS got there first and copying observable behaviour beats inventing our own.
+
+**Round drag handles.** A small painted dot — `AFFORDANCE_DOT`, 14px — above the
+start of the selection and below its end, each centred in an invisible 44px hit
+box (`AFFORDANCE_HIT`, Apple's own minimum). The two are separate constants on
+purpose: before 0.7.0 there was one `AFFORDANCE_SIZE` meaning both, so the
+handles were visually as large as their hit area and covered the text they were
+bracketing. Dragging a handle is the SAME gesture as dragging across text, so it
+obeys `stickySelection`.
+
+**An action lozenge**, translucent, centred on the PAGE and placed above the
+selection when there is room, below it otherwise, never over it. Cut / Copy /
+Paste inline; a chevron expands the same element into a vertical menu with
+Delete, Bold, Italic and Plain. It fades out while a handle is being dragged.
+
+Centring on the page rather than on the selection is what retired
+`menuAffordanceX` (removed in 0.7.0): that function existed to keep a
+selection-centred menu off the start handle, and with page centring the overlap
+cannot arise. `lozengePlacement(selection, size, bounds, gap?)` is exported if
+you want the geometry.
+
 ### Inside a table cell
 
 | Key                    | Action                                                           |
@@ -833,7 +857,8 @@ Custom widgets you add follow the same rules and get translated too.
 | `focus()`        | Focus the caret                                                 |
 | `sanitize`       | `(root: Element) => void` applied to pasted and dropped content |
 
-Also exported from the package: `stickySelectionBounds`, `sanitizeInPlace` and
+Also exported from the package: `stickySelectionBounds`, `lozengePlacement`,
+`AFFORDANCE_HIT`, `AFFORDANCE_DOT`, `LOZENGE_GAP`, `sanitizeInPlace` and
 `isSafeNavigationUrl` (re-exported from
 [tosijs-kilpi](https://www.npmjs.com/package/tosijs-kilpi)), `changeId`,
 `diffWords`, `acceptChange`/`rejectChange`, `checkSpelling`, `wordsIn`,
