@@ -330,6 +330,20 @@ Three things that are easy to undo by accident:
   a two-merge chain resolved per id then LOST text from a document with nothing pending
   (review `0.6.0-structural-tracking-r2.md`, B‑1; fixed in `f5a4313`). Removing a
   mechanism means re-deriving what depended on it.
+  And **"nothing to strike" is not "nothing to record"**: a block-level strike always
+  writes its mark, because `BLOCK_DELETE_ATTR` is the only record that the BLOCK rather than
+  merely its contents is proposed for removal. `trackDeletion` used to skip a block with no
+  children and a block already fully struck — right for an INLINE deletion, where there is
+  nothing to mark or it is marked already, and wrong for a block, which then survived
+  `acceptChanges()`. An empty `<tosi-del data-block-delete>` is the correct mark. That one
+  conflation is what shipped `trackStructuralEdits` off in 0.6.0 (board #3107), and the
+  predicate behind half of it had already been corrected once for making the same mistake
+  smaller — skipping a block was never right.
+  The contract worth testing is a PROPERTY, not a list of shapes: **accepting a tracked
+  structural edit must produce the document the untracked gesture produces.** Every one of the
+  five correctness blockers this feature cost was a case nobody had enumerated. Where the two
+  modes legitimately differ — the caret inside invisible residue — record the exception next to
+  the fixture rather than weakening the property for all of them.
 
 **Anything that reads the document as LANGUAGE must call `Selectable.withoutBounds()`.**
 The bounds markers are real elements, so they split the text node they sit in: with the

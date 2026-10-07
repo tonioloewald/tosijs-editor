@@ -4118,6 +4118,245 @@ describe('with the default flags, a cross-block merge is refused', () => {
 })
 
 /**
+ * #3107: **accepting a tracked structural edit must produce the document the
+ * untracked gesture produces.** That is the whole contract, and stating it as a
+ * property rather than as a list of shapes is deliberate — the five correctness
+ * blockers 0.6.0 spent on this feature were every one of them a case nobody had
+ * enumerated.
+ *
+ * The flag `trackStructuralEdits` was OFF in 0.6.0 because of one family of
+ * counter-examples: a block with **nothing to strike**. `trackStructuralEdit`
+ * calls `removeBounds()` and only then `trackDeletion(blocksOut, id)`, so a
+ * block that `blockIsEmpty()` admitted — it skips the bounds markers — has no
+ * children left by then, and `trackDeletion` silently declined to mark it. The
+ * block was therefore never proposed for removal and survived `acceptChanges()`.
+ *
+ * THE GAP THAT LET IT SHIP: 25 fixtures in this file set `trackChanges = true`,
+ * and every one of them now also sets `trackStructuralEdits = true` — so until
+ * this describe existed, nothing exercised the feature's own RESOLUTION against
+ * a block with nothing to strike. `bun run falsify` reported the empty-block
+ * guarantee GUARDED while tracked mode went entirely unexercised: green,
+ * right-looking and partial, in the lane built to catch exactly that.
+ */
+describe('accepting a tracked merge matches the untracked result', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const build = (html: string, tracked: boolean): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.parts.doc.innerHTML = html
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = tracked
+    el.trackStructuralEdits = tracked
+    return el
+  }
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  const caretIn = (el: TosijsStyledEditor, index: number): void => {
+    const block = [...el.parts.doc.querySelectorAll('p,h1,div')][index]
+    el.selectable.removeBounds()
+    block.appendChild(el.selectable.createBounds())
+  }
+
+  /** `|` marks the caret, so the comparison covers WHERE it ended up. */
+  const shape = (el: TosijsStyledEditor): string =>
+    el.value
+      .replace(/<span class="sel-(start|end)[^"]*"><\/span>/g, '|')
+      .replace(/ class=""/g, '')
+      .replace(/\|\|/g, '|')
+
+  /**
+   * Every fixture is a (document, caret, key) triple that MERGES BLOCKS. The
+   * first is #3107's own reproduction; the rest are the cases the task lists as
+   * required before the flag could flip.
+   */
+  const FIXTURES: Array<{
+    name: string
+    html: string
+    caret: number
+    key: string
+    /** Only where the two modes differ FOR A REASON, with that reason stated. */
+    expectTracked?: string
+  }> = [
+    {
+      name: 'an EMPTY block, the 0.6.0 blocker',
+      html: '<p>First</p><p></p><p>Third</p>',
+      caret: 1,
+      key: 'Delete',
+    },
+    {
+      name: 'an empty block, Backspace',
+      html: '<p>First</p><p></p><p>Third</p>',
+      caret: 1,
+      key: 'Backspace',
+    },
+    {
+      name: 'an INLINE-WRAPPER-ONLY block — empty of text, not of nodes',
+      html: '<p>First</p><p><b></b></p><p>Third</p>',
+      caret: 1,
+      key: 'Delete',
+      // THE ONE FIXTURE WHERE THE TWO MODES LEGITIMATELY DISAGREE, and the
+      // tracked answer is the better one. Untracked, `mergeBlocksRaw` moves the
+      // bounds markers along as the block's last children, so the caret lands
+      // AFTER the empty `<b>`; tracked, `trackStructuralEdit` puts it at the
+      // JOIN, which is where the next keystroke belongs. Both render
+      // identically — the wrapper is invisible — so this is recorded as an
+      // exception rather than used to weaken the property for every fixture.
+      expectTracked: '<p>First|<b></b></p><p>Third</p>',
+    },
+    {
+      name: 'the plain cross-block path, which already agreed — pin it',
+      html: '<p>First</p><p>Second</p>',
+      caret: 1,
+      key: 'Backspace',
+    },
+    {
+      name: 'the previous block’s TYPE and attributes survive',
+      html: '<h1 id="t">Head</h1><p></p>',
+      caret: 1,
+      key: 'Delete',
+    },
+    {
+      name: 'an empty block between two headings',
+      html: '<h1>A</h1><p></p><h1>B</h1>',
+      caret: 1,
+      key: 'Backspace',
+    },
+  ]
+
+  for (const { name, html, caret, key, expectTracked } of FIXTURES) {
+    test(`${name}`, () => {
+      const plain = build(html, false)
+      caretIn(plain, caret)
+      press(plain, key)
+      const expected = expectTracked ?? shape(plain)
+      // Even where the caret differs, the TEXT must not: an exception about
+      // where the caret sits is not licence to lose or duplicate content.
+      const expectedText = (plain.parts.doc.textContent ?? '').replace(
+        /\s/g,
+        ''
+      )
+
+      const tracked = build(html, true)
+      caretIn(tracked, caret)
+      press(tracked, key)
+      // THE PRECONDITION: tracking must actually have recorded something, or
+      // this compares two untracked runs and passes vacuously. That is how the
+      // 0.6.0 falsify entry for this very guarantee came out GUARDED.
+      expect(tracked.changes.length).toBeGreaterThan(0)
+
+      tracked.acceptChanges()
+      expect(shape(tracked)).toBe(expected)
+      expect((tracked.parts.doc.textContent ?? '').replace(/\s/g, '')).toBe(
+        expectedText
+      )
+    })
+
+    test(`${name} — rejecting restores the original`, () => {
+      const el = build(html, true)
+      caretIn(el, caret)
+      press(el, key)
+      el.rejectChanges()
+      // Structure and text back as they were; the caret is wherever the
+      // rejection left it, which `rescueCaretFrom` owns and #3086 tracks.
+      expect(shape(el).replace(/\|/g, '')).toBe(html)
+    })
+  }
+
+  /**
+   * A block whose contents another author has ALREADY struck still has to leave
+   * the document when this merge is accepted. `trackDeletion` declined that one
+   * too (`isFullyStruck`), which is right for an inline deletion — re-striking
+   * struck text is noise — and wrong for a block-level strike, because the
+   * BLOCK has not been proposed for removal, only its contents.
+   */
+  test('a block already struck by another author still leaves on accept', () => {
+    const el = build(
+      '<p>First</p><p><tosi-del data-change="other" data-author="sam" data-session="s1">gone</tosi-del></p><p>Third</p>',
+      true
+    )
+    caretIn(el, 1)
+    press(el, 'Delete')
+    // Accept only OUR gesture; the other author's deletion stays pending.
+    // `TrackedChange.author` is the id STRING, not a `ChangeAuthor` — the
+    // asymmetry with `editor.changeAuthor` is easy to write the wrong way.
+    const mine = el.changes.find((c) => c.author === 'alex')!
+    expect(mine).toBeDefined()
+    el.acceptChanges(mine.id)
+    // The struck block is gone; the other author's own pending deletion went
+    // with the block it was inside, which is what accepting a block-level
+    // strike MEANS — their mark was about content, ours is about the block.
+    expect([...el.parts.doc.querySelectorAll('p')].length).toBe(2)
+    expect(el.parts.doc.textContent).toContain('First')
+    expect(el.parts.doc.textContent).toContain('Third')
+  })
+
+  /**
+   * A CHAIN whose second step has nothing to strike.
+   *
+   * Chains in general are already covered twice — `a chain of merges never
+   * orphans a change or loses text` and the `resolving a chain of merges leaves
+   * no residue` describe — so this adds only the interaction those two cannot
+   * see: `trackStructuralEdit` is shared by both keystroke paths, the selection
+   * delete, the paste restamp and merge chains, and the empty `<tosi-del>` is
+   * new to all of them.
+   *
+   * Driven by WHERE THE EDITOR LEFT THE CARET rather than by block index: after
+   * a tracked merge the proposal is block 0 and the struck originals follow, so
+   * "the caret in block 1" means different things in the two modes, and a test
+   * that re-seeds by index compares two different gestures. (The first version
+   * of this test did exactly that and reported 3 blocks against 1.)
+   */
+  test('a chain whose second step has nothing to strike still collapses', () => {
+    const el = build('<p>One</p><p></p><p></p>', true)
+    caretIn(el, 1)
+    press(el, 'Backspace')
+    expect(el.changes.length).toBeGreaterThan(0)
+    // Second gesture from the caret the first one left, which is the join
+    // inside the proposal — the real sequence a user produces.
+    const last = [...el.parts.doc.querySelectorAll('p')].pop()!
+    el.selectable.removeBounds()
+    last.appendChild(el.selectable.createBounds())
+    press(el, 'Backspace')
+
+    el.acceptChanges()
+    // Both empties proposed for removal and both gone; "One" survives once.
+    expect((el.parts.doc.textContent ?? '').replace(/\s/g, '')).toBe('One')
+    expect(el.parts.doc.querySelectorAll('[data-block-delete]').length).toBe(0)
+  })
+
+  /**
+   * The proposal belongs where the block at the START of the selection was —
+   * the owner's rule for every block gesture. It used to be inserted after the
+   * LAST outgoing block, which is equivalent once every original leaves, and
+   * silently wrong the moment one of them does not. Asserting the position in
+   * the PENDING document pins it independently of resolution.
+   */
+  test('the proposal is anchored at the FIRST outgoing block', () => {
+    const el = build('<p>First</p><p></p><p>Third</p>', true)
+    caretIn(el, 1)
+    press(el, 'Delete')
+    const blocks = [...el.parts.doc.querySelectorAll('p')]
+    const proposal = el.parts.doc.querySelector('[data-block-insert]')!
+    expect(blocks.indexOf(el.block(proposal) as Element)).toBe(0)
+  })
+})
+
+/**
  * A DELETION MUST NOT CONSUME THE EDITOR'S OWN CHROME.
  *
  * Found in shipped 0.6.0 while fixing #3107, reachable with no configuration

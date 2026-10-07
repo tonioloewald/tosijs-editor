@@ -40,6 +40,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`trackStructuralEdits` is still off, and the reason has changed.** The
+  resolution defect it was created for (#3107, above) is fixed; what gates it
+  now is **#3090, identity ownership**. A block-scoped proposal is a copy that
+  coexists with the originals it supersedes, so while a merge is pending every
+  `id` in the merged block answers twice — bounded, cleared by resolution, and
+  nobody has decided who owns identity while pending or who inherits it on
+  resolution. Either coherent model changes resolution, which is the code that
+  produced blockers in three consecutive review rounds, so it wants its own
+  cycle with tests written first. The feature is correct about STRUCTURE and
+  undecided about IDENTITY; a document with no `id` attributes is now believed
+  sound.
 - **`AFFORDANCE_SIZE` is removed, replaced by `AFFORDANCE_HIT` (44) and
   `AFFORDANCE_DOT` (14).** It meant the hit target and the painted size at once,
   which is not expressible as one number once the two differ.
@@ -72,6 +83,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A deletion no longer consumes the editor's own chrome.** Live in shipped
+  0.6.0, with no configuration and tracking OFF: one forward Delete at the end
+  of the last block moved the touch affordance handles into the paragraph and
+  into `editor.value` — the form value, the undo snapshot and whatever the host
+  persists. `docHTML` detaches the affordance CONTAINER, so handles moved out of
+  it were no longer covered. The cause is one rule with a missing copy:
+  `Selectable`'s mouse and touch handlers both refuse `.not-selectable`, and
+  `siblingBlock` exists precisely because a naive sibling walk finds UI
+  furniture — `deletableFilter` was the fourth site and the one nobody had
+  applied it to. A `.not-selectable` widget in the host's own content (the
+  shipped `annotate` command builds those) is now stepped over rather than
+  consumed.
+- **Accepting a tracked structural merge now matches the untracked result**
+  (board #3107), for a block with **nothing to strike** — empty,
+  inline-wrapper-only, or already fully struck by another author.
+  `trackDeletion` declined to mark such a block, and `BLOCK_DELETE_ATTR` on the
+  mark is the only record that the BLOCK rather than merely its contents is
+  proposed for removal; with no mark the block survived `acceptChanges()`.
+  `<p>First</p><p></p><p>Third</p>` + Delete in the empty block accepted to
+  `<p></p><p>First</p><p>Third</p>`. An empty `<tosi-del data-block-delete>` is
+  the correct mark, not a degenerate one: accept removes the block, reject
+  unwraps the mark and leaves the empty block exactly as it was.
+  The proposal is also anchored at `blocksOut[0]` rather than after the last
+  outgoing block, so the result lands where the block at the START of the
+  selection was — the owner's rule for every block gesture, and the same end
+  `blockLike()` already took the type from.
+  `isFullyStruck` is deleted with the skip it served. Its own history was the
+  argument: it had to be corrected once already, because
+  `<p>keep <tosi-del>cut</tosi-del></p>` answered "already deleted" and
+  accepting the merge then left that text in the document twice. Nesting a mark
+  inside a mark is fine — `acceptChange` removes a `<tosi-del>` whole, so
+  accepting "remove this block" takes another author's pending deletion of its
+  contents with it, and rejecting unwraps ours and hands theirs back.
 - **A live handle drag no longer has `Selectable`'s own touchmove running
   underneath it** (board #3083). The handles carry only POINTER listeners and
   live inside the doc element, so their touch events bubble to the doc, and

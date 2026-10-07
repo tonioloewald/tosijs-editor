@@ -160,6 +160,45 @@ const MUTATIONS: Mutation[] = [
     expect: ['cross-block merge is refused'],
   },
   {
+    name: 'a block-level strike is recorded even with NOTHING to strike',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `      const del = document.createElement(DEL_TAG)
+      this.stamp(del, id)
+
+      if (asBlock) {`,
+    replace: `      if (asBlock && !asBlock.firstChild) continue
+      const del = document.createElement(DEL_TAG)
+      this.stamp(del, id)
+
+      if (asBlock) {`,
+    // The `expect` names TRACKED tests only, deliberately. The 0.6.0 entry for
+    // this same guarantee reported GUARDED while tracked mode went entirely
+    // unexercised: 25 fixtures set `trackChanges` and `trackStructuralEdits`
+    // together, and the untracked path has its own, correct, empty-block
+    // handling — so an untracked test going red would say nothing about this.
+    expect: ['the 0.6.0 blocker', 'an empty block, Backspace'],
+  },
+  {
+    name: 'the merge proposal is anchored at the FIRST outgoing block',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    blocksOut[0].before(merged)`,
+    replace: `    blocksOut[blocksOut.length - 1].after(merged)`,
+    expect: ['anchored at the FIRST outgoing block'],
+  },
+  {
+    name: 'a deletion never walks into the editor’s own chrome',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    if (
+      node.classList.contains('not-selectable') ||
+      node.closest('.not-selectable')
+    ) {
+      return false
+    }
+`,
+    replace: ``,
+    expect: ['consumes the editor’s own chrome'],
+  },
+  {
     name: 'the lozenge lives BESIDE the document, never inside it',
     file: 'src/tosijs-styled-editor.ts',
     find: `    this.shadowRoot!.appendChild(this.touchLozenge)`,

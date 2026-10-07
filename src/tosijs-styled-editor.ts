@@ -1074,23 +1074,47 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
 
   /**
    * Record a cross-block merge as *blocks out, blocks in* instead of refusing
-   * it. **OFF in 0.6.0, and that is a release decision rather than a default.**
+   * it. **Still OFF, and the reason has CHANGED — see below before flipping it.**
    *
-   * The representation is sound and the primitive is tested, but RESOLUTION has
-   * a confirmed defect: `trackStructuralEdit` asks `trackDeletion` to strike
-   * each outgoing block, `trackDeletion` silently declines any block with
-   * nothing to mark (empty, inline-wrapper-only, or already fully struck), and
-   * nothing reconciles the decline — so accepting such a merge leaves that
-   * block standing and anchors the replacement after it:
+   * ## Fixed (board #3107)
+   *
+   * The resolution defect this flag was created for is gone. `trackDeletion`
+   * used to decline any block with nothing to mark — empty, inline-wrapper-only
+   * or already fully struck — so accepting such a merge left the block standing:
    *
    *     <p>First</p><p></p><p>Third</p>  + Delete in the empty block
    *       tracking off          → <p>First|</p><p>Third</p>
-   *       tracking on, accepted → <p></p><p>First|</p><p>Third</p>
+   *       tracking on, accepted → <p></p><p>First|</p><p>Third</p>   WAS
+   *       tracking on, accepted → <p>First|</p><p>Third</p>          NOW
    *
-   * A flag about REVIEW deciding document structure is the one class this
-   * release spent five correctness rounds eliminating, so the feature waits for
-   * 0.7.0 rather than shipping reachable (board #3107). `rejectChanges()` is
-   * correct; accept is the broken half.
+   * "Nothing to strike" is not "nothing to record": a block-level strike always
+   * writes its mark, because `BLOCK_DELETE_ATTR` is the only record that the
+   * BLOCK — not merely its contents — is proposed for removal. The proposal is
+   * also anchored at `blocksOut[0]` now, so it cannot end up downstream of the
+   * blocks it supersedes. Guarded by `accepting a tracked merge matches the
+   * untracked result`, which states the contract as a property rather than as a
+   * list of shapes, and by two `falsify` entries.
+   *
+   * ## What still gates it: #3090, identity ownership
+   *
+   * A block-scoped proposal is a COPY that coexists with the originals it
+   * supersedes, and `id` cannot be in two places at once. While a merge is
+   * pending every `id` in the merged block answers twice, so `getElementById`
+   * picks by document order and `querySelectorAll('#x')` returns two. Known and
+   * bounded — resolution clears it — but nobody has DECIDED who owns identity
+   * while pending or who inherits it on resolution.
+   *
+   * That is not a patch. The one attempt (stripping `id` from the clone, 0.6.0
+   * B-1 remediation) implemented neither model and permanently destroyed every
+   * descendant id on accept; it is reverted, and `resolvedClone` carries the
+   * reasoning so the shortcut is not retried. Either coherent model changes
+   * RESOLUTION, which is the code that produced blockers in three consecutive
+   * review rounds, and has to hold for accept-all, reject-all, per-id in both
+   * orders, a chain with a struck intermediate proposal, and undo across any of
+   * those. The board says it wants its own cycle with tests written first.
+   *
+   * So the flag stays, with a narrower reason: the feature is correct about
+   * STRUCTURE and undecided about IDENTITY.
    *
    * With it off, a cross-block merge is REFUSED while tracking — `0.5.x`'s
    * behaviour — through `merge-blocks-backward`, `merge-blocks-forward` and
@@ -1098,8 +1122,9 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * for the same reason `merge-blocks-not-mergeable` is not: an override that
    * half-applies a gesture is what three earlier rounds kept producing.
    *
-   * Turning it on is supported for working ON the feature. It is not a
-   * supported configuration for a document you care about.
+   * Turning it on is supported for working ON the feature, and for a document
+   * with no `id` attributes it is now believed sound. It is not a supported
+   * configuration for a document you care about.
    */
   trackStructuralEdits = false
 
@@ -1305,9 +1330,44 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         node.nodeType === 1 && node.parentNode === this.parts.doc
           ? (node as Element)
           : null
-      if (asBlock && !asBlock.firstChild) continue
-      if (asBlock && this.isFullyStruck(asBlock)) continue
 
+      // "NOTHING TO STRIKE" IS NOT "NOTHING TO RECORD" — and conflating the two
+      // is why `trackStructuralEdits` shipped off in 0.6.0 (board #3107).
+      //
+      // These two skips used to apply to blocks as well, and for an INLINE
+      // deletion they are right: there is no content to mark, or it is already
+      // marked, so re-marking is noise. For a BLOCK-level strike they are
+      // wrong, because the thing being proposed for removal is the BLOCK, and
+      // `BLOCK_DELETE_ATTR` on the mark is the only record of that — it is what
+      // `acceptChanges`' sweep reads to decide the block leaves. No mark, no
+      // attribute, no removal: the block survived the accept.
+      //
+      // Concretely: `trackStructuralEdit` calls `removeBounds()` before asking
+      // for the strike, so a block that `blockIsEmpty()` admitted — it skips
+      // the bounds markers deliberately — has NO children by the time this
+      // runs. `<p>First</p><p></p><p>Third</p>` + Delete accepted to
+      // `<p></p><p>First</p><p>Third</p>`: the empty block outlived the
+      // gesture whose whole effect was that it stop existing.
+      //
+      // So an empty `<tosi-del data-block-delete>` is the correct mark, not a
+      // degenerate one. It says "this block, which happens to hold nothing, is
+      // proposed for removal", accept removes the block, and reject unwraps the
+      // mark and leaves the empty block exactly as it was.
+      //
+      // The already-struck skip went the same way, and the predicate behind it
+      // is its own argument: `isFullyStruck` had to be CORRECTED once already,
+      // because `<p>keep <tosi-del>cut</tosi-del></p>` answered "already
+      // deleted" — the surviving text is a text node, not an element child —
+      // the block was skipped, and accepting the merge left that text in the
+      // document TWICE. Skipping a block was never right; the predicate was
+      // only wrong in a way that made the symptom smaller. It is deleted with
+      // the skip.
+      //
+      // Nesting a mark inside a mark, which the skip existed to avoid, is fine
+      // and honest: `acceptChange` removes a `<tosi-del>` whole, so accepting
+      // "remove this block" takes another author's pending deletion of its
+      // contents with it — the only thing it could mean — and rejecting unwraps
+      // ours and hands theirs back.
       const del = document.createElement(DEL_TAG)
       this.stamp(del, id)
 
@@ -1465,31 +1525,6 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       if (host) host.appendChild(marker)
       else this.parts.doc.appendChild(marker)
     }
-  }
-
-  /**
-   * Is everything in this block already inside a `<tosi-del>`?
-   *
-   * Asked before striking a block, so a second pass does not nest a mark
-   * inside a mark. It has to look at CONTENT, not element children: the first
-   * version tested `firstElementChild.matches(DEL_TAG) && children.length === 1`
-   * and so answered "already deleted" for `<p>keep <tosi-del>cut</tosi-del></p>`
-   * — the text node is not an element child. The block was then skipped, its
-   * surviving text stayed put, and accepting the merge left that text in the
-   * document TWICE, once in the original and once in the replacement.
-   */
-  private isFullyStruck(block: Element): boolean {
-    const probe = document.createElement('div')
-    for (const child of Array.from(block.childNodes)) {
-      probe.appendChild(child.cloneNode(true))
-    }
-    for (const el of Array.from(probe.querySelectorAll(DEL_TAG))) el.remove()
-    for (const el of Array.from(
-      probe.querySelectorAll('.sel-start, .sel-end, .caret')
-    )) {
-      el.remove()
-    }
-    return blockIsEmpty(probe)
   }
 
   /**
@@ -1658,7 +1693,24 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // also the less special behaviour — an earlier proposal is content like
     // anything else.
     this.trackDeletion(blocksOut, id)
-    blocksOut[blocksOut.length - 1].after(merged)
+
+    // ANCHORED AT THE FIRST OUTGOING BLOCK, not after the last.
+    //
+    // The owner's rule for every block gesture is that the result belongs where
+    // the block at the START of the selection was — which is also where
+    // `blockLike(blocksOut[0])` takes its type from, so the two halves of
+    // "which block is this" now agree instead of pointing at opposite ends.
+    //
+    // Honest about what this does and does not fix: once every outgoing block
+    // really leaves on accept, the two anchorings are EQUIVALENT, because
+    // removing blocks i..j leaves the replacement at i either way. The empty
+    // `<tosi-del>` in `trackDeletion` is what fixes #3107's reproduction. This
+    // is what stops the outcome DEPENDING on that — a block that declines to
+    // leave (the accept sweep's caret guard is one way) now leaves its residue
+    // after the merged text rather than in front of it, and the pending
+    // document reads replacement-then-originals instead of putting the proposal
+    // downstream of the blocks it supersedes.
+    blocksOut[0].before(merged)
     return { ins, caret }
   }
 
