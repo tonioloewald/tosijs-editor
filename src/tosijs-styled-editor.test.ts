@@ -4357,7 +4357,7 @@ describe('accepting a tracked merge matches the untracked result', () => {
 })
 
 /**
- * A DELETION MUST NOT CONSUME THE EDITOR'S OWN CHROME.
+ * NO GESTURE MAY REACH THE EDITOR'S OWN CHROME.
  *
  * Found in shipped 0.6.0 while fixing #3107, reachable with no configuration
  * and with tracking OFF: one forward Delete at the end of the last block put
@@ -4382,7 +4382,7 @@ describe('accepting a tracked merge matches the untracked result', () => {
  * pass `this.parts.doc` as the scope and have to REMEMBER what crossing a
  * boundary means, while the four container-scoped callers cannot get it wrong.
  */
-describe('a deletion never consumes the editor’s own chrome', () => {
+describe('no gesture reaches the editor’s own chrome', () => {
   let container: HTMLElement
 
   beforeEach(() => {
@@ -4446,6 +4446,38 @@ describe('a deletion never consumes the editor’s own chrome', () => {
       // The gesture itself is a no-op — there is nothing forward of the caret
       // that the user can see, let alone delete.
       expect(el.parts.doc.querySelector('p')!.textContent).toContain('hello')
+    })
+  }
+
+  /**
+   * ARROW NAVIGATION IS THE SECOND LIVE INSTANCE, and it is worse in kind.
+   *
+   * `arrowLeft`/`arrowRight` walk `this.parts.doc` with the same
+   * `deletableFilter`, so before the fix a Right-arrow at the end of the last
+   * block parked the caret INSIDE `.touch-affordances` — which is word for word
+   * what `siblingBlock`'s own doc comment says happened to `rescueCaretFrom`:
+   * "`insertionPoint()` still answers non-null and the next keystroke builds
+   * text into chrome". Reproduced on 0.6.0's code: caret inside chrome, true.
+   *
+   * Fixing the shared FILTER rather than the two deletion call sites is what
+   * covered this for free. It was found by the audit the blocker rule asks for —
+   * grep for the rule, not the symptom — AFTER the fix, which is why 0.6.1's
+   * changelog describes only the Delete symptom.
+   */
+  for (const key of ['ArrowRight', 'ArrowLeft'] as const) {
+    test(`${key} never parks the caret in the affordance container`, () => {
+      const el = atEndOfLast(false)
+      el.parts.doc.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+      )
+      for (const marker of ['.sel-start', '.sel-end']) {
+        const el2 = el.parts.doc.querySelector(marker)
+        expect(el2?.closest('.touch-affordances') ?? null).toBeNull()
+      }
+      // And the caret is somewhere a keystroke can build text: a real block,
+      // not the container and not the doc element itself.
+      const end = el.parts.doc.querySelector('.sel-end')!
+      expect(el.block(end)?.tagName).toBe('P')
     })
   }
 

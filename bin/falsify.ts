@@ -196,7 +196,7 @@ const MUTATIONS: Mutation[] = [
     }
 `,
     replace: ``,
-    expect: ['consumes the editor’s own chrome'],
+    expect: ['reaches the editor’s own chrome'],
   },
   {
     name: 'the lozenge lives BESIDE the document, never inside it',
