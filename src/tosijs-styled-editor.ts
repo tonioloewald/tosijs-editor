@@ -189,14 +189,49 @@ function strongDirection(text: string): 'ltr' | 'rtl' | null {
   return null
 }
 
+/**
+ * What a deletion gesture is allowed to consume.
+ *
+ * **`.not-selectable` is the load-bearing clause, and it was missing.** A
+ * deletion cannot eat something the user cannot select — that rule is already
+ * applied by `Selectable`'s mouse and touch handlers and by `siblingBlock`,
+ * which was extracted precisely because a naive sibling walk found UI furniture.
+ * This was the fourth site, and the one nobody had applied it to.
+ *
+ * The consequence, reachable in shipped 0.6.0 with no configuration and
+ * tracking OFF: the affordance container is a SIBLING of every block, so a
+ * forward Delete at the end of the last block walked out of the paragraph into
+ * it, `block()` answered the container, `crossesBlocks` was true, and
+ * `mergeBlocksRaw` moved the touch handles into the paragraph. `docHTML`
+ * detaches the CONTAINER, so handles moved out of it are no longer covered —
+ * and `editor.value` came back as
+ * `<p>hello<div class="touch-affordance …"></div>…</p>`. That value is the form
+ * value, the undo snapshot and whatever the host persists.
+ *
+ * Same family as `siblingBlock`'s own origin story and as #3091: one rule, a
+ * walk that does not know about it, and nothing that makes the divergence fail.
+ */
 function deletableFilter(node: Node): boolean {
   if (node instanceof Element) {
+    if (
+      node.classList.contains('not-selectable') ||
+      node.closest('.not-selectable')
+    ) {
+      return false
+    }
     return (
       !node.classList.contains('sel-start') &&
       !node.classList.contains('sel-end')
     )
   }
-  return node.nodeType !== 3 || node.textContent !== ''
+  // A text node inside chrome is chrome. `closest` needs an element, so this
+  // asks the parent — and asking at all matters, because the walk descends to
+  // LEAVES: an element filter alone still hands back the text inside a widget.
+  if (node.nodeType === 3) {
+    if ((node as Text).parentElement?.closest('.not-selectable')) return false
+    return node.textContent !== ''
+  }
+  return true
 }
 
 interface EditableParts extends PartsMap {
