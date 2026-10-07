@@ -160,6 +160,19 @@ const MUTATIONS: Mutation[] = [
     expect: ['cross-block merge is refused'],
   },
   {
+    name: 'a deletion never walks into the editor’s own chrome',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `    if (
+      node.classList.contains('not-selectable') ||
+      node.closest('.not-selectable')
+    ) {
+      return false
+    }
+`,
+    replace: ``,
+    expect: ['consumes the editor’s own chrome'],
+  },
+  {
     name: 'sticky selection measures PER LINE BOX, not the union rect',
     file: 'src/selection.ts',
     find: `    for (const r of Array.from(range.getClientRects())) {`,

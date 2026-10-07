@@ -3856,3 +3856,126 @@ describe('with the default flags, a cross-block merge is refused', () => {
     expect(el.changes.length).toBe(1)
   })
 })
+
+/**
+ * A DELETION MUST NOT CONSUME THE EDITOR'S OWN CHROME.
+ *
+ * Found in shipped 0.6.0 while fixing #3107, reachable with no configuration
+ * and with tracking OFF: one forward Delete at the end of the last block put
+ * the touch affordance handles inside the paragraph and into `editor.value`.
+ *
+ *   el.value = '<p>hello</p>'; caret at the end; press Delete
+ *   → <p>hello<div class="touch-affordance touch-handle-start …"></div>…</p>
+ *
+ * `docHTML` detaches the affordance CONTAINER, which is why `value` is normally
+ * clean — but handles moved OUT of the container are no longer covered by that,
+ * so they reached the form value, the undo stack and whatever the host persists.
+ *
+ * The cause is one rule with a missing copy, which is this subsystem's whole
+ * history: the affordance container is a SIBLING of every block, `siblingBlock`
+ * exists precisely because a naive sibling walk finds UI furniture, and
+ * `Selectable`'s mouse and touch handlers both refuse `.not-selectable` — and
+ * `deletableFilter`, the fourth site, did not. The leaf walk then stepped out of
+ * the paragraph into the container, `block()` answered the container,
+ * `crossesBlocks` was true, and the merge paths did what they were told.
+ *
+ * That makes it #3091's root cause in its sharpest form: the two block paths
+ * pass `this.parts.doc` as the scope and have to REMEMBER what crossing a
+ * boundary means, while the four container-scoped callers cannot get it wrong.
+ */
+describe('a deletion never consumes the editor’s own chrome', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
+  })
+
+  const atEndOfLast = (tracked: boolean): TosijsStyledEditor => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = '<p>hello</p>'
+    el.changeAuthor = { id: 'alex', name: 'Alex' }
+    el.trackChanges = tracked
+    el.trackStructuralEdits = tracked
+    const p = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    p.appendChild(el.selectable.createBounds())
+    return el
+  }
+
+  const press = (el: TosijsStyledEditor, key: string): void => {
+    el.parts.doc.dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    )
+  }
+
+  for (const tracked of [false, true]) {
+    test(`Delete at the end of the last block, tracking ${
+      tracked ? 'on' : 'off'
+    }`, () => {
+      const el = atEndOfLast(tracked)
+      const chromeBefore = el.parts.doc.querySelectorAll(
+        '.touch-affordances .touch-affordance'
+      ).length
+      press(el, 'Delete')
+
+      // THE SYMPTOM, asserted directly. The pre-existing property test
+      // ("nothing leaves the document untracked") caught this sideways, via
+      // textContent shrinking, which is why it read as a tracking defect.
+      expect(el.value).not.toContain('touch-affordance')
+      expect(el.value).not.toContain('touch-icon')
+      // And structurally: the handles are still the container's children.
+      expect(el.parts.doc.querySelectorAll('p .touch-affordance').length).toBe(
+        0
+      )
+      // Counted rather than hard-coded: how many affordances there are is a
+      // design question that changes between releases, while "the gesture moved
+      // none of them" is the claim.
+      expect(
+        el.parts.doc.querySelectorAll('.touch-affordances .touch-affordance')
+          .length
+      ).toBe(chromeBefore)
+      expect(chromeBefore).toBeGreaterThan(0)
+      // The gesture itself is a no-op — there is nothing forward of the caret
+      // that the user can see, let alone delete.
+      expect(el.parts.doc.querySelector('p')!.textContent).toContain('hello')
+    })
+  }
+
+  // The same walk, backwards, out of the FIRST block. There is no chrome before
+  // the first block today, so this pins that the filter is not direction-blind
+  // rather than reproducing a second bug.
+  test('Backspace at the start of the first block leaves the chrome alone', () => {
+    const el = atEndOfLast(false)
+    const p = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    p.insertBefore(el.selectable.createBounds(), p.firstChild)
+    press(el, 'Backspace')
+    expect(el.value).not.toContain('touch-affordance')
+  })
+
+  /**
+   * A `.not-selectable` widget in the USER'S content, not ours — the shipped
+   * `annotate` command builds these. A deletion must step over it rather than
+   * into it, for the same reason and with no special case for our own chrome.
+   */
+  test('a .not-selectable widget in content is stepped over, not consumed', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = '<p>one</p><p><span class="not-selectable">note</span></p>'
+    const first = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    first.appendChild(el.selectable.createBounds())
+    press(el, 'Delete')
+    // The widget is intact and still inside its own block: the gesture did not
+    // reach into it and did not merge the blocks through it.
+    const widget = el.parts.doc.querySelector('.not-selectable')!
+    expect(widget.textContent).toBe('note')
+    expect(el.block(widget)).not.toBe(first)
+  })
+})

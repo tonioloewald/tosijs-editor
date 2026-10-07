@@ -5,6 +5,40 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-10-07
+
+### Fixed
+
+- **A deletion no longer consumes the editor's own chrome.** One forward Delete
+  at the end of the last block moved the touch affordance handles into the
+  paragraph and into `editor.value`:
+
+  ```
+  el.value = '<p>hello</p>'   // caret at the end, press Delete
+  el.value → <p>hello<div class="touch-affordance touch-handle-start …"></div>…</p>
+  ```
+
+  Reachable in 0.6.0 with no configuration and with change tracking OFF. That
+  value is the form value (`internals.setFormValue`), the undo snapshot, and
+  whatever the host persists, so a document saved after that keypress carried
+  the editor's own UI inside it. `docHTML` detaches the affordance CONTAINER,
+  which is why `value` is normally clean — handles moved OUT of the container
+  are no longer covered by that.
+
+  `deletableFilter` did not refuse `.not-selectable`. `Selectable`'s mouse and
+  touch handlers both do, and `siblingBlock` exists precisely because a naive
+  sibling walk finds UI furniture — this was the fourth site for one rule and
+  the one nobody had applied it to. The leaf walk therefore left the paragraph,
+  reached the affordance container, `block()` answered the container,
+  `crossesBlocks` was true, and the merge paths did what they were told.
+
+  A `.not-selectable` widget in the host's own content — the shipped `annotate`
+  command builds those — is now stepped over by a deletion rather than consumed.
+
+  **Patch rather than part of 0.7.0 on purpose:** `^0.6.0` resolves to
+  `>=0.6.0 <0.7.0`, so a patch reaches every current consumer and a minor
+  reaches none.
+
 ## [0.6.0] - 2026-10-07
 
 ### Added
