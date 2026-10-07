@@ -4418,6 +4418,9 @@ describe('a deletion never consumes the editor’s own chrome', () => {
       tracked ? 'on' : 'off'
     }`, () => {
       const el = atEndOfLast(tracked)
+      const chromeBefore = el.parts.doc.querySelectorAll(
+        '.touch-affordances .touch-affordance'
+      ).length
       press(el, 'Delete')
 
       // THE SYMPTOM, asserted directly. The pre-existing property test
@@ -4429,10 +4432,17 @@ describe('a deletion never consumes the editor’s own chrome', () => {
       expect(el.parts.doc.querySelectorAll('p .touch-affordance').length).toBe(
         0
       )
+      // Counted rather than hard-coded: how many affordances there are is a
+      // design question that changes between releases — 0.6.x has three, 0.7.0
+      // has two since the lozenge moved out of the container — while "the
+      // gesture moved none of them" is the claim. Found while backporting this
+      // describe to the 0.6.1 branch, where the literal 2 failed for a reason
+      // that had nothing to do with the defect.
       expect(
         el.parts.doc.querySelectorAll('.touch-affordances .touch-affordance')
           .length
-      ).toBe(2)
+      ).toBe(chromeBefore)
+      expect(chromeBefore).toBeGreaterThan(0)
       // The gesture itself is a no-op — there is nothing forward of the caret
       // that the user can see, let alone delete.
       expect(el.parts.doc.querySelector('p')!.textContent).toContain('hello')
