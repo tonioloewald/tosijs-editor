@@ -435,6 +435,18 @@ So two questions, after any blocker, before calling it fixed:
    block. The `crossesBlocks` guard that fixes it reproduces at the call site what the other
    four get free from an argument (board #3091).
 
+   **And the answer to that one turned out to be NO — recorded because the question is still
+   worth asking, and because a confident answer to it was wrong.** Scoping the two block paths
+   to `caretBlock` and taking the neighbour from `siblingBlock` breaks the change-tracking
+   chain. `deletionTarget`'s document-wide walk was doing two jobs: find the next deletable
+   node, and — because it skips content already inside a `<tosi-del>` — identify the
+   neighbouring **live** block, the previous block of the document *as proposed*. Element-sibling
+   order is not proposal order: in a two-merge chain the element before `<p>Gamma.</p>` is the
+   struck original, while the live previous block is the proposal. So `crossesBlocks` carries
+   information the four scoped callers never need, and the asymmetry in the argument reflects a
+   real asymmetry in the problem. Two existing chain tests caught it; the attempt was reverted
+   under the fix-led-to-a-blocker rule rather than patched.
+
 And the counter-rule, because over-reach is its own failure: **fix the cause you have evidence
 for, not a grander one you have inferred.** The 0.6.0 footnote corruption was caused by
 `renumberFootnotes` keying its map so a second reference minted a duplicate item — proven,
