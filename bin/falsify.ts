@@ -23,6 +23,19 @@
  *   bun run falsify              # every mutation
  *   bun run falsify sticky       # only those whose name matches
  *
+ * TWO LANES, because until 0.7.0 this one ran `bun test` and nothing else —
+ * so NO BROWSER-LANE GUARANTEE COULD EVER BE FALSIFIED HERE, and the report
+ * said 26/26 while `browser-tests/affordances.test.ts` passed with the
+ * placement rule it exists to check replaced by a stub (0.7.0 review, B‑1).
+ * A mutation marked `lane: 'browser'` runs `bun run test:browser` instead.
+ * That is slow — it rebuilds `docs/` and drives a real engine, ~45s each — so
+ * it is for guarantees that NO unit test can see, which in this repo means
+ * anything about layout: every rect in happy-dom is zero.
+ *
+ * A browser mutation leaves `docs/` built from the MUTATED source, so the
+ * run rebuilds it at the end. That is why it is not enough to restore the
+ * source file alone.
+ *
  * SAFETY: it edits real source files, so it refuses to run on a dirty tree and
  * restores from an in-memory copy in a `finally`, plus on SIGINT/SIGTERM. The
  * clean-tree check is the actual guard — if the process is killed outright,
@@ -40,6 +53,11 @@ interface Mutation {
   replace: string
   /** Substrings of test names that must go red. Empty = any failure will do. */
   expect: string[]
+  /**
+   * Which suite can see this guarantee. `browser` costs ~45s and a `docs/`
+   * rebuild; use it only where happy-dom genuinely cannot answer — layout.
+   */
+  lane?: 'unit' | 'browser'
 }
 
 const MUTATIONS: Mutation[] = [
@@ -206,6 +224,35 @@ const MUTATIONS: Mutation[] = [
     expect: ['beside the document'],
   },
   {
+    /**
+     * THE ONE THAT WAS MISSING, and the reason this file learned a second
+     * lane. `positionLozenge` is what feeds the selection's real rects to
+     * `lozengePlacement`; the pure function has unit tests and they prove the
+     * arithmetic, not the wiring. With the y it computes thrown away, the
+     * browser lane used to go FULLY GREEN (0.7.0 review, B‑1) — the probe
+     * selected text a thousand pixels outside the scrolling viewport, so
+     * every placement hit the same terminal clamp and "does not overlap the
+     * selection" was trivially true.
+     *
+     * x is deliberately left alone: the page-centring test already catches a
+     * broken x, and a mutation that breaks everything proves less than one
+     * that breaks exactly the claim under test.
+     */
+    name: 'the lozenge’s vertical placement follows the SELECTION',
+    file: 'src/tosijs-styled-editor.ts',
+    lane: 'browser',
+    find: `    lozenge.style.left = \`\${x}px\`
+    lozenge.style.top = \`\${y}px\``,
+    replace: `    lozenge.style.left = \`\${x}px\`
+    void y
+    lozenge.style.top = \`\${docRect.bottom - hostRect.top - lozenge.offsetHeight}px\``,
+    expect: [
+      'y depends on the selection',
+      'never intersects the selection',
+      'at the top of the band',
+    ],
+  },
+  {
     // The one the lozenge did NOT have, because its parent used to supply it.
     // A future refactor that moves the element again should go red here.
     name: 'the lozenge is hidden until a selection asks for it',
@@ -332,6 +379,9 @@ process.on('SIGTERM', () => {
   process.exit(143)
 })
 
+/** Did any mutation rebuild `docs/` from mutated source? */
+let ranBrowser = false
+
 try {
   for (const mutation of chosen) {
     const original = readFileSync(mutation.file, 'utf8')
@@ -350,7 +400,11 @@ try {
       mutation.file,
       original.replace(mutation.find, mutation.replace)
     )
-    const run = await $`bun test`.nothrow().quiet()
+    const browser = mutation.lane === 'browser'
+    if (browser) ranBrowser = true
+    const run = browser
+      ? await $`bun run test:browser`.nothrow().quiet()
+      : await $`bun test`.nothrow().quiet()
     restore()
 
     const output = run.stdout.toString() + run.stderr.toString()
@@ -382,6 +436,13 @@ try {
   }
 } finally {
   restore()
+  if (ranBrowser) {
+    // The source is back, but `docs/` is whatever the last browser mutation
+    // built. Leaving that is how a committed web root ends up holding code
+    // that is in no commit.
+    console.log('\n• rebuilding docs/ from the restored source')
+    await $`bun run make`.nothrow().quiet()
+  }
 }
 
 for (const o of outcomes) {
