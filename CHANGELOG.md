@@ -138,6 +138,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repeated the identical O(document) sweep; `extendTo` also fired
   `onBoundsChanged` a second time itself, repainting the caret and repositioning
   the affordances again — on the one device where the handles ARE the gesture.
+## [0.6.1] - 2026-10-07
+
+### Fixed
+
+- **No gesture can reach the editor's own chrome any more.** Two symptoms, one
+  cause, both reachable in 0.6.0 with no configuration and with change tracking
+  OFF.
+
+  **The caret could end up inside the editor's UI.** Right-arrow at the end of
+  the last block moved it into the touch-affordance container, where
+  `insertionPoint()` still answers non-null — so the next character typed was
+  built into the chrome rather than into the document. If your caret ever
+  vanished at the end of a document and typing stopped appearing, this is why.
+
+  **A forward Delete at the end of the last block** moved the touch affordance
+  handles into the paragraph and into `editor.value`:
+
+  ```
+  el.value = '<p>hello</p>'   // caret at the end, press Delete
+  el.value → <p>hello<div class="touch-affordance touch-handle-start …"></div>…</p>
+  ```
+
+  That value is the form value (`internals.setFormValue`), the undo snapshot and
+  whatever the host persists, so a document saved after that keypress carried
+  the editor's own UI inside it. `docHTML` detaches the affordance CONTAINER,
+  which is why `value` is normally clean — handles moved OUT of the container
+  are no longer covered by that.
+
+  The cause of both: `deletableFilter` did not refuse `.not-selectable`.
+  `Selectable`'s mouse and touch handlers both do, and `siblingBlock` exists
+  precisely because a naive sibling walk finds UI furniture — this was the
+  fourth site for one rule and the one nobody had applied it to. The affordance
+  container is a SIBLING of every block, so the leaf walk left the paragraph and
+  reached it; the arrow keys then moved the caret there, and the deletion paths
+  found `block()` answering the container, `crossesBlocks` true, and merged the
+  document with its own UI.
+
+  Fixed in the shared filter rather than at the call sites, which is what covers
+  both gestures and the four other walks that use it.
+
+  A `.not-selectable` widget in the host's own content — the shipped `annotate`
+  command builds those — is now stepped over by a deletion rather than consumed.
+
+  **Patch rather than part of 0.7.0 on purpose:** `^0.6.0` resolves to
+  `>=0.6.0 <0.7.0`, so a patch reaches every current consumer and a minor
+  reaches none.
+
+  *This entry was amended after 0.6.1 was tagged.* The published tarball's copy
+  describes only the Delete symptom: the arrow-key one was found by auditing for
+  other instances of the rule after the release was already staged, and the fix
+  covers it because it is in the shared filter. No code differs.
 
 ## [0.6.0] - 2026-10-07
 
