@@ -206,6 +206,17 @@ const MUTATIONS: Mutation[] = [
     expect: ['beside the document'],
   },
   {
+    // The one the lozenge did NOT have, because its parent used to supply it.
+    // A future refactor that moves the element again should go red here.
+    name: 'the lozenge is hidden until a selection asks for it',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `      // this value governs exactly one window: upgrade to first interaction.
+      display: 'none',`,
+    replace: `      // this value governs exactly one window: upgrade to first interaction.
+      display: 'flex',`,
+    expect: ['hidden until something selects'],
+  },
+  {
     name: 'the condensed and expanded menus are ONE action list',
     file: 'src/tosijs-styled-editor.ts',
     find: `      btn.className = \`touch-lozenge-item not-selectable\${
