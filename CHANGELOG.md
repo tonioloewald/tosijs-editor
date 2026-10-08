@@ -83,8 +83,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **A deletion no longer consumes the editor's own chrome.** Live in shipped
-  0.6.0, with no configuration and tracking OFF: one forward Delete at the end
+- **The action lozenge no longer paints itself over an untouched editor.**
+  From the moment the element upgraded until the first click or tap, every
+  editor showed the Cut / Copy / Paste bar floating over its own content —
+  both `document.createElement` and declarative markup, confirmed in WebKit.
+  `.touch-affordances` declares `display: none`; the lozenge did not need its
+  own copy of that while it was a CHILD of that element, and moving it out to
+  the shadow root (above) took the hiding away with the parent. Nothing caught
+  it because nothing ever looks at an untouched editor: the documentation site
+  clicks its own editor on load, and every unit test drives a selection before
+  asserting anything.
+- **A deletion no longer consumes the editor's own chrome.** *Also released in
+  0.6.1 — see that entry for both symptoms; it is listed here for anyone
+  coming from 0.6.0.* Live in shipped 0.6.0, with no configuration and
+  tracking OFF: one forward Delete at the end
   of the last block moved the touch affordance handles into the paragraph and
   into `editor.value` — the form value, the undo snapshot and whatever the host
   persists. `docHTML` detaches the affordance CONTAINER, so handles moved out of
