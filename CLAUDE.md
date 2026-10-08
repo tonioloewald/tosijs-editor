@@ -248,7 +248,7 @@ passes its per-instance `this.commands`, so assigning `editor.commands.myCommand
 `menubar` / `toolbar` / `doc`. Everything event-driven lives here: keydown/keypress,
 copy/cut/paste, table-cell navigation, list-item Enter/Backspace/Delete, vertical arrow
 movement (via spanified line grouping in `groupByLine`/`closestCharOnLine`), touch
-selection affordances and context menu, and column-resize dragging.
+selection affordances and the action lozenge, and column-resize dragging.
 
 Content initialization order in `connectedCallback`: existing `doc.innerHTML`, else a
 pre-set `value`, else non-slotted light-DOM children.
@@ -265,6 +265,27 @@ between them. Restoring forwards reaches an anchor that is still detached,
 `insertBefore` throws `NotFoundError` mid-loop, and every remaining mark stays unwrapped
 permanently. Because `updateUndo()` reads this getter first thing on keypress, that one
 throw also silently lost the undo snapshot and the form value.
+
+**The action lozenge is a SIBLING of `[part="doc"]`, and it owns its own
+`display: none`.** Two rules, each learned by breaking it, each with a falsify
+entry (`the lozenge lives BESIDE the document`, `the lozenge is hidden until a
+selection asks for it`).
+
+A child of the doc element is a document BLOCK: it turns up in
+`selectedBlocks()`, in `block()`, in arrow navigation — and its seven labels
+join `doc.textContent`, which four unrelated deletion tests caught by reading
+`"onetwoCutCopyPasteDeleteBoldItalicPlain"`. That is what a consumer calling
+`doc.textContent` would have got. (`value` was clean throughout: `docHTML`
+detaches the affordances.)
+
+And having moved OUT, it needs the hiding its parent used to give it.
+`.touch-affordances` declares `display: none`; the lozenge did not, because it
+never had to, and so every editor painted a Cut/Copy/Paste bar over its own
+content from upgrade until the first click or tap. Nothing caught it because
+nothing ever looks at an untouched editor — the docs site clicks its own
+editor on load, and every unit test drives a selection before asserting.
+**Removing a mechanism means re-deriving what depended on it**: the same
+sentence this file already carries about absorption, in a second instance.
 
 **Selection markers still DO leak into `value`.** `docHTML` serves both `value` and the
 undo stack, and undo wants the caret back — so splitting them is an open item
