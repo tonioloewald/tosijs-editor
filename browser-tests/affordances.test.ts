@@ -151,8 +151,8 @@ const place = async (
         band === 'top'
           ? docBox.top + margin
           : band === 'bottom'
-            ? docBox.bottom - margin
-            : docBox.top + docBox.height / 2
+          ? docBox.bottom - margin
+          : docBox.top + docBox.height / 2
       doc.scrollTop += first.top - wanted
       // Re-run the gesture at the new coordinates rather than trusting the
       // markers to have survived a scroll: `characterAtPoint` is what the

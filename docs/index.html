@@ -28,7 +28,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="doc-system.css?v=03c546a56042" data-tosi-doc-system />
+  <link rel="stylesheet" href="doc-system.css?v=040b383ecc5d" data-tosi-doc-system />
   <title>A Rich Text Editor Component — tosijs-styled-editor</title>
   <meta name="description" content="A pure web-component. What it does not use" />
   <link rel="canonical" href="https://editor.tosijs.net/" />
@@ -45,7 +45,7 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="docs.json?v=0cac6630efdc" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
+  <tosi-doc-system docs="docs.json?v=3ebeb73f612e" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="localized-strings.txt">
   <article class="doc-content">
 <!--{ "pin": "top" }-->
 
@@ -411,7 +411,7 @@ tracked. (Paragraph merges ARE tracked — see Structural edits above.)</p>
 <code>merge-list-items</code>, <code>delete-table-row</code>, <code>delete-table-col</code>.</p>
 <p>The first three are a cross-block merge while <code>trackChanges</code> is on. They stop
 firing if you enable <code>trackStructuralEdits</code>, which records those edits instead
-— see the Component API table; it is off in 0.6.0 and not a supported
+— see the Component API table; it is off by default and not a supported
 configuration yet.</p>
 <p><strong>Calling <code>preventDefault()</code> performs the edit untracked</strong> — if tracking could
 have represented it, there would have been nothing to refuse — <strong>except for
@@ -856,7 +856,7 @@ Custom widgets you add follow the same rules and get translated too.</p>
 <tr>
 <td><code>trackStructuralEdits</code></td>
 <td><code>boolean</code></td>
-<td>Record cross-block merges as blocks-out/blocks-in instead of refusing them. <strong>Off in 0.6.0 and not supported</strong> — accepting such a merge resolves wrongly when an outgoing block has nothing to strike. 0.7.0 finishes it</td>
+<td>Record cross-block merges as blocks-out/blocks-in instead of refusing them. <strong>Off, and not a supported configuration.</strong> The resolution defect it was held back for in 0.6.0 is fixed in 0.7.0; what gates it now is identity. While a merge is pending the proposal coexists with the originals it supersedes, so every <code>id</code> in the merged block answers twice, and who owns an <code>id</code> while pending — or inherits it on resolution — is undecided. Turning it on gives you correct STRUCTURE and an undecided identity model; a document with no <code>id</code> attributes is believed sound</td>
 </tr>
 </tbody></table>
 <h3>Change tracking</h3>
@@ -989,6 +989,6 @@ Custom widgets you add follow the same rules and get translated too.</p>
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="hydrate.js?v=03c546a56042"></script>
+  <script type="module" src="hydrate.js?v=040b383ecc5d"></script>
 </body>
 </html>

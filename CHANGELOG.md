@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-10-08
 
 ### Added
 
@@ -28,8 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the only difference between condensed and expanded, so they cannot hold
   different actions. The design it replaces built a separate menu element — two
   things to place, two dismissal paths and two lists.
-- `lozengePlacement(selection, size, bounds, gap?)`, exported, with the
-  placement rule as a pure function.
+- `lozengePlacement(selection, size, bounds, gap?)` and `LOZENGE_GAP`,
+  exported, with the placement rule as a pure function. `bounds` is the
+  document's VISIBLE band in host coordinates, not the viewport, and the
+  returned `side` is where it fitted — which is not always the side the room
+  suggested, because the result is clamped into the band.
 - `browser-tests/affordances.test.ts`: the affordance geometry measured in real
   WebKit layout. The lozenge never intersects the selection's LINE BOXES (not
   its union rect — a wrapped selection has a gap between lines that the union
@@ -72,6 +75,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`markerRect`) instead of reconstructing it from the handle's box plus half a
   line height. That reconstruction was only correct while the handle was a
   square whose anchor CORNER touched the character.
+- **`bin/falsify.ts` can falsify the browser lane**, which it could not
+  before: it ran `bun test` and nothing else, so no guarantee that only a real
+  engine can see was ever actually guarded. A mutation may declare
+  `lane: 'browser'`. That matters because `browser-tests/affordances.test.ts`
+  was VACUOUS — measured, with the lozenge's vertical placement replaced by a
+  stub that ignored the selection, every vertical assertion still passed. The
+  probe selected text far outside the document's scrolling viewport, so every
+  placement hit the same clamp, and it read a rect while a 0.1s CSS transition
+  was still moving it. The lane now scrolls the selection into the band,
+  refuses to measure one that is not in it, switches the transition off rather
+  than waiting a guessed interval, and asserts that the lozenge's y DEPENDS on
+  the selection — the claim a constant-y stub fails first.
 - `bun run test:browser` **rebuilds `docs/` before running.** `docs/` is the
   generated web root and it is committed, so the dev server answers from the
   previous release's build the moment it binds — readiness proved the server
@@ -83,6 +98,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A touch Paste is tracked like any other paste.** The lozenge's Paste
+  inserted a bare text node instead of going through `insertTransfer`, the
+  single shared choke point for everything entering the document from outside
+  — the only caller of `openInsertion`, `sanitize` and `restampPastedChanges`,
+  and the only reader of `pastemode`. With `trackChanges` on it recorded the
+  DELETE half of the gesture and not the INSERT half, so rejecting restored
+  the original text and left the pasted text beside it. It also flattened rich
+  clipboard content and ignored `pastemode`, so paste-by-touch and
+  paste-by-keyboard produced different documents. Present since the touch menu
+  existed; found by the 0.7.0 review.
+- **One tap on a bare caret no longer wipes the system clipboard.** `Copy` had
+  no empty-selection guard while the `Cut` beside it did, so it called
+  `navigator.clipboard.writeText('')` on a collapsed caret — state destroyed
+  outside the editor, with no undo and no receipt. A bare caret does reach the
+  lozenge, because both bounds markers exist after every tap. The precondition
+  is now declared on the action and enforced in one place, so `Cut`'s private
+  copy is gone rather than joined by a second one.
 - **The action lozenge no longer paints itself over an untouched editor.**
   From the moment the element upgraded until the first click or tap, every
   editor showed the Cut / Copy / Paste bar floating over its own content —
@@ -150,6 +182,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repeated the identical O(document) sweep; `extendTo` also fired
   `onBoundsChanged` a second time itself, repainting the caret and repositioning
   the affordances again — on the one device where the handles ARE the gesture.
+
+### Removed
+
+- **`AFFORDANCE_SIZE`** and **`menuAffordanceX`**, both of which were real
+  exports at 0.6.1 (`src/index.ts` is `export *`). `AFFORDANCE_SIZE` meant the
+  hit target and the painted size at once and stops being expressible as one
+  number the moment they differ — `AFFORDANCE_HIT` (44) and `AFFORDANCE_DOT`
+  (14) replace it. `menuAffordanceX` kept a SELECTION-centred menu off the
+  start handle; centring on the page makes the overlap unreachable, so the
+  guard goes rather than being carried with a condition nobody could explain
+  later. Neither has a shim: if you imported either, the compiler will say so.
+
 ## [0.6.1] - 2026-10-07
 
 ### Fixed
