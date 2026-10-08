@@ -12,6 +12,47 @@ quarterly lens had to reconstruct seven reports by hand.
 
 ---
 
+## 0.6.1 — published 2026-10-08
+
+- **A one-function patch, cut because of how `^0.6.0` resolves.** `>=0.6.0 <0.7.0`, so a patch
+  reaches every current consumer and a minor reaches none. The defect corrupted `editor.value`,
+  so it wanted the first. Second time this repo has split a release by propagation rather than
+  by size (0.5.1 was the first); it is becoming the default question rather than a judgement
+  call.
+- **The defect was found while working on something else, in shipped code, with no
+  configuration and change tracking off.** One forward Delete at the end of the last block moved
+  the touch affordance handles into the paragraph and into `editor.value` — the form value, the
+  undo snapshot, whatever the host persists. Cause: `deletableFilter` did not refuse
+  `.not-selectable`. `Selectable`'s mouse and touch handlers both do, and `siblingBlock` exists
+  precisely because a naive sibling walk finds UI furniture. Fourth site for one rule.
+- **It was hiding behind a test that caught it SIDEWAYS.** `nothing leaves the document
+  untracked on any delete gesture` had been failing on `textContent` shrinking, which reads as a
+  change-tracking defect. The surviving `<p>` was never the problem.
+- **The audit that found the SECOND instance ran after the release was already staged.** The
+  blocker rule says to grep for the rule rather than the symptom before calling a fix done. The
+  fix was called done, a release was cut, and only then was the audit run — which found that
+  `arrowLeft`/`arrowRight` use the same document-scoped walk, so Right-arrow at the end of the
+  last block parked the caret INSIDE `.touch-affordances`, where the next keystroke builds text
+  into chrome. Worse in kind than the Delete symptom.
+  **It survived that ordering by luck.** Fixing the shared FILTER happened to cover both; the
+  obvious local fix — guard the two deletion call sites — would have shipped 0.6.1 with the
+  arrow instance intact and a changelog claiming the class was fixed.
+- **The approval window lapsed, for the second release running.** Staged at 20:30 UTC, approved
+  the next morning; `verify` skipped, run green with the "Verification owed" annotation,
+  recovered with `verify_only=true`. Two for two now, which makes a 60-minute window the wrong
+  shape for how this project actually releases rather than an operator slip.
+  The lapse was useful once: nothing had published, so changing the release was briefly cheap,
+  which is what surfaced the changelog decision below while it still had options.
+- **The changelog was amended after the tag rather than deprecating or re-cutting.** The
+  published entry describes only the Delete symptom. Deprecating 0.6.1 would tell consumers to
+  fall back to the version WITH the bug; a 0.6.2 whose only content is a wording correction is
+  registry churn. `CHANGELOG.md` on master names both symptoms and says it was amended and that
+  the tarball's copy is narrower. Recorded because "the code is right and the description is
+  not" had no precedent here.
+- Final: npm 0.6.1, tag `v0.6.1` on the attestation commit, merged to master so the tag is an
+  ancestor. 385 tests on the release branch, 419 on master. falsify 15/15 and 25/25.
+  release-doctor 0 failed / 0 warnings before tagging.
+
 ## 0.6.0 — published 2026-10-07
 
 - **Four reviews, all BLOCK, five correctness blockers — three of them introduced by the
