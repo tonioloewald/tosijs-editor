@@ -701,7 +701,15 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     // is nothing to position twice and no second dismissal path.
     ':host .touch-lozenge': {
       position: 'absolute',
-      display: 'flex',
+      // HIDDEN by default, like `.touch-affordances` above — one rule, and it
+      // needs its copy here now. The lozenge used to be a CHILD of that
+      // element and was hidden by it; moving it out to the shadow root (so its
+      // seven labels stop joining the document's `textContent`) took the
+      // hiding away with the parent, and every editor painted a Cut/Copy/Paste
+      // bar over its own content until the first click or tap. Both the show
+      // and hide paths in `updateTouchAffordances` set `display` inline, so
+      // this value governs exactly one window: upgrade to first interaction.
+      display: 'none',
       flexDirection: 'row',
       alignItems: 'stretch',
       background: 'rgba(30,30,30,0.72)',

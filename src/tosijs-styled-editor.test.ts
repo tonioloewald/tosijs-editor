@@ -3661,6 +3661,39 @@ describe('the action lozenge', () => {
     )
   }
 
+  /**
+   * The first thing a consumer sees, and it was WRONG in 0.7.0 development:
+   * every editor painted the Cut/Copy/Paste bar over its own content from the
+   * moment it upgraded until the first click or tap.
+   *
+   * The cause is the shape this repo keeps meeting — one rule, several copies.
+   * `.touch-affordances` declares `display: none`; the lozenge lived INSIDE it
+   * and was hidden by it, so it never needed its own. Moving it out to the
+   * shadow root (so its seven labels stopped joining the document's
+   * `textContent`) took the hiding away with the parent. Removing a mechanism
+   * means re-deriving what depended on it.
+   *
+   * This asserts the COMPUTED value, not the inline one: both the show and the
+   * hide path set `display` inline, so an inline assertion would pass against
+   * the broken code — the bug is precisely the window before either runs.
+   */
+  test('it is hidden until something selects: nothing shows on a fresh editor', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = '<p>Nobody has touched me.</p>'
+
+    const lozenge = lozengeOf(el)
+    expect(lozenge).toBeTruthy()
+    expect(getComputedStyle(lozenge).display).toBe('none')
+
+    // And the handles, which were right all along — asserted together so the
+    // two cannot drift apart again.
+    const affordances = el.parts.doc.querySelector(
+      '.touch-affordances'
+    ) as HTMLElement
+    expect(getComputedStyle(affordances).display).toBe('none')
+  })
+
   test('condensed: the common actions inline, the rest marked extra', () => {
     const el = build()
     const items = [
