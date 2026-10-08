@@ -480,6 +480,19 @@ demonstrated is a new defect with a rationale.
 `always-on` or `pre-minor`, so a release can pass the gate twice with twins intact — which is
 what happened here.
 
+**`bun run falsify` is that rule as a lane** (`bin/falsify.ts`). Each entry names
+a guarantee, the edit that removes it, and which tests must go red; a mutation
+that leaves the suite green is a SURVIVOR, meaning the guarantee is unguarded
+whatever the test names suggest. It refuses a dirty tree, because it edits real
+source in place. Add an entry with any fix whose test you verified by hand —
+otherwise that verification evaporates, which is how the 0.6.0 dx review found
+two fixes that could be deleted outright with the suite fully green.
+
+**An entry may declare `lane: 'browser'`**, and until 0.7.0 it could not: the
+lane ran `bun test` and nothing else, so no guarantee that only a real engine
+can see was ever guarded, while the report said 26/26. A browser mutation costs
+~45s and rebuilds `docs/`, so it is for layout, where happy-dom cannot answer.
+
 **A passing test is not evidence until you have made it fail.** Break the thing under
 test and confirm that specific test goes red. In the 0.5.0 review remediation, four
 tests written against confirmed, reproduced bugs passed against the UNFIXED code and
@@ -531,6 +544,25 @@ test asserted that the element it was about to measure exists. Every describe in
 drives a browser should carry one, for the same reason `doc-fences.test.ts` does — a lane that
 cannot see its subject reports zero failures.
 
+**That precondition is necessary and NOT sufficient — the lane went blind again
+in 0.7.0 with one in place** (review B‑1). `affordances.test.ts` passed with the
+lozenge's vertical placement replaced by a stub that ignored the selection. The
+precondition asked whether the subject EXISTED; it did, a thousand pixels
+outside the document's scrolling viewport, so every placement hit the same
+terminal clamp and "does not overlap the selection" was true of any lozenge at
+all. The probe also read a rect while a 0.1s CSS transition was still moving it,
+so each assertion compared one selection's lines against the PREVIOUS
+selection's box. Three rules, the third being the one that generalises:
+
+- a browser probe must assert its subject is **inside the viewport it measures
+  against**, not merely present
+- read **the value the code wrote** (`style.top`), or switch the transition off.
+  A rect under a CSS transition is asynchronous, and waiting a guessed number of
+  milliseconds is the worse answer
+- **a browser lane must be able to FAIL: gut the thing under test and confirm
+  red.** `bin/falsify.ts` runs this lane for entries that declare it, so the
+  question gets asked every release rather than by a reviewer who happens to look
+
 **One-time setup, and it is NOT in the repo:** `bunx playwright install webkit`. That writes
 ~1 GB into `~/Library/Caches/ms-playwright` (measured 3.2 GB here across three revisions each of
 chromium, headless shell, firefox and webkit) or into `$PLAYWRIGHT_BROWSERS_PATH`. That cache is
@@ -567,6 +599,12 @@ adds no commits, so the attestation still verifies when the tag lands on it.
 directly, so passing the future tag fails with "A branch or tag with the name 'v0.6.0' could
 not be found". The tag/version match is explicitly skipped on a dry run and the version comes
 from `package.json`, so the branch is the right ref to hand it.
+
+**`release:ready` leaves `docs/` dirty, and that residue is DISCARDED, never
+committed.** It runs `test:browser`, which rebuilds `docs/`; `docs/version.json`
+records the building commit and the content-hashed chunk names churn, so `docs/`
+can never be byte-clean at HEAD. `attest.ts` warns, naming the files. Committing
+them is what breaks the next step:
 
 `verifyAttestation` requires HEAD to change **only** `release-attestation.json` and HEAD's
 parent to be the tree the lanes ran on, so any other change in that commit invalidates it —
