@@ -3694,6 +3694,111 @@ describe('the action lozenge', () => {
     expect(getComputedStyle(affordances).display).toBe('none')
   })
 
+  /** Record what the lozenge sends to the system clipboard. */
+  const withClipboard = (): { writes: string[]; reads: number } => {
+    const log = { writes: [] as string[], reads: 0 }
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (t: string) => {
+          log.writes.push(t)
+          return Promise.resolve()
+        },
+        readText: () => {
+          log.reads++
+          return Promise.resolve('PASTED')
+        },
+      },
+    })
+    return log
+  }
+
+  const itemNamed = (el: TosijsStyledEditor, label: string): HTMLElement =>
+    [...lozengeOf(el).querySelectorAll('.touch-lozenge-item')].find(
+      (i) => i.textContent === label
+    ) as HTMLElement
+
+  /** Select the whole of the editor's first paragraph, as a gesture would. */
+  const selectParagraph = (el: TosijsStyledEditor): void => {
+    const p = el.parts.doc.querySelector('p')!
+    el.selectable.removeBounds()
+    p.prepend(el.selectable.createBounds())
+    const start = p.querySelector('.sel-start')!
+    const end = p.querySelector('.sel-end')!
+    p.appendChild(end)
+    void start
+    el.selectable.markBounds()
+  }
+
+  /**
+   * M‑2 from the 0.7.0 review, and the reason the precondition is declared
+   * on the action rather than written inside it: `Cut` carried its own
+   * `if (!text) return` and the `Copy` beside it did not. One rule, two
+   * copies, one drifted — and this copy destroys state OUTSIDE the editor,
+   * which no undo reaches.
+   *
+   * A bare caret really does reach the lozenge: `build()` leaves a collapsed
+   * caret, which is what every tap produces.
+   */
+  test('a tap on a bare caret does not wipe the system clipboard', () => {
+    const el = build()
+    const clip = withClipboard()
+    expect(el.selectable.findAll('.selected').length).toBe(0)
+
+    itemNamed(el, 'Copy').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+    itemNamed(el, 'Cut').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+
+    expect(clip.writes).toEqual([])
+    // And Cut did not delete anything either.
+    expect(el.parts.doc.textContent).toContain('one two three')
+  })
+
+  test('with a selection, Cut and Copy still reach the clipboard', () => {
+    const el = build()
+    selectParagraph(el)
+    const clip = withClipboard()
+
+    itemNamed(el, 'Copy').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+    expect(clip.writes.length).toBe(1)
+    expect(clip.writes[0]).toContain('one two three')
+  })
+
+  /**
+   * M‑1 from the 0.7.0 review. `insertTransfer` is documented as the single
+   * shared choke point for everything entering the document from outside;
+   * the lozenge's Paste inserted a bare text node beside it. With tracking
+   * on that recorded the DELETE half of the gesture and not the INSERT half,
+   * so rejecting restored the original text and left the pasted text next to
+   * it — a document no gesture produces.
+   */
+  test('the lozenge’s Paste is tracked like any other paste', async () => {
+    const el = build()
+    el.trackChanges = true
+    selectParagraph(el)
+    withClipboard()
+
+    itemNamed(el, 'Paste').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+    // `readText()` is a promise; let it settle.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(el.parts.doc.querySelectorAll('tosi-ins').length).toBeGreaterThan(0)
+    expect(el.parts.doc.querySelector('tosi-ins')!.textContent).toBe('PASTED')
+    // The property that matters: rejecting puts the document back, rather
+    // than restoring the original text AND keeping the pasted text.
+    el.rejectChanges()
+    expect(el.parts.doc.textContent).toContain('one two three')
+    expect(el.parts.doc.textContent).not.toContain('PASTED')
+  })
+
   test('condensed: the common actions inline, the rest marked extra', () => {
     const el = build()
     const items = [

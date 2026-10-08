@@ -463,7 +463,7 @@ Two deletions behave specially, because the pedantic version would be noise:
 
   The first three are a cross-block merge while `trackChanges` is on. They stop
   firing if you enable `trackStructuralEdits`, which records those edits instead
-  — see the Component API table; it is off in 0.6.0 and not a supported
+  — see the Component API table; it is off by default and not a supported
   configuration yet.
 
   **Calling `preventDefault()` performs the edit untracked** — if tracking could
@@ -823,7 +823,7 @@ Custom widgets you add follow the same rules and get translated too.
 | `widgets`   | `'none' \| 'minimal' \| 'default'`                  | Attribute — built-in toolbar preset                                   |
 | `localized` | `boolean`                                           | Attribute — translate the built-in widgets and show a language picker |
 | `stickySelection` | `'touch' \| 'always' \| 'never'`                 | When a drag snaps to word boundaries. Default `'touch'`: a finger snaps, a mouse keeps character precision. `'always'` restores pre-0.6.0 mouse behaviour |
-| `trackStructuralEdits` | `boolean` | Record cross-block merges as blocks-out/blocks-in instead of refusing them. **Off in 0.6.0 and not supported** — accepting such a merge resolves wrongly when an outgoing block has nothing to strike. 0.7.0 finishes it |
+| `trackStructuralEdits` | `boolean` | Record cross-block merges as blocks-out/blocks-in instead of refusing them. **Off, and not a supported configuration.** The resolution defect it was held back for in 0.6.0 is fixed in 0.7.0; what gates it now is identity. While a merge is pending the proposal coexists with the originals it supersedes, so every `id` in the merged block answers twice, and who owns an `id` while pending — or inherits it on resolution — is undecided. Turning it on gives you correct STRUCTURE and an undecided identity model; a document with no `id` attributes is believed sound |
 
 ### Change tracking
 

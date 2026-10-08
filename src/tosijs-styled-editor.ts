@@ -4730,20 +4730,33 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
     const actions: Array<{
       label: string
       extra?: boolean
+      /**
+       * Refuses to run on a collapsed caret. ONE copy of the rule, declared
+       * per action and enforced at the single place the buttons are wired —
+       * `Cut` used to carry its own `if (!text) return` and the `Copy` beside
+       * it did not, so one tap on a bare caret called
+       * `clipboard.writeText('')` and wiped the system clipboard. State
+       * destroyed outside the editor, with no undo and no receipt.
+       *
+       * A bare caret does reach the lozenge: `updateTouchAffordances` gates
+       * on a touch interaction plus the existence of the two bounds markers,
+       * and `createBounds()` makes both on every tap.
+       */
+      needsSelection?: boolean
       action: () => void
     }> = [
       {
         label: 'Cut',
+        needsSelection: true,
         action: () => {
-          const text = selectedText()
-          if (!text) return
-          navigator.clipboard.writeText(text)
+          navigator.clipboard.writeText(selectedText())
           this.deleteSelection()
           this.updateUndo('new')
         },
       },
       {
         label: 'Copy',
+        needsSelection: true,
         action: () => {
           navigator.clipboard.writeText(selectedText())
         },
@@ -4752,21 +4765,27 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
         label: 'Paste',
         action: () => {
           navigator.clipboard.readText().then((text) => {
-            if (text) {
-              this.deleteSelection()
-              const ip = this.insertionPoint()
-              if (ip) {
-                ip.before(document.createTextNode(text))
-                this.normalize()
-                this.updateUndo('new')
-              }
-            }
+            if (!text) return
+            // THROUGH `insertTransfer`, which is documented as the single
+            // shared choke point for everything that reaches the document
+            // from outside — it is the only caller of `openInsertion`,
+            // `sanitize` and `restampPastedChanges`, and the only reader of
+            // `pastemode`. Inserting a bare text node here instead recorded
+            // the deletion half of a tracked paste and not the insertion
+            // half, so rejecting restored the original text and left the
+            // pasted text beside it: a document no gesture produces.
+            // Same three lines as `handlePaste`, deliberately.
+            this.deleteSelection()
+            this.insertTransfer(null, text)
+            this.normalize()
+            this.updateUndo('new')
           })
         },
       },
       {
         label: 'Delete',
         extra: true,
+        needsSelection: true,
         action: () => {
           this.deleteSelection()
           this.updateUndo('new')
@@ -4792,7 +4811,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
     ]
 
-    for (const { label, extra, action } of actions) {
+    for (const { label, extra, needsSelection, action } of actions) {
       const btn = document.createElement('button')
       btn.className = `touch-lozenge-item not-selectable${
         extra ? ' -extra' : ''
@@ -4801,6 +4820,10 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       btn.addEventListener('pointerdown', (e) => {
         e.stopPropagation()
         e.preventDefault()
+        if (needsSelection && !selectedText()) {
+          this.collapseLozenge()
+          return
+        }
         action()
         this.collapseLozenge()
       })

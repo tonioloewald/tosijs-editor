@@ -224,6 +224,27 @@ const MUTATIONS: Mutation[] = [
     expect: ['beside the document'],
   },
   {
+    name: 'the lozenge’s Paste goes through the single insertion choke point',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `            this.deleteSelection()
+            this.insertTransfer(null, text)`,
+    replace: `            this.deleteSelection()
+            const ip = this.insertionPoint()
+            if (ip) ip.before(document.createTextNode(text))`,
+    expect: ['Paste is tracked like any other paste'],
+  },
+  {
+    name: 'no lozenge action that needs a selection runs without one',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `        if (needsSelection && !selectedText()) {
+          this.collapseLozenge()
+          return
+        }
+`,
+    replace: ``,
+    expect: ['bare caret does not wipe the system clipboard'],
+  },
+  {
     /**
      * THE ONE THAT WAS MISSING, and the reason this file learned a second
      * lane. `positionLozenge` is what feeds the selection's real rects to
