@@ -1,35 +1,35 @@
 {
-  "version": "0.6.1",
-  "tree": "43dbe83e3d181799eadf68f840770cfe1fb09873",
-  "commit": "8bf02121a43d6b8bafef39d184c6181707bed782",
+  "version": "0.7.0",
+  "tree": "da920e903e6f7cad6fc175bc5bc1524db1c4b16f",
+  "commit": "95879526dae21ec1594d10fac5a6535e491b4bbf",
   "bun": "1.4.2",
   "lanes": {
     "test:browser": {
       "command": "bun bin/test-browser.ts",
       "exitCode": 0,
-      "durationMs": 37961,
-      "tail": "browser-tests/doc-fences.test.ts:\n\n 11 pass\n 0 fail\n 27 expect() calls\nRan 11 tests across 2 files. [36.83s]"
+      "durationMs": 41172,
+      "tail": "browser-tests/doc-fences.test.ts:\n\n 16 pass\n 0 fail\n 82 expect() calls\nRan 16 tests across 3 files. [38.12s]"
     }
   },
   "shipped": {
-    "CHANGELOG.md": "45a0e9ae64ec492d14a47b817f0a8cbdaf162773f41e2fec605a27039d8efd32",
+    "CHANGELOG.md": "0dd435c3de48c151564896f5f383f3fd6d5e6840e3c24a99d559fbacf3c7668b",
     "LICENSE": "0775c96210bab6eb8dfbe2586b7955c5e17a10f47d466a91b5e4d14901ba0466",
     "NOTICE": "6e3067164e731697179f5daeaac558accccb0c5a8a296a49193c95f1a9f30c87",
-    "README.md": "02596eceba8d4c31712665dcbe4f7bda7126e5606ec4bc421b7c01fa330f44cb",
+    "README.md": "ffb49b8d692e094e362df68a3d3e2cb7a48ded946dc4690d36c12cffaf170c3a",
     "SECURITY.md": "017c14e24446605793382c67c325df90e1e88283cd2cae8a228f6d29db93ff35",
     "dist/changes.d.ts": "11ccaf8882cb9578646012d6b4a15d02c9e1aadb9e37cffc259b1c820ed56611",
     "dist/commands.d.ts": "bd1a9ac7e770a1748aeef217994a1a49f738951e4dfb3a60456e650e90c878c5",
     "dist/dom-utils.d.ts": "024f94e27c65e4c976656919d6c12c180611bd8faf33ffda22c76fc2dbb7beca",
     "dist/footnote.d.ts": "6ec9c587a0519dbf8fb33033b0e05da5a4b6a02c8de5237bb18f15f7936d84c3",
     "dist/index.d.ts": "613ca4eb3ae1a664cd4e3d0ecf48280eab8a2588c3715beeb76f18ffe6d08b3c",
-    "dist/index.js": "444ec096ba7a6a5f180d1e2e25ad4e9d17ea5bdc033d7bbba82f9fddc9ab4a2e",
-    "dist/module.js": "cc0241a044af425d6d33111459912d1f475a369adba5b83babae2bd328f40284",
-    "dist/selection.d.ts": "c68cc599fdd106d52838ef0746a84b943527018a7843af309ec1436cb08f2161",
+    "dist/index.js": "d8c3e5f18b839a0ffa1926a3361dab924177768ef758e204338ebc2093eb886e",
+    "dist/module.js": "94ec6745c1dd36d010c02e6dba4e79ca73818605800eeff94f6bfcc54e7baa22",
+    "dist/selection.d.ts": "63ae77bc54de33cbb90225f5518198219a1f0c4127acf63bc8c6a5866f79d4ba",
     "dist/spelling.d.ts": "3c2c8ad1785d74ec74dfec430aa71d812beadab341f0bef75636f6c0bcd176fd",
     "dist/table-utils.d.ts": "08f9559e0a0af75476a21cdf49a401fec0e826dc0a370e91ba691b0782b93cac",
     "dist/toolbar.d.ts": "e8e7d6d911e1a3d98a4b83855186d5b9270e6dffa587a86ccc2e541bb470b050",
-    "dist/tosijs-styled-editor.d.ts": "f3686c8aea17706037c23f4791cbe272f1acb76c264e2b407974648d607f2509",
-    "dist/version.d.ts": "f158bd96a47302baa6246588a98ff720e70a30c17687270672dd2b974d725a7c",
-    "package.json": "53f252992b8f46221c0288bd966af1a28d5f1307f5ddf74cb51a7728f59cfb0f"
+    "dist/tosijs-styled-editor.d.ts": "58573e7f08a5c7f013c14a83e727e868e3b41436af5d564e3b735c4b0475ce5e",
+    "dist/version.d.ts": "ae3ef3fe8342a924ec2031d5bb0fa5d84192b7dc886a8033223790d36079ae78",
+    "package.json": "04c6d2221fd1375b629b9a0932c15e319a5e1dabb3243da056dfc350a47c99d7"
   }
 }
