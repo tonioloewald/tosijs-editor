@@ -12,6 +12,48 @@ quarterly lens had to reconstruct seven reports by hand.
 
 ---
 
+## 0.7.0 — published 2026-10-09
+
+- **A live, user-visible defect was found by the act of taking a screenshot, and by nothing
+  else.** The action lozenge painted a Cut/Copy/Paste bar over every untouched editor's own
+  content, from upgrade until the first click or tap. 424 unit tests, 16 browser tests, the doc
+  fences and two full review rounds were all green through it. Cause: the lozenge was moved out
+  of `.touch-affordances` (so its seven labels stop joining `doc.textContent`) and
+  `display: none` stayed behind with the parent. Nothing caught it because nothing ever looks at
+  an untouched editor — the docs site clicks its own editor on load, and every unit test drives
+  a selection before asserting. The capture was requested for a showcase, not as a check.
+- **The browser lane went blind again, with the precondition that was written to prevent it
+  already in place.** `affordances.test.ts` passed 15/16 with the lozenge's vertical placement
+  replaced by a stub ignoring the selection; all three vertical claims passed. The precondition
+  asked whether the subject EXISTED — it did, a thousand pixels outside the scrolling viewport,
+  so every placement hit the same terminal clamp and "does not overlap the selection" was true
+  of any lozenge at all. The probe also read rects mid-transition, comparing one selection's
+  lines against the previous selection's box. Second time this lane has reported green while
+  measuring the wrong thing (0.6.0 measured the shipped build). Fixed as a mechanism:
+  `bin/falsify.ts` entries may now declare `lane: 'browser'`, so "gut it and confirm red" is
+  asked every release rather than by a reviewer who happens to look.
+- **Three more instances of one rule, several copies** — the family that produced every blocker
+  and major in 0.6.0. The lozenge's missing `display: none`; `Copy` missing the guard `Cut`
+  carries; `syncCaret` and the new `hasSelection` deriving "is anything selected" two ways.
+- **Two of the re-review's findings were mine, and one was a regression inside my own fix.**
+  Gating the lozenge's actions on `selectedText()` asks whether there is TEXT; Delete needs to
+  know whether there is a SELECTION, so lozenge Delete became a silent no-op over a selection of
+  two empty paragraphs — a gesture that worked before the fix. Measured 2→1 unguarded, 2→2
+  guarded, then fixed with `requires: 'text' | 'selection'`. The accompanying CHANGELOG entry
+  also overclaimed: it said the touch/keyboard paste divergence was fixed when only the tracking
+  half was, and the comment I added pointed the next reader away from the one argument that
+  differs (`insertTransfer:4217`, board #3175). Both the fix and its description were verified
+  red-then-green and were still wrong.
+- **The approval window lapsed for the third consecutive release.** Staged 05:47 UTC, approved
+  ~12:20; `verify` skipped, run green with "Verification owed", discharged with
+  `verify_only=true` (published bytes identical to the staged tarball, `latest → 0.7.0`,
+  consumer smoke test green). Three for three makes the 60-minute in-job poll the wrong shape
+  for this project, not an operator slip — it has never once been met.
+- Final: npm 0.7.0, tag `v0.7.0` on the attestation commit `df56e91`. 424 unit tests, 16 browser
+  tests, falsify 30/30, typecheck silent. 19 files / 187.3 kB packed / 665.6 kB unpacked.
+  release-doctor 0 failed / 0 warnings / 1 skipped before tagging; in CI 2 warnings, both the
+  documented `docs/` rebuild churn. Nine board tasks filed: #3170, #3173–#3177, #3187–#3189.
+
 ## 0.6.1 — published 2026-10-08
 
 - **A one-function patch, cut because of how `^0.6.0` resolves.** `>=0.6.0 <0.7.0`, so a patch
