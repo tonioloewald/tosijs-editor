@@ -234,15 +234,29 @@ const MUTATIONS: Mutation[] = [
     expect: ['Paste is tracked like any other paste'],
   },
   {
-    name: 'no lozenge action that needs a selection runs without one',
+    name: 'no lozenge action that writes to the clipboard runs without text',
     file: 'src/tosijs-styled-editor.ts',
-    find: `        if (needsSelection && !selectedText()) {
+    find: `        if (requires === 'text' && !selectedText()) {
           this.collapseLozenge()
           return
         }
 `,
     replace: ``,
     expect: ['bare caret does not wipe the system clipboard'],
+  },
+  {
+    /**
+     * The two questions stay two questions. Gating an EDIT on
+     * `selectedText()` asks whether there is text when it needs to ask
+     * whether there is a selection, and a selection over empty blocks has
+     * none — which made Delete a silent no-op inside the fix for the
+     * mutation above. This mutation is that regression.
+     */
+    name: 'an edit is gated on there being a SELECTION, not on there being text',
+    file: 'src/tosijs-styled-editor.ts',
+    find: `        if (requires === 'selection' && !this.hasSelection()) {`,
+    replace: `        if (requires === 'selection' && !selectedText()) {`,
+    expect: ['contains no text'],
   },
   {
     /**
@@ -369,21 +383,38 @@ if (chosen.length === 0) {
 
 // The tree must be clean: this writes to real source files, and a crash mid-run
 // should never be able to take uncommitted work with it.
-if ((await $`git status --porcelain`.quiet()).stdout.toString().trim()) {
+//
+// `docs/` is EXCLUDED, and that is not a loophole. It is generated, it is the
+// one thing this script rewrites on purpose (a browser mutation rebuilds it,
+// and so does the run's own cleanup), and `docs/version.json` stamps the
+// building commit — so it can never be byte-clean at HEAD. Including it meant
+// the second run in a row refused with "commit or stash first", advice that
+// commits generated churn, which is exactly what invalidates the release
+// attestation. Nothing uncommitted is at risk: `docs/` holds no authored work.
+const dirty = (
+  await $`git status --porcelain -- . :!docs`.quiet()
+).stdout
+  .toString()
+  .trim()
+if (dirty) {
   console.error(
     '🛑 the tree is not clean. This edits source files in place — commit or stash first.'
   )
+  console.error(dirty)
   process.exit(1)
 }
 
 interface Outcome {
   mutation: Mutation
-  verdict: 'caught' | 'SURVIVED' | 'STALE' | 'MISDIRECTED'
+  verdict: 'caught' | 'SURVIVED' | 'STALE' | 'MISDIRECTED' | 'UNRUN'
   detail: string
 }
 
 const outcomes: Outcome[] = []
 let active: { file: string; original: string } | null = null
+
+/** Did any mutation rebuild `docs/` from mutated source? */
+let ranBrowser = false
 
 const restore = (): void => {
   if (active) {
@@ -391,17 +422,27 @@ const restore = (): void => {
     active = null
   }
 }
-process.on('SIGINT', () => {
+/**
+ * `process.exit` does not run the `finally`, so an interrupted run restores
+ * the SOURCE and cannot rebuild `docs/`. Rebuilding here is not an option —
+ * it is a multi-second async build and the process is leaving now — so the
+ * handler says so instead. Silence would be the dangerous outcome: the
+ * residue is a committed Pages web root built from MUTATED source, and it
+ * looks exactly like the routine `docs/` churn the release sequence tells you
+ * to discard.
+ */
+const bailOut = (code: number) => (): void => {
   restore()
-  process.exit(130)
-})
-process.on('SIGTERM', () => {
-  restore()
-  process.exit(143)
-})
-
-/** Did any mutation rebuild `docs/` from mutated source? */
-let ranBrowser = false
+  if (ranBrowser) {
+    console.error(
+      '\n⚠️  interrupted after a browser mutation: docs/ is built from MUTATED source.'
+    )
+    console.error('   Recover with:  git checkout -- docs/ && bun run make')
+  }
+  process.exit(code)
+}
+process.on('SIGINT', bailOut(130))
+process.on('SIGTERM', bailOut(143))
 
 try {
   for (const mutation of chosen) {
@@ -442,6 +483,25 @@ try {
       .split('\n')
       .filter((l) => l.startsWith('(fail)'))
       .join('\n')
+    // A SUITE THAT NEVER RAN IS NOT A MISDIRECTED MUTATION. A non-zero exit
+    // with no `(fail)` line at all means the lane died before any test did:
+    // a port held by another directory, a missing Playwright revision, a
+    // build error. Reported as MISDIRECTED that reads "the named tests may be
+    // vacuous" — accusing the tests of the harness's problem, which is the
+    // exact misdiagnosis `bin/test-browser.ts` exists to prevent, one layer
+    // up. The child's own message is swallowed by `.quiet()`, so print it.
+    if (!redNames) {
+      outcomes.push({
+        mutation,
+        verdict: 'UNRUN',
+        detail: `the suite exited ${run.exitCode} without running a test — this says nothing about the guarantee:\n   ${output
+          .trim()
+          .split('\n')
+          .slice(-4)
+          .join('\n   ')}`,
+      })
+      continue
+    }
     const expected =
       mutation.expect.length === 0 ||
       mutation.expect.some((e) => redNames.includes(e))
@@ -462,13 +522,24 @@ try {
     // built. Leaving that is how a committed web root ends up holding code
     // that is in no commit.
     console.log('\n• rebuilding docs/ from the restored source')
-    await $`bun run make`.nothrow().quiet()
+    const rebuild = await $`bun run make`.nothrow().quiet()
+    if (rebuild.exitCode !== 0) {
+      // Reporting a failed rebuild as a completed one leaves the committed
+      // web root holding mutated code with a reassuring line above it.
+      console.error('🛑 that rebuild FAILED — docs/ still holds mutated code.')
+      console.error('   Recover with:  git checkout -- docs/ && bun run make')
+      console.error(rebuild.stderr.toString().split('\n').slice(-8).join('\n'))
+    }
   }
 }
 
 for (const o of outcomes) {
   const mark =
-    o.verdict === 'caught' ? '✅' : o.verdict === 'STALE' ? '⚠️ ' : '❌'
+    o.verdict === 'caught'
+      ? '✅'
+      : o.verdict === 'STALE' || o.verdict === 'UNRUN'
+        ? '⚠️ '
+        : '❌'
   console.log(`${mark} ${o.mutation.name}`)
   console.log(`   ${o.detail}`)
 }
@@ -479,7 +550,7 @@ console.log(
 )
 if (bad.length) {
   console.log(
-    'A SURVIVOR means the guarantee is unguarded. A STALE mutation means the code moved and this file needs updating — not that the guarantee is safe.'
+    'A SURVIVOR means the guarantee is unguarded. A STALE mutation means the code moved and this file needs updating — not that the guarantee is safe. UNRUN means the SUITE did not run, so the guarantee was never put to the question: fix the harness and run again.'
   )
   process.exit(1)
 }

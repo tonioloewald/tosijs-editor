@@ -3637,6 +3637,8 @@ describe('the action lozenge', () => {
 
   afterEach(() => {
     container.remove()
+    restoreClipboard?.()
+    restoreClipboard = null
   })
 
   const build = (): TosijsStyledEditor => {
@@ -3694,9 +3696,27 @@ describe('the action lozenge', () => {
     expect(getComputedStyle(affordances).display).toBe('none')
   })
 
-  /** Record what the lozenge sends to the system clipboard. */
+  /**
+   * Record what the lozenge sends to the system clipboard — and PUT THE
+   * GLOBAL BACK. `bun test` runs every file in one process and
+   * `test-setup.ts` copies one `navigator` onto `globalThis`, so a stub left
+   * behind is a working fake clipboard for every test that runs after.
+   * Nothing reads it today; board #3175 asks for exactly the test it would
+   * neuter — one stubbing an ABSENT or rejecting clipboard, which would then
+   * pass whatever the code does. `withInternals` in the spelling tests is the
+   * local precedent for a scoped stub.
+   */
+  let restoreClipboard: (() => void) | null = null
   const withClipboard = (): { writes: string[]; reads: number } => {
     const log = { writes: [] as string[], reads: 0 }
+    const had = Object.getOwnPropertyDescriptor(
+      globalThis.navigator,
+      'clipboard'
+    )
+    restoreClipboard = () => {
+      if (had) Object.defineProperty(globalThis.navigator, 'clipboard', had)
+      else delete (globalThis.navigator as { clipboard?: unknown }).clipboard
+    }
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -3755,6 +3775,38 @@ describe('the action lozenge', () => {
     expect(clip.writes).toEqual([])
     // And Cut did not delete anything either.
     expect(el.parts.doc.textContent).toContain('one two three')
+  })
+
+  /**
+   * The regression inside the fix for the test above, caught by the
+   * remediation re-review: gating every guarded action on `selectedText()`
+   * asks whether there is TEXT, and Delete needs to know whether there is a
+   * SELECTION. A selection spanning two empty paragraphs has no text and a
+   * perfectly good block merge to perform; it became a silent no-op.
+   *
+   * `.selected` cannot answer this — it marks leaf-level elements and there
+   * are none here — which is exactly why `hasSelection()` measures the
+   * bounds markers instead.
+   */
+  test('Delete acts on a selection that contains no text', () => {
+    const el = tosijsStyledEditor() as TosijsStyledEditor
+    container.appendChild(el)
+    el.value = '<p></p><p></p>'
+    const ps = el.parts.doc.querySelectorAll('p')
+    el.selectable.removeBounds()
+    ps[0].appendChild(el.selectable.createBounds())
+    ps[1].appendChild(el.parts.doc.querySelector('.sel-end')!)
+    el.selectable.markBounds()
+
+    // The precondition that makes this test about what it says: there is a
+    // selection, and it carries no `.selected` and no text.
+    expect(el.parts.doc.querySelectorAll('.selected').length).toBe(0)
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(2)
+
+    itemNamed(el, 'Delete').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true })
+    )
+    expect(el.parts.doc.querySelectorAll('p').length).toBe(1)
   })
 
   test('with a selection, Cut and Copy still reach the clipboard', () => {

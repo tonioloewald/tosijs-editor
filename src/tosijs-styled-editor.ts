@@ -4717,6 +4717,24 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
    * is two lists that can disagree; here `display: none` is the only
    * difference between the two states, so they cannot.
    */
+  /**
+   * Is anything SELECTED, as opposed to anything selectable being under the
+   * caret? Measured from the bounds markers, because `.selected` is not the
+   * answer: it marks leaf-level elements, so a selection spanning two empty
+   * paragraphs carries none at all while being a real, non-collapsed
+   * selection. (`syncCaret` uses that same `.selected` test to decide the
+   * caret is collapsed, and is wrong in the same case — see board #3187.)
+   */
+  private hasSelection(): boolean {
+    const start = this.parts.doc.querySelector('.sel-start')
+    const end = this.parts.doc.querySelector('.sel-end')
+    if (!start || !end) return false
+    const range = document.createRange()
+    range.setStartAfter(start)
+    range.setEndBefore(end)
+    return !range.collapsed
+  }
+
   private buildLozenge(): HTMLElement {
     const lozenge = document.createElement('div')
     lozenge.className = 'touch-lozenge not-selectable do-not-spanify'
@@ -4731,23 +4749,31 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       label: string
       extra?: boolean
       /**
-       * Refuses to run on a collapsed caret. ONE copy of the rule, declared
-       * per action and enforced at the single place the buttons are wired —
-       * `Cut` used to carry its own `if (!text) return` and the `Copy` beside
-       * it did not, so one tap on a bare caret called
-       * `clipboard.writeText('')` and wiped the system clipboard. State
-       * destroyed outside the editor, with no undo and no receipt.
+       * What this action needs before it will run. ONE declaration per
+       * action, enforced at the single place the buttons are wired — `Cut`
+       * used to carry its own `if (!text) return` and the `Copy` beside it
+       * did not, so one tap on a bare caret called `clipboard.writeText('')`
+       * and wiped the system clipboard. State destroyed outside the editor,
+       * with no undo and no receipt.
        *
        * A bare caret does reach the lozenge: `updateTouchAffordances` gates
        * on a touch interaction plus the existence of the two bounds markers,
        * and `createBounds()` makes both on every tap.
+       *
+       * TWO VALUES, BECAUSE THEY ARE TWO QUESTIONS, and conflating them cost
+       * a regression inside the fix for the paragraph above. `'text'` is what
+       * the clipboard needs — writing `''` is the harm. `'selection'` is what
+       * an edit needs, and a selection can legitimately contain no text: a
+       * selection spanning two EMPTY paragraphs has nothing to copy and a
+       * perfectly good block merge to perform. Gating Delete on text made
+       * that gesture a silent no-op.
        */
-      needsSelection?: boolean
+      requires?: 'text' | 'selection'
       action: () => void
     }> = [
       {
         label: 'Cut',
-        needsSelection: true,
+        requires: 'text',
         action: () => {
           navigator.clipboard.writeText(selectedText())
           this.deleteSelection()
@@ -4756,7 +4782,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
       {
         label: 'Copy',
-        needsSelection: true,
+        requires: 'text',
         action: () => {
           navigator.clipboard.writeText(selectedText())
         },
@@ -4774,7 +4800,12 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
             // the deletion half of a tracked paste and not the insertion
             // half, so rejecting restored the original text and left the
             // pasted text beside it: a document no gesture produces.
-            // Same three lines as `handlePaste`, deliberately.
+            // The same TRACKING choreography as `handlePaste`, deliberately
+            // — and not the same arguments: `handlePaste` passes the HTML
+            // flavour and this passes null, so `insertTransfer` takes its
+            // plain-text branch whatever `pastemode` says. That is the
+            // remaining touch/keyboard divergence, board #3175; do not read
+            // this comment as saying the two paths agree.
             this.deleteSelection()
             this.insertTransfer(null, text)
             this.normalize()
@@ -4785,7 +4816,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       {
         label: 'Delete',
         extra: true,
-        needsSelection: true,
+        requires: 'selection',
         action: () => {
           this.deleteSelection()
           this.updateUndo('new')
@@ -4811,7 +4842,7 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       },
     ]
 
-    for (const { label, extra, needsSelection, action } of actions) {
+    for (const { label, extra, requires, action } of actions) {
       const btn = document.createElement('button')
       btn.className = `touch-lozenge-item not-selectable${
         extra ? ' -extra' : ''
@@ -4820,7 +4851,11 @@ export class TosijsStyledEditor extends WebComponent<EditableParts> {
       btn.addEventListener('pointerdown', (e) => {
         e.stopPropagation()
         e.preventDefault()
-        if (needsSelection && !selectedText()) {
+        if (requires === 'text' && !selectedText()) {
+          this.collapseLozenge()
+          return
+        }
+        if (requires === 'selection' && !this.hasSelection()) {
           this.collapseLozenge()
           return
         }

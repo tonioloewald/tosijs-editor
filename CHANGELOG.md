@@ -104,10 +104,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — the only caller of `openInsertion`, `sanitize` and `restampPastedChanges`,
   and the only reader of `pastemode`. With `trackChanges` on it recorded the
   DELETE half of the gesture and not the INSERT half, so rejecting restored
-  the original text and left the pasted text beside it. It also flattened rich
-  clipboard content and ignored `pastemode`, so paste-by-touch and
-  paste-by-keyboard produced different documents. Present since the touch menu
-  existed; found by the 0.7.0 review.
+  the original text and left the pasted text beside it. Present since the
+  touch menu existed; found by the 0.7.0 review.
+  **The touch path is still plain-text only** — it reads `clipboard.readText()`
+  and hands `insertTransfer` no HTML, so it takes the plain-text branch
+  whatever `pastemode` says, while Cmd-V keeps formatting. Cut and Copy write
+  plain text too, so a cut-and-paste inside one editor loses its formatting.
+  Unchanged by this release and tracked as a defect rather than a design
+  (board #3175).
 - **One tap on a bare caret no longer wipes the system clipboard.** `Copy` had
   no empty-selection guard while the `Cut` beside it did, so it called
   `navigator.clipboard.writeText('')` on a collapsed caret — state destroyed
