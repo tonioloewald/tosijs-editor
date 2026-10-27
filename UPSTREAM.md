@@ -15,6 +15,8 @@ Still open at the time of the move, and none of them closable by this repo:
 | tosijs-ui | the happy-dom preload should ship an `ElementInternals` shim — without `attachInternals()` every `formAssociated` component in the ecosystem is untestable on validity | [#170](https://github.com/tonioloewald/tosijs-ui/issues/170) |
 | tosijs-ui | `IconElement` is the declared return type of every `icons.*` and is exported from no entry point                                                                       | [#176](https://github.com/tonioloewald/tosijs-ui/issues/176) |
 | kilpi     | `SECURITY.md` states no supported release lines, for a package this one pins `^1.0.0` specifically so security fixes propagate                                         | [#1](https://github.com/tonioloewald/kilpi/issues/1)         |
+| tosijs-ui | `drainChild`'s comment describes a `Bun.spawn` pipe deadlock that does not exist — measured 200 MB unread per stream, exits 200ms; the lore is `node:child_process`'s. It caused a false deadlock finding against `bin/test-browser.ts` | [#240](https://github.com/tonioloewald/tosijs-ui/issues/240) |
+| tosijs-ui | a delegated `buildSite` checks pid/root/`outputDir` but not that the server's CONFIG is current, so a site-config edit without a restart builds stale and reports success (CLAUDE.md:94's trap, as a seam)                        | [#241](https://github.com/tonioloewald/tosijs-ui/issues/241) |
 
 **Residual on a closed issue, do not lose:** tosijs [#22](https://github.com/tonioloewald/tosijs/issues/22)
 is closed but its fix is conditional — a member declared `= null` still gets the
