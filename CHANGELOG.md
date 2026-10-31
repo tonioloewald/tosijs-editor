@@ -5,6 +5,47 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **happy-dom 20.14.0 → 21.0.4**, which required **tosijs-ui 1.15.0 → 1.16.41**
+  (1.15.0 peers `happy-dom@^20.7.0` and cannot reach the fix; 1.16.41 peers
+  `^21.0.4`). Clears three advisories in the test runtime, two of them high:
+  [GHSA-834v-8h66-3h79](https://github.com/advisories/GHSA-834v-8h66-3h79)
+  (unsanitized import alias → host code execution, fixed only in 21.0.4),
+  [GHSA-c8p4-j97h-3vg8](https://github.com/advisories/GHSA-c8p4-j97h-3vg8)
+  (SSRF when parsing untrusted HTML) and
+  [GHSA-5fpq-26gf-qwcr](https://github.com/advisories/GHSA-5fpq-26gf-qwcr)
+  (cookie scope forgery).
+  **No released version of this package was affected.** happy-dom is a
+  devDependency and has never been in the published `files`; it is the unit-test
+  runtime, not shipped code. `bun run make` on the previous tree now fails its
+  own audit gate, which is what prompted the upgrade.
+  `tosijs` moved to `^1.10.9` for tosijs-ui's peer. **`peerDependencies` are
+  unchanged** — `tosijs-ui: ^1.13.0` already admits 1.16.41, and nothing here
+  shows consumers need a newer `tosijs`.
+
+### Changed
+
+- `dist/index.js` (the IIFE, which bundles its peers) grows **79.6 → 82.8 kB
+  gzipped, +3.2 kB (+4.0%)** from the tosijs-ui upgrade, measured against a
+  build of the previous tree. **`dist/module.js` is byte-identical** — it leaves
+  `tosijs`, `tosijs-ui` and `tosijs-kilpi` external, so consumers who take the
+  ESM build pay nothing.
+
+### Fixed
+
+- `bin/site.ts --record-sizes` now stamps the version into `dist-sizes.json`.
+  Without it release-doctor's staleness check degrades to "the file exists" and
+  reports PASS while saying staleness is unchecked.
+- The affordance browser lane sized the HOST to 460px and waited for
+  `[part="doc"]` to clear a hardcoded 300px — true only while tosijs-ui's
+  menubar and toolbar stayed under 160px. At 1.16.41 the chrome is ~190px and
+  the lane timed out. The band is now derived from the measured chrome, and the
+  lane additionally asserts the document scrolls, without which top/middle/bottom
+  are one place and every vertical claim is vacuous.
+
 ## [0.7.0] - 2026-10-08
 
 ### Added

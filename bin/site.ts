@@ -96,8 +96,20 @@ async function reportBundleSizes(): Promise<void> {
   // baseline that updates itself on every build can never show a regression,
   // which is the entire point of keeping one.
   if (process.argv.includes('--record-sizes')) {
-    await Bun.write('dist-sizes.json', JSON.stringify(current, null, 2) + '\n')
-    console.log('  baseline recorded in dist-sizes.json')
+    /*
+    STAMP THE VERSION. release-doctor checks the baseline for staleness — a
+    baseline two releases old makes the printed delta cumulative, which reads as
+    a regression nobody introduced — but it can only do that when the file names
+    the version it was recorded at. Without it the check degrades to "the file
+    exists" and reports PASS with the words "staleness is unchecked", which is
+    exactly the shape of a green result that is not evidence.
+    */
+    const { version } = await Bun.file('package.json').json()
+    await Bun.write(
+      'dist-sizes.json',
+      JSON.stringify({ version, ...current }, null, 2) + '\n'
+    )
+    console.log(`  baseline recorded in dist-sizes.json at ${version}`)
   }
 }
 
