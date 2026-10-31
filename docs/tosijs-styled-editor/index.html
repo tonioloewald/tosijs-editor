@@ -1,21 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- NB: the body is NOT hidden until hydration. It used to be (body opacity 0 +
-       a 4s safety-net timeout), because an undefined custom element is
-       display:inline, so the pre-rendered page stacked as bare text and hydration
-       reflowed the whole thing. The cost was a blank screen for as long as the
-       bundle took — ~4.5s on a cheap phone, for content already in the HTML. The
-       tosi-doc-system:not(:defined) rules in the stylesheet now lay the static page
-       out as though the chrome were there, so hydration only ADDS the chrome and
-       nothing moves. Paint immediately; don't hide readable content. -->
-  <!-- Theme, applied BEFORE first paint. Now that we paint the static page rather
-       than hiding it, a dark-mode reader would otherwise get a flash of the light
-       theme until the bundle lands and sets body.darkmode. CSS alone can't do this:
-       an explicit theme choice lives in localStorage. Mirrors applyThemePrefs()
-       (doc-system.ts) — keep the two in step. Fails safe: any error leaves the
-       light default, exactly as before. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>
+    document.documentElement.classList.add('tosi-js')
+    document.addEventListener('click', function (e) {
+      if (customElements.get('tosi-doc-system')) return
+      var b = e.target.closest && e.target.closest('.doc-nav .nav-toggle')
+      if (!b) return
+      var open = b.closest('.nav-branch').classList.toggle('-open')
+      b.setAttribute('aria-expanded', String(open))
+    })
     try {
       var p = JSON.parse(localStorage.getItem('tosi-doc-system-prefs') || '{}')
       var t = p.theme || 'system'
@@ -24,14 +20,13 @@
       if (p.highContrast) document.documentElement.classList.add('high-contrast')
     } catch (e) {}
   </script>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="../doc-system.css?v=841aeda5f848" data-tosi-doc-system />
+  <link rel="stylesheet" href="../doc-system.css?v=02b4b7d5366d" data-tosi-doc-system />
   <title>&lt;tosijs-styled-editor&gt;</title>
   <meta name="description" content="&lt;tosijs-styled-editor&gt; is a rich text editor web component that does not use contentEditable, execCommand, or browser selection/range APIs." />
   <link rel="canonical" href="https://editor.tosijs.net/tosijs-styled-editor/" />
+  <link rel="alternate" type="text/markdown" href="index.md" title="&lt;tosijs-styled-editor&gt; (markdown)" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="tosijs-styled-editor" />
   <meta property="og:title" content="&lt;tosijs-styled-editor&gt;" />
@@ -45,14 +40,14 @@
 <style>tosijs-styled-editor {  --editor-surface: var(--tosi-bg, Canvas);  --editor-text: var(--tosi-text, CanvasText);  height: 100%;  border: 1px solid var(--editor-edge);  border-radius: 6px;  overflow: hidden;}.preview.preview { padding: 0 }</style><script>globalThis.__TJS_LOCAL_BASE="/tjs/"</script>
 </head>
 <body>
-  <tosi-doc-system docs="../docs.json?v=3ebeb73f612e" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;}" localized="../localized-strings.txt">
-  <article class="doc-content">
-<h1><code>&lt;tosijs-styled-editor&gt;</code></h1>
+  <tosi-doc-system docs="../docs.json?v=3ebeb73f612e" config="{&quot;projectName&quot;:&quot;tosijs-styled-editor&quot;,&quot;projectLinks&quot;:{&quot;github&quot;:&quot;https://github.com/tonioloewald/tosijs-editor&quot;},&quot;logo&quot;:&quot;/tosijs-editor.svg&quot;,&quot;ebooks&quot;:[]}" localized="../localized-strings.txt">
+  <article class="doc-content" data-doc="tosijs-styled-editor.ts">
+<h1 id="tosijs-styled-editor"><code>&lt;tosijs-styled-editor&gt;</code></h1>
 <p><code>&lt;tosijs-styled-editor&gt;</code> is a rich text editor web component that <strong>does not use</strong>
 <code>contentEditable</code>, <code>execCommand</code>, or browser selection/range APIs.</p>
 <p>Instead, it manages selection and editing entirely through DOM manipulation,
 giving full control over editing behavior.</p>
-<h2>Usage</h2>
+<h2 id="usage">Usage</h2>
 <pre><code class="language-html">&lt;tosijs-styled-editor widgets=&quot;default&quot; localized&gt;
   &lt;p&gt;Edit this text! Use the 🌐 menu to switch the interface to Suomi.&lt;/p&gt;
   &lt;p&gt;It supports &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;, and more.&lt;/p&gt;
@@ -113,7 +108,7 @@ test(&#39;click position is resolved from real layout&#39;, async () =&gt; {
   expect(stranded.length).toBe(0)
 })
 </code></pre>
-<h2>How It Works</h2>
+<h2 id="how-it-works">How It Works</h2>
 <p>The editor uses three layers:</p>
 <ol>
 <li><strong>DOM utilities</strong> — leaf-node traversal (every operation works with text nodes)</li>
@@ -127,7 +122,7 @@ styled <code>display: contents</code>, so they generate no box and cannot distur
 they sit in. The mobile keyboard is raised by the caret OVERLAY, which is an
 <code>&lt;input part=&quot;caret&quot;&gt;</code> in the shadow root and is the selection&#39;s focus target —
 it sits outside the text flow, so it raises a keyboard without breaking shaping.</p>
-<h2>Commands</h2>
+<h2 id="commands">Commands</h2>
 <p>Commands are invoked via <code>doCommand(commandString)</code>:</p>
 <ul>
 <li><code>setText font-weight bold</code> — style selected characters</li>
@@ -148,6 +143,6 @@ it sits outside the text flow, so it raises a keyboard without breaking shaping.
   </nav>
 
   </tosi-doc-system>
-  <script type="module" src="../hydrate.js?v=841aeda5f848"></script>
+  <script type="module" src="../hydrate-1j8k03s6.js"></script>
 </body>
 </html>

@@ -50,6 +50,9 @@ import { webkit, chromium, type Browser, type Page } from 'playwright'
 
 const URL =
   process.env.AFFORDANCE_URL ?? 'https://localhost:8789/tosijs-styled-editor/'
+
+/** The DOC's visible height the vertical tests are written against. */
+const BAND_PX = 460
 const ENGINE = process.env.ENGINE ?? 'webkit'
 
 /** Where in the document's visible band to put the selection. */
@@ -247,11 +250,11 @@ beforeAll(async () => {
     undefined,
     { timeout: 15000 }
   )
-  await page.evaluate(() => {
+  await page.evaluate((band) => {
     const ed = document.querySelector('tosijs-styled-editor') as any
     // The example's own box is ~170px tall, which is too short for "is there
     // room above or below" to mean anything. Give it a phone-sized band.
-    ed.style.height = '460px'
+    ed.style.height = `${band}px`
     // A document long enough that a selection can be near the top of the
     // band, near the bottom, and in the middle — with scrolling in all three.
     ed.value = Array.from(
@@ -259,18 +262,51 @@ beforeAll(async () => {
       (_, i) =>
         `<p>Paragraph ${i} with enough words in it to wrap across more than one line on a narrow viewport.</p>`
     ).join('')
-  })
+  }, BAND_PX)
+
+  /*
+  Size the HOST so the DOC gets the band, instead of assuming the chrome is small.
+
+  `height` on the host covers menubar + toolbar + doc, and how tall that chrome is
+  belongs to tosijs-ui, not to this repo. This used to set the host to 460px and then
+  wait for the doc to pass a hardcoded 300px — which worked only while the chrome
+  happened to be under 160px. Upgrading tosijs-ui 1.15.0 → 1.16.41 took the chrome to
+  ~190px, the doc landed at 269.8px, and the wait timed out: a lane failure caused
+  entirely by a constant another package owns.
+
+  So measure the chrome and add it on. The assertion afterwards is then about the thing
+  the tests actually need — a doc band of BAND_PX — and it cannot be satisfied by a
+  number that merely used to be true.
+  */
+  await page.evaluate((band) => {
+    const ed = document.querySelector('tosijs-styled-editor') as any
+    const doc = ed.shadowRoot.querySelector('[part="doc"]')
+    const chrome =
+      ed.getBoundingClientRect().height - doc.getBoundingClientRect().height
+    ed.style.height = `${band + chrome}px`
+  }, BAND_PX)
+
   // The height change is a layout change; let the ResizeObserver settle it
   // before anything measures.
   await page.waitForFunction(
-    () => {
+    (band) => {
       const ed = document.querySelector('tosijs-styled-editor') as any
       const doc = ed.shadowRoot.querySelector('[part="doc"]')
-      return doc.getBoundingClientRect().height > 300
+      // Within a pixel of the band we asked for, not merely "big enough".
+      return Math.abs(doc.getBoundingClientRect().height - band) < 2
     },
-    undefined,
+    BAND_PX,
     { timeout: 5000 }
   )
+
+  // And the document must actually SCROLL inside it, or 'top'/'middle'/'bottom'
+  // are the same place and every vertical claim below is vacuous.
+  const scrolls = await page.evaluate(() => {
+    const ed = document.querySelector('tosijs-styled-editor') as any
+    const doc = ed.shadowRoot.querySelector('[part="doc"]')
+    return doc.scrollHeight > doc.clientHeight + 50
+  })
+  if (!scrolls) throw new Error('the doc does not scroll — the band tests would be vacuous')
 }, 120000)
 
 afterAll(async () => {

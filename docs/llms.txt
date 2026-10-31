@@ -10,19 +10,16 @@ Rich text editor web component — no contentEditable, no execCommand, no browse
 
 Full documentation, with live code examples, is at the links below.
 
+Pages below are also available as plain markdown: append `index.md` to the URL
+(for example `/tosijs-styled-editor/index.md`).
+Prefer that if you only need the text. A page marked noindex has no markdown copy.
+
 Live examples run inline on the shared page by default (not sandboxed):
 each has its own `preview` element, but they share one tosijs module, so
 `tosi()` state singletons are shared across every example on a page. This is
 deliberate (it shows tosi isolation and lets you drive demos via the global
 singleton). Namespace example state with unique top-level keys so examples
 don't clobber each other; the `iframe` attribute isolates DOM/CSS, not state.
-
-Running this project locally (`bun start`), the dev server injects a
-localhost-gated dev channel, so an agent can DRIVE the live page with the `hj`
-CLI — `hj navigate`, `hj eval`, `hj tree` — instead of inferring behaviour from
-source. Injected at serve time only, never in the built output. Note that no
-requestAnimationFrame runs under `hj eval`, and tosijs renders are rAF-driven, so
-use it to inspect STATE; a painted-output check needs a real test lane.
 
 ## Pages
 

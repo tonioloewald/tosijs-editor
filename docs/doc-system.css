@@ -14,9 +14,10 @@
   --nav-bg: #edecf1;
   --bar-color: #3e507566;
   --focus-color: #3e5075b3;
-  --placeholder-color: #3e507566;
+  --placeholder-color: #27488c;
   --brand-text-color: #ffffff;
   --inset-bg: #dcd4e8;
+  --code-color: #27488c;
   --code-bg: #fdfdfd;
   --link-color: #1f363a;
   --shadow-color: #0004;
@@ -63,6 +64,14 @@ tosi-doc-system[data-layout="full-screen"] > .doc-nav.doc-nav, tosi-doc-system[d
   display: none;
 }
 
+tosi-doc-system[data-no-header] {
+  --header-height: 0px;
+}
+
+tosi-doc-system[data-no-header]::before, tosi-doc-system[data-no-header] header {
+  display: none;
+}
+
 .darkmode {
   --text-color: #dddddd;
   --brand-color: #536b9c;
@@ -73,9 +82,10 @@ tosi-doc-system[data-layout="full-screen"] > .doc-nav.doc-nav, tosi-doc-system[d
   --nav-bg: #0f0e13;
   --bar-color: #8a9cc166;
   --focus-color: #8a9cc1b3;
-  --placeholder-color: #8a9cc166;
+  --placeholder-color: #647aa6;
   --brand-text-color: #000000;
   --inset-bg: #20172b;
+  --code-color: #7387af;
   --code-bg: #020202;
   --link-color: #c5dbe0;
   --shadow-color: #3e507580;
@@ -172,9 +182,6 @@ tosi-doc-system:not(:defined) .doc-nav {
     overflow: auto;
     background: var(--nav-bg);
     padding: 0;
-  }
-  tosi-doc-system:not(:defined) .doc-nav summary {
-    cursor: pointer;
   }
 }
 
@@ -372,7 +379,7 @@ pre {
 
 pre, code {
   font-family: var(--code-font-family);
-  color: var(--brand-color);
+  color: var(--code-color);
 }
 
 .token.comment, .token.prolog, .token.cdata {
@@ -497,7 +504,7 @@ pre, code {
   color: var(--text-color);
 }
 
-.current, summary:has(.current) {
+.current, .nav-branch-head:has(.current) {
   background: var(--background);
 }
 
@@ -537,6 +544,7 @@ tosi-example [part=editors] {
 
 table {
   border-collapse: collapse;
+  margin: var(--spacing) 0 calc(var(--spacing) * 2) 0;
 }
 
 thead {
@@ -572,26 +580,56 @@ th, td {
   flex-direction: column;
 }
 
-.doc-nav details > ul {
+.doc-nav .nav-branch > ul {
   padding-left: var(--spacing);
 }
 
-.doc-nav details:not([open]) > ul {
+html.tosi-js .doc-nav .nav-branch:not(.-open) > ul, .doc-nav.-live .nav-branch:not(.-open) > ul {
   display: none;
 }
 
-.doc-nav summary {
+.doc-nav .nav-branch-head {
+  display: flex;
+  align-items: flex-start;
+}
+
+.doc-nav .nav-toggle {
+  flex: 0 0 auto;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0px;
+  margin: 0px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
-  padding-left: calc(var(--spacing) * 0.5);
-}
-
-.doc-nav summary::marker {
   color: var(--brand-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  max-height: var(--line-height);
 }
 
-.doc-nav summary > .doc-link {
-  display: inline-block;
-  padding-left: calc(var(--spacing) * 0.5);
+.doc-nav .nav-toggle::before {
+  content: '';
+  border-style: solid;
+  border-color: transparent transparent transparent currentcolor;
+  border-width: 0.3em 0 0.3em 0.5em;
+  transition: transform 0.15s ease-out;
+}
+
+.doc-nav .nav-branch.-open > .nav-branch-head > .nav-toggle::before {
+  transform: rotate(90deg);
+}
+
+html:not(.tosi-js) .doc-nav:not(.-live) .nav-toggle {
+  visibility: hidden;
+}
+
+.doc-nav .nav-branch-head > .doc-link {
+  flex: 1 1 auto;
+  min-width: 0px;
 }
 
 .doc-navbar {
